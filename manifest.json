@@ -1,0 +1,17 @@
+{
+  "name": "FinSight — Monitoring Kredit & Penagihan",
+  "short_name": "FinSight",
+  "description": "Monitoring portofolio kredit, kolektibilitas, risiko gagal bayar, dan WA blast penagihan.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#F8F7FC",
+  "theme_color": "#DB2777",
+  "lang": "id",
+  "icons": [
+    { "src": "./icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "./icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "./icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
