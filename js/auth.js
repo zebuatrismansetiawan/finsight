@@ -86,7 +86,9 @@ const Auth = (() => {
     const r = await Api.call('app.brand', {}, { token: '', publik: true });
     if (!r || !r.success) return;
     const lama = JSON.stringify(App.brand());
-    App.simpanBrand({ nama: r.data.nama || 'FinSight', sub: r.data.sub || 'Business Banking', logo: r.data.logo || '', ukuran: Number(r.data.ukuran) || 34, teks: r.data.teks !== false });
+    const tsLama = App.brand().ts || '';
+    App.simpanBrand({ nama: r.data.nama || 'FinSight', sub: r.data.sub || 'Business Banking', logo: r.data.logo || '', ukuran: Number(r.data.ukuran) || 34, teks: r.data.teks !== false, ts: r.data.ts || '' });
+    if ((r.data.ts || '') !== tsLama && st.langkah === 'LOGIN') { render(); return; }      // Turnstile baru diaktifkan/dimatikan
     const el = $('#lgLogo');
     if (el && JSON.stringify(App.brand()) !== lama) el.innerHTML = logoLogin();
   }
@@ -108,6 +110,7 @@ const Auth = (() => {
         <label class="lg-fld"><span class="sr">NPP</span>${ic('user', 18)}<input id="iNpp" name="username" inputmode="numeric" pattern="\\d{5}" maxlength="5" placeholder="NPP (5 digit angka)" value="${esc(st.npp)}" autocomplete="username" required ${st.npp ? '' : 'autofocus'}></label>
         <label class="lg-fld"><span class="sr">Kata sandi</span>${ic('lock', 18)}<input id="iPw" name="password" type="password" placeholder="Kata sandi" autocomplete="current-password" required ${st.npp ? 'autofocus' : ''}><button type="button" class="eye" data-eye="iPw" aria-label="Tampilkan sandi">${ic('eye', 18)}</button></label>
         <div class="lg-row"><button type="button" class="btn-link sm" data-a="lupa">Lupa kata sandi?</button></div>
+        ${App.brand().ts ? `<div class="lg-ts"><div id="tsBox" aria-label="Verifikasi keamanan Cloudflare"></div><small class="muted">${ic('shield', 12)} Dilindungi Cloudflare Turnstile</small></div>` : ''}
         <button class="btn btn-primary btn-block lg-btn" type="submit">${st.sibuk ? '<span class="spin"></span> Memeriksa…' : 'Masuk'}</button>
       </form>
       <div class="lg-or"><span>Keamanan berlapis</span></div>
@@ -137,7 +140,7 @@ const Auth = (() => {
         <input type="text" name="username" value="${esc(st.npp)}" autocomplete="username" hidden>
         <label class="fld"><span>Kata sandi baru</span><div class="inp-ic">${ic('key', 17)}<input id="iBaru" type="password" autocomplete="new-password" placeholder="Minimal 8 karakter, huruf + angka" autofocus required><button type="button" class="eye" data-eye="iBaru" aria-label="Tampilkan sandi">${ic('eye', 17)}</button></div></label>
         <div class="meter" id="meter"><i></i><i></i><i></i><i></i></div>
-        <label class="fld"><span>Ulangi kata sandi baru</span><div class="inp-ic">${ic('key', 17)}<input id="iUlang" type="password" autocomplete="new-password" placeholder="Ketik ulang" required></div></label>
+        <label class="fld"><span>Ulangi kata sandi baru</span><div class="inp-ic">${ic('key', 17)}<input id="iUlang" type="password" autocomplete="new-password" placeholder="Ketik ulang" required><button type="button" class="eye" data-eye="iUlang" aria-label="Tampilkan sandi">${ic('eye', 17)}</button></div></label>
         <ul class="rules" id="rules"></ul>
         <button class="btn btn-primary btn-block" type="submit" id="bGanti" disabled>${st.sibuk ? '<span class="spin"></span> Menyimpan…' : 'Simpan & lanjutkan ' + ic('arrowright', 17)}</button>
       </form>
@@ -209,7 +212,9 @@ const Auth = (() => {
     app.querySelectorAll('[data-eye]').forEach((b) => b.onclick = () => {
       const i = document.getElementById(b.dataset.eye); i.type = i.type === 'password' ? 'text' : 'password';
       b.innerHTML = ic(i.type === 'password' ? 'eye' : 'eyeoff', 17);
+      b.setAttribute('aria-label', i.type === 'password' ? 'Tampilkan sandi' : 'Sembunyikan sandi');
     });
+    pasangTurnstile();
     app.querySelectorAll('[data-a]').forEach((b) => b.onclick = () => {
       if (b.dataset.a === 'ulang') tampil();
       if (b.dataset.a === 'qrBaru') kirim('auth.qrBaru', { tiket: st.tiket });
@@ -224,8 +229,10 @@ const Auth = (() => {
         const n = npp.value.trim(), pw = $('#iPw').value;
         if (!/^\d{5}$/.test(n)) return salah('NPP harus 5 digit angka.');
         if (!pw) return salah('Masukkan kata sandi.');
+        if (App.brand().ts && !tsToken) return salah('Selesaikan verifikasi keamanan (Cloudflare) terlebih dahulu.');
         st.npp = n; localStorage.setItem('fs_npp_akhir', n);
-        await kirim('auth.login', { npp: n, password: pw });
+        const ts = tsToken; tsToken = '';
+        await kirim('auth.login', Object.assign({ npp: n, password: pw }, ts ? { ts } : {}));
       };
     }
     const fG = $('#fGanti');
@@ -262,6 +269,30 @@ const Auth = (() => {
   }
 
   function salah(m) { st.pesan = m; st.jenis = 'err'; render(); }
+
+  // ---------- v1.3: Cloudflare Turnstile (bila diaktifkan Super Admin) ----------
+  let tsToken = '', tsMuat = null;
+  function muatTurnstile() {
+    if (window.turnstile) return Promise.resolve(window.turnstile);
+    if (tsMuat) return tsMuat;
+    tsMuat = new Promise((ok, gagal) => {
+      const s = document.createElement('script');
+      s.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
+      s.async = true; s.onload = () => ok(window.turnstile); s.onerror = () => { tsMuat = null; gagal(new Error('Verifikasi Cloudflare tidak dapat dimuat. Periksa koneksi.')); };
+      document.head.appendChild(s);
+    });
+    return tsMuat;
+  }
+  function pasangTurnstile() {
+    const box = $('#tsBox'), key = App.brand().ts;
+    if (!box || !key) return;
+    tsToken = '';
+    muatTurnstile().then((t) => {
+      if (!document.body.contains(box)) return;
+      t.render(box, { sitekey: key, language: 'id', theme: 'light', size: 'flexible', action: 'login',
+        callback: (tok) => { tsToken = tok; }, 'expired-callback': () => { tsToken = ''; }, 'error-callback': () => { tsToken = ''; } });
+    }).catch((e) => { box.innerHTML = `<span class="neg sm">${esc(e.message)}</span>`; });
+  }
 
   async function kirim(action, data) {
     st.sibuk = true; st.pesan = ''; render();

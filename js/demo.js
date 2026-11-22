@@ -31,6 +31,8 @@ window.DemoAPI = (() => {
   const bulat = (n, k = 1e5) => Math.round(n / k) * k;
 
   const PT_DEMO = ['PT Minori Pemagang', 'PT Minori SSW', 'PT Aji', 'PT Nagomi', 'PT. Minori SSW', 'pt aji'];
+  const EXT = new Map();          // detail KUR PMI dari "spreadsheet KUR PMI" (simulasi)
+  let sumberPmi = null;
   // ---------- Dataset ----------
   const rows = [];
   let no = 10000;
@@ -58,15 +60,29 @@ window.DemoAPI = (() => {
       if (!lunas && rnd() < 0.015) kl = Math.min(5, Math.max(1, kol + (rnd() < 0.68 ? -1 : 1)));
       const rp = '10' + String(no).padStart(8, '0'), ra = '0' + (2 + (no % 6)) + String((no * 7919) % 100000000).padStart(8, '0');
       const pt = p.kode === 'KUR PMI' ? (rnd() < 0.03 ? '' : PT_DEMO[no % PT_DEMO.length]) : '';
-      // v1.2: kunci debitur (id) = Rek_Pinjaman
-      rows.push([rp, nm, String(ri(1000000, 9999999)), pilih(PIC), wa, wv ? 1 : 0, p.kode, pl, bd, jt, lunas ? 'Lunas' : 'Aktif', kol, sb, sa, an, rnd() < 0.02 ? 1 : 0, pilih(RM), kl, rp, ra, pt, '']);
+      const cif = String(1000000 + no * 3);
+      // v1.3: kunci debitur (id) = CIF (Debitur Umum) / Rek Afil (KUR PMI)
+      const id = p.kode === 'KUR PMI' ? ra : cif;
+      rows.push([id, nm, cif, pilih(PIC), wa, wv ? 1 : 0, p.kode, pl, bd, jt, lunas ? 'Lunas' : 'Aktif', kol, sb, sa, an, rnd() < 0.02 ? 1 : 0, pilih(RM), kl, rp, ra, pt, '', '', '', 0]);
+      if (p.kode === 'KUR PMI') EXT.set(ra, { jw: pilih(['12 bulan', '24 bulan', '36 bulan', '48 bulan']), bt: 'Batch ' + ri(1, 18), ada: rnd() < 0.93 });
     }
   });
   rows.sort((a, b) => (a[0] < b[0] ? 1 : -1));
-  const COLS = ['id', 'nm', 'cif', 'pic', 'wa', 'wv', 'pr', 'pl', 'bd', 'jt', 'st', 'kol', 'sb', 'sa', 'an', 'oo', 'rm', 'kl', 'rp', 'ra', 'pt', 'il'];
+  const COLS = ['id', 'nm', 'cif', 'pic', 'wa', 'wv', 'pr', 'pl', 'bd', 'jt', 'st', 'kol', 'sb', 'sa', 'an', 'oo', 'rm', 'kl', 'rp', 'ra', 'pt', 'il', 'jw', 'bt', 'sx'];
   let ver = String(Date.now()), lver = '1', sver = '1.1.1';
-  const ds = () => ({ cols: COLS, rows, n: rows.length, dibangun: Date.now(), periode: PERIODE, adaBaseline: true, ver });
+  function terapkanSumber() {
+    let tanpa = 0;
+    rows.forEach((r) => {
+      if (r[6] !== 'KUR PMI') return;
+      const x = EXT.get(r[19]);
+      if (sumberPmi && x && x.ada) { r[22] = x.jw; r[23] = x.bt; r[24] = 1; } else { r[22] = ''; r[23] = ''; r[24] = 0; if (sumberPmi) tanpa++; }
+    });
+    return tanpa;
+  }
+  const ds = () => { const t = terapkanSumber(); return { cols: COLS, rows, n: rows.length, dibangun: Date.now(), periode: PERIODE, adaBaseline: true, ver,
+    kunci: { dup: [], nDup: 0, tanpa: [], nTanpa: 0, pmiTanpaSumber: t }, sumberPmi: sumberPmi ? { nama: sumberPmi.nama, n: sumberPmi.n } : null }; };
   const byId = () => { const m = {}; rows.forEach((r) => { m[r[0]] = r; }); return m; };
+  const rpKeId = () => { const m = {}; rows.forEach((r) => { if (r[18]) m[r[18]] = r[0]; }); return m; };
 
   // ---------- Snapshot 6 bulan ----------
   const snap = [];
@@ -99,8 +115,15 @@ window.DemoAPI = (() => {
   let token = { ada: false, samar: '' };
   setting.PERAN_AKSES = JSON.stringify({ RM: ['dashboard', 'kualitas', 'debitur', 'risiko', 'blast', 'log'], Manager: ['dashboard', 'kualitas', 'debitur', 'risiko', 'log'] });
   setting.PMI_PT = JSON.stringify(['PT Minori Pemagang', 'PT Minori SSW', 'PT Aji', 'PT Nagomi']);
+  setting.TURNSTILE_SITEKEY = ''; setting.AKTIVASI_JAM = '72';
   KET.PERAN_AKSES = 'Menu yang boleh dibuka tiap peran'; KET.PMI_PT = 'Daftar PT penempatan debitur KUR PMI';
-  const MENU_PERAN = ['dashboard', 'kualitas', 'debitur', 'risiko', 'blast', 'template', 'log'];
+  KET.TURNSTILE_SITEKEY = 'Site key Cloudflare Turnstile (publik)'; KET.AKTIVASI_JAM = 'Masa berlaku sandi awal (jam)';
+  const KHUSUS = ['PERAN_AKSES', 'PMI_PT', 'TURNSTILE_SITEKEY', 'AKTIVASI_JAM'];
+  let tsSecret = '';
+  // v1.3 — Analisa (format surat & data) disimpan di memori tab ini
+  const surat = [], dataSurat = {};
+  let aver = '1';
+  const MENU_PERAN = ['dashboard', 'kualitas', 'debitur', 'risiko', 'blast', 'template', 'log', 'analisa'];
   const peranAkses = () => { try { return JSON.parse(setting.PERAN_AKSES) || {}; } catch (e) { return {}; } };
   const menuPeran = (p) => (p === 'Admin' ? MENU_PERAN.concat(['pengguna', 'pengaturan']) : (peranAkses()[p] || null) ? peranAkses()[p].concat(['pengaturan']) : []);
   const labelPeran = (p) => (p === 'Admin' ? 'Super Admin' : p);
@@ -121,7 +144,7 @@ window.DemoAPI = (() => {
       for (let i = 0; i < n; i++) {
         const r = pilih(aktif), w = t0.getTime() + i * 4000;
         const st = rnd() < 0.94 ? 'Terkirim' : 'Gagal';
-        logs.push({ id: batch + '-' + pad(i + 1), batch, w, npp: peng, idd: r[0], nm: r[1], tp, st, coba: 1, ket: st === 'Terkirim' ? 'Diterima gateway #' + ri(80000000, 89999999) : pilih(['Nomor tidak terdaftar di WhatsApp', 'Perangkat gateway terputus']), kirim: w + 6000 });
+        logs.push({ id: batch + '-' + pad(i + 1), batch, w, npp: peng, idd: r[18], nm: r[1], tp, st, coba: 1, ket: st === 'Terkirim' ? 'Diterima gateway #' + ri(80000000, 89999999) : pilih(['Nomor tidak terdaftar di WhatsApp', 'Perangkat gateway terputus']), kirim: w + 6000 });
       }
     }
   })();
@@ -176,7 +199,10 @@ window.DemoAPI = (() => {
   // Hak akses rute = sama dengan server: '*' semua peran, 'A' Super Admin saja, ['menu',…] butuh salah satu menu
   const ROLES = {
     'blast.kirim': ['blast'], 'blast.proses': ['blast'], 'blast.batal': ['blast'], 'template.list': ['blast', 'template'], 'template.simpan': ['template'], 'wa.tes': 'A',
-    'user.list': 'A', 'user.simpan': 'A', 'user.reset': 'A', 'user.gantiNpp': 'A', 'peran.simpan': 'A', 'pmi.simpan': 'A', 'setting.get': 'A', 'setting.simpan': 'A', 'rahasia.simpan': 'A', 'snapshot.jalankan': 'A', 'import.run': 'A'
+    'user.list': 'A', 'user.simpan': 'A', 'user.reset': 'A', 'user.gantiNpp': 'A', 'peran.simpan': 'A', 'pmi.simpan': 'A', 'setting.get': 'A', 'setting.simpan': 'A', 'rahasia.simpan': 'A', 'snapshot.jalankan': 'A', 'import.run': 'A',
+    'pmi.sumber.simpan': 'A', 'pmi.sumber.hapus': 'A', 'pmi.sumber.info': 'A', 'keamanan.status': 'A', 'keamanan.simpan': 'A',
+    'analisa.template.list': ['analisa'], 'analisa.template.ambil': ['analisa'], 'analisa.template.simpan': 'A', 'analisa.template.hapus': 'A',
+    'analisa.data.list': ['analisa'], 'analisa.data.impor': ['analisa'], 'analisa.data.hapus': ['analisa'], 'analisa.catat': ['analisa']
   };
   const boleh = (u, a) => { const r = ROLES[a]; if (!r || u.peran === 'Admin') return true; if (r === 'A') return false; const m = menuPeran(u.peran); return r.some((x) => m.includes(x)); };
 
@@ -192,6 +218,7 @@ window.DemoAPI = (() => {
     if (a === 'auth.login') {
       const npp = String(d.npp || ''), u = users.find((x) => x.npp === npp), c = cred()[npp];
       if (!/^\d{5}$/.test(npp)) return fail('NPP harus 5 digit angka.', 'VALIDATION');
+      if (tsSecret && setting.TURNSTILE_SITEKEY && !d.ts) return fail('Selesaikan verifikasi keamanan (Cloudflare) terlebih dahulu.', 'TURNSTILE');
       const cocok = u && u.status === 'Aktif' && (c ? c.pw === d.password : d.password === npp);
       if (!cocok) return fail('NPP atau kata sandi salah.', 'AUTH_FAIL');
       if (!c || c.ch) return ok({ langkah: 'GANTI_SANDI', tiket: tok({ n: npp, s: 'pw', x: Date.now() + 6e5 }), nama: u.nama, pertama: !c });
@@ -206,7 +233,7 @@ window.DemoAPI = (() => {
       if (!c[p.n].t) return ok(await mulai2fa(u), 'Kata sandi berhasil diganti.');
       return ok({ langkah: 'OTP', tiket: tok({ n: p.n, s: 'otp', x: Date.now() + 6e5 }), nama: u.nama }, 'Kata sandi berhasil diganti.');
     }
-    if (a === 'app.brand') return ok({ nama: setting.NAMA_APLIKASI, sub: setting.SUBJUDUL, logo: setting.LOGO_DATA || '', ukuran: +setting.LOGO_UKURAN || 34, teks: setting.LOGO_TEKS !== 'tidak', sver });
+    if (a === 'app.brand') return ok({ nama: setting.NAMA_APLIKASI, sub: setting.SUBJUDUL, logo: setting.LOGO_DATA || '', ukuran: +setting.LOGO_UKURAN || 34, teks: setting.LOGO_TEKS !== 'tidak', sver, ts: tsSecret ? setting.TURNSTILE_SITEKEY : '' });
     if (a === 'auth.qrBaru' || a === 'auth.verifikasi2fa') {
       const p = bacaTok(d.tiket);
       if (!p || p.s !== '2fa') return fail('Langkah login kedaluwarsa. Silakan masuk ulang dari awal.', 'AUTH');
@@ -272,8 +299,8 @@ window.DemoAPI = (() => {
       case 'blast.kirim': {
         const t = tpl.find((x) => x.id === d.templateId && x.aktif);
         if (!t) return fail('Template tidak ditemukan atau nonaktif.', 'VALIDATION');
-        const m = byId(), s0 = hariIniMs();
-        const sudah = new Set(logs.filter((l) => l.w >= s0 && l.st !== 'Gagal' && l.st !== 'Batal').map((l) => l.idd + '|' + l.tp));
+        const m = byId(), s0 = hariIniMs(), alias = rpKeId();
+        const sudah = new Set(logs.filter((l) => l.w >= s0 && l.st !== 'Gagal' && l.st !== 'Batal').map((l) => (alias[l.idd] || l.idd) + '|' + l.tp));
         const siap = [], lewat = [], dup = [];
         (d.ids || []).forEach((id) => {
           const r = m[id];
@@ -290,7 +317,7 @@ window.DemoAPI = (() => {
         const s = statHari();
         if (kirim.length > +setting.WA_KUOTA_HARIAN - s.terkirim - s.antre) return fail('Kuota harian tidak cukup.', 'QUOTA');
         const now = Date.now(), batch = 'BL-' + iso(new Date()).slice(2).replace(/-/g, '') + '-' + Math.random().toString(36).slice(2, 6).toUpperCase();
-        kirim.forEach((id, i) => logs.push({ id: batch + '-' + String(i + 1).padStart(3, '0'), batch, w: now, npp: u.npp, idd: id, nm: m[id][1], tp: t.id, st: 'Antre', coba: 0, ket: '', kirim: 0 }));
+        kirim.forEach((id, i) => logs.push({ id: batch + '-' + String(i + 1).padStart(3, '0'), batch, w: now, npp: u.npp, idd: m[id][18] || id, nm: m[id][1], tp: t.id, st: 'Antre', coba: 0, ket: '', kirim: 0 }));
         lver = String(Date.now());
         return ok({ batchId: batch, antre: kirim.length, dilewati: lewat, mode: setting.WA_MODE }, kirim.length + ' pesan masuk antrean' + (setting.WA_MODE === 'simulasi' ? ' (mode SIMULASI — tidak benar-benar terkirim)' : '') + '.');
       }
@@ -385,11 +412,12 @@ window.DemoAPI = (() => {
         setCred(c);
         return ok(null, d.mode === 'buka' ? 'Kunci akun dibuka.' : d.mode === '2fa' ? 'Authenticator direset. QR baru tampil saat login berikutnya.' : 'Akses direset. Login dengan sandi = NPP.');
       }
-      case 'setting.get': return ok({ setting, keterangan: KET, rahasia: { FONNTE_TOKEN: token }, sistem: { versi: '1.2.0 (demo)', dataVer: ver, spreadsheetUrl: 'https://docs.google.com/spreadsheets/', folderEkspor: '', pemicu: ['onChangeData', 'prosesAntrian', 'warmupCache', 'snapshotHarian'] } });
+      case 'setting.get': return ok({ setting, keterangan: KET, rahasia: { FONNTE_TOKEN: token }, sistem: { versi: '1.3.0 (demo)', dataVer: ver, spreadsheetUrl: 'https://docs.google.com/spreadsheets/', folderEkspor: '', pemicu: ['onChangeData', 'prosesAntrian', 'warmupCache', 'snapshotHarian'] } });
       case 'setting.simpan': {
         const inp = d.setting || {};
         if (inp.LOGO_DATA && (String(inp.LOGO_DATA).length > 48000 || !/^data:image\/(png|jpeg|webp);base64,/.test(inp.LOGO_DATA))) return fail('Logo tidak valid atau terlalu besar. Gunakan PNG/JPG/WEBP — aplikasi otomatis memperkecilnya.', 'VALIDATION');
-        Object.keys(inp).forEach((k) => { if (k in setting && k !== 'PERAN_AKSES' && k !== 'PMI_PT') setting[k] = String(inp[k]); });
+        if (Object.keys(inp).some((k) => KHUSUS.includes(k))) return fail('Pengaturan ini hanya bisa diubah lewat menunya sendiri.', 'VALIDATION');
+        Object.keys(inp).forEach((k) => { if (k in setting && !KHUSUS.includes(k)) setting[k] = String(inp[k]); });
         if ('LOGO_UKURAN' in inp) setting.LOGO_UKURAN = String(Math.max(24, Math.min(80, Math.round(+inp.LOGO_UKURAN) || 34)));
         if ('LOGO_TEKS' in inp) setting.LOGO_TEKS = inp.LOGO_TEKS === 'tidak' ? 'tidak' : 'ya';
         sver = sver + '.'; return ok({ setting }, 'Pengaturan disimpan.');
@@ -400,6 +428,82 @@ window.DemoAPI = (() => {
         return ok({ kunci: 'FONNTE_TOKEN', ada: token.ada, samar: token.samar }, 'Tersimpan.');
       case 'ekspor.pdf': return fail('Di mode demo, gunakan tombol Cetak lalu “Simpan sebagai PDF”.', 'DEMO');
       case 'ekspor.catat': return ok(null);
+      // ----- v1.3: sumber KUR PMI terpisah
+      case 'pmi.sumber.info': return ok(sumberPmi ? { aktif: true, url: sumberPmi.url, sheet: sumberPmi.sheet, nama: sumberPmi.nama, baris: sumberPmi.n, kolom: ['Rek Afil', 'Nama', 'Nama Perusahaan', 'Jangka Waktu', 'Batch'], galat: '', tanpaSumber: terapkanSumber() } : { aktif: false });
+      case 'pmi.sumber.simpan': {
+        const m = String(d.url || '').match(/\/d\/([A-Za-z0-9_-]{20,})/), id = m ? m[1] : String(d.url || '').trim();
+        if (!/^[A-Za-z0-9_-]{20,}$/.test(id)) return fail('Tempel link spreadsheet KUR PMI yang valid.', 'VALIDATION');
+        const n = Array.from(EXT.values()).filter((x) => x.ada).length;
+        sumberPmi = { url: 'https://docs.google.com/spreadsheets/d/' + id + '/edit', sheet: String(d.sheet || '').trim(), nama: 'Data KUR PMI (demo) › ' + (String(d.sheet || '').trim() || 'Sheet1'), n };
+        ver = String(Date.now());
+        return ok({ nama: sumberPmi.nama, baris: n, kolom: ['Rek Afil', 'Nama', 'Nama Perusahaan', 'Jangka Waktu', 'Batch'], ver, tanpaSumber: terapkanSumber() }, 'Spreadsheet KUR PMI terhubung: ' + n + ' baris terbaca.');
+      }
+      case 'pmi.sumber.hapus': sumberPmi = null; ver = String(Date.now()); terapkanSumber(); return ok({ ver }, 'Sumber KUR PMI diputus. Detail kembali dari sheet Debitur.');
+      // ----- v1.3: keamanan
+      case 'keamanan.status': {
+        const ak = users.filter((x) => x.status === 'Aktif');
+        return ok({ gerbang: { aktif: false, lewatSekarang: false, ip: '', negara: '', rahasiaCocok: false },
+          turnstile: { aktif: !!(tsSecret && setting.TURNSTILE_SITEKEY), siteKey: setting.TURNSTILE_SITEKEY, secretAda: !!tsSecret, secretSamar: tsSecret ? tsSecret.slice(0, 4) + '••••••' + tsSecret.slice(-3) : '' },
+          berbagi: [{ jenis: 'Database utama', nama: '🗃️ FinSight — Database (demo)', akses: 'PRIVATE', izin: 'NONE', publik: false, domain: false, editor: 1, pembaca: 0, aman: true },
+            { jenis: 'Folder FinSight', nama: '📁 FinSight', akses: 'PRIVATE', izin: 'NONE', publik: false, domain: false, editor: 1, pembaca: 0, aman: true }],
+          akun: { total: ak.length, superAdmin: ak.filter((x) => x.peran === 'Admin').length, tanpa2fa: ak.filter((x) => keamanan(x.npp) === 'Belum 2FA').map((x) => x.npp), belumAktif: ak.filter((x) => keamanan(x.npp) === 'Belum aktivasi').map((x) => x.npp), kedaluwarsa: [], terkunci: [] },
+          aktivasiJam: +setting.AKTIVASI_JAM || 72, wa: { mode: setting.WA_MODE, tokenAda: token.ada }, sesiJam: +setting.SESI_JAM || 8, log24: { gagalLogin: 0, ditolak: 0 } });
+      }
+      case 'keamanan.simpan': {
+        if (d.aksi === 'turnstile') {
+          if (!/^[0-9A-Za-z_-]{10,100}$/.test(String(d.siteKey || ''))) return fail('Site key Turnstile tidak valid.', 'VALIDATION');
+          if (!d.secret && !tsSecret) return fail('Isi Secret key Turnstile.', 'VALIDATION');
+          setting.TURNSTILE_SITEKEY = String(d.siteKey); if (d.secret) tsSecret = String(d.secret); sver = sver + '.';
+          return ok(null, 'Cloudflare Turnstile aktif di halaman masuk.');
+        }
+        if (d.aksi === 'turnstileOff') { setting.TURNSTILE_SITEKEY = ''; tsSecret = ''; sver = sver + '.'; return ok(null, 'Turnstile dimatikan.'); }
+        if (d.aksi === 'gerbang') return fail('Permintaan ini belum lewat Cloudflare Worker dengan rahasia yang sama. (Mode demo tidak memakai Worker.)', 'VALIDATION');
+        if (d.aksi === 'gerbangOff') return ok(null, 'Gerbang Cloudflare dimatikan.');
+        if (d.aksi === 'aktivasi') { const j = Math.max(1, Math.min(720, Math.round(+d.jam) || 72)); setting.AKTIVASI_JAM = String(j); return ok({ jam: j }, 'Masa berlaku sandi awal: ' + j + ' jam.'); }
+        return fail('Aksi tidak dikenal.', 'VALIDATION');
+      }
+      // ----- v1.3: Analisa
+      case 'analisa.template.list': return ok({ templates: surat.filter((t) => u.peran === 'Admin' || t.aktif).map((t) => ({ id: t.id, nama: t.nama, namaFile: t.namaFile, penanda: t.penanda, ukuran: t.ukuran, aktif: t.aktif, diubah: t.diubah, oleh: t.oleh })), aver, bolehUbah: u.peran === 'Admin' });
+      case 'analisa.template.ambil': { const t = surat.find((x) => x.id === d.id); return t ? ok({ id: t.id, nama: t.nama, namaFile: t.namaFile, diubah: t.diubah, base64: t.base64 }) : fail('Format surat tidak ditemukan.'); }
+      case 'analisa.template.simpan': {
+        const nama = String(d.nama || '').replace(/\s+/g, ' ').trim();
+        if (nama.length < 2 || nama.length > 60) return fail('Nama format surat 2–60 karakter.', 'VALIDATION');
+        let t = d.id ? surat.find((x) => x.id === d.id) : null;
+        if (d.id && !t) return fail('Format surat tidak ditemukan.');
+        if (d.base64) {
+          let bin = ''; try { bin = atob(String(d.base64)); } catch (e) { return fail('File tidak valid.', 'VALIDATION'); }
+          if (bin.length > 5 * 1024 * 1024) return fail('File terlalu besar (maks 5 MB).', 'VALIDATION');
+          if (bin.slice(0, 4) !== 'PK\u0003\u0004' || bin.indexOf('word/document.xml') < 0) return fail('File bukan dokumen Word (.docx) yang valid. Simpan dari Word sebagai "Word Document (.docx)".', 'VALIDATION');
+        } else if (!t) return fail('Unggah file Word (.docx) format surat.', 'VALIDATION');
+        if (!t) { t = { id: 'SRT-' + String(surat.length + 1).padStart(3, '0') }; surat.push(t); }
+        if (d.base64) Object.assign(t, { base64: String(d.base64), namaFile: String(d.namaFile || nama + '.docx'), ukuran: Math.round(String(d.base64).length * 0.75), penanda: (d.penanda || []).map(String) });
+        Object.assign(t, { nama, aktif: d.aktif !== false, diubah: Date.now(), oleh: u.npp + ' ' + u.nama });
+        aver = String(Date.now());
+        return proses({ action: 'analisa.template.list', token: body.token }).then((r) => ok({ id: t.id, templates: r.data.templates }, 'Format surat disimpan.'));
+      }
+      case 'analisa.template.hapus': {
+        const i = surat.findIndex((x) => x.id === d.id); if (i < 0) return fail('Format surat tidak ditemukan.');
+        const n = (dataSurat[d.id] || []).length; const nm = surat[i].nama; surat.splice(i, 1); delete dataSurat[d.id]; aver = String(Date.now());
+        return ok({ dihapus: n }, 'Format surat "' + nm + '" dihapus' + (n ? ' beserta ' + n + ' data suratnya.' : '.'));
+      }
+      case 'analisa.data.list': { if (!surat.find((x) => x.id === d.tpl)) return fail('Format surat tidak ditemukan.'); return ok({ aver, tpl: d.tpl, rows: dataSurat[d.tpl] || [] }); }
+      case 'analisa.data.impor': {
+        const t = surat.find((x) => x.id === d.tpl); if (!t || !t.aktif) return fail('Format surat tidak ditemukan atau nonaktif.');
+        const masuk = Array.isArray(d.rows) ? d.rows : []; if (!masuk.length) return fail('Tidak ada baris data untuk diimpor.', 'VALIDATION');
+        if (masuk.length > 2000) return fail('Maksimal 2000 baris per kiriman.', 'VALIDATION');
+        const L = dataSurat[d.tpl] = d.mode === 'ganti' ? [] : (dataSurat[d.tpl] || []);
+        const dihapus = d.mode === 'ganti' ? 0 : 0, batch = d.batch || 'IMP-DEMO';
+        let n = 0;
+        masuk.forEach((o, i) => { const isi = {}; t.penanda.forEach((f) => { if (o[f] !== undefined && o[f] !== null && String(o[f]).trim() !== '') isi[f] = o[f]; }); if (!Object.keys(isi).length) return; L.push({ id: 'ANL-DEMO-' + Date.now().toString(36) + '-' + i, b: batch, t: Date.now(), o: u.npp + ' ' + u.nama, d: isi }); n++; });
+        aver = String(Date.now());
+        return ok({ ditambah: n, dihapus, batch, dilewati: masuk.length - n }, n + ' data surat diimpor.');
+      }
+      case 'analisa.data.hapus': {
+        const L = dataSurat[d.tpl] || [], set = new Set(d.ids || []); const sisa = d.semua ? [] : L.filter((r) => !set.has(r.id));
+        const n = L.length - sisa.length; dataSurat[d.tpl] = sisa; aver = String(Date.now());
+        return ok({ dihapus: n }, n + ' data surat dihapus.');
+      }
+      case 'analisa.catat': return ok(null);
       case 'import.run': return ok({ sumber: { nama: 'Spreadsheet contoh (demo)', id: 'demo' }, dryRun: d.dryRun !== false, laporan: { Debitur: { sumber: 120, ditambah: 18, diperbarui: 0, dilewati: 102 } }, peringatan: ['Demo: tidak ada data yang benar-benar ditulis.'] }, d.dryRun !== false ? 'Pindai selesai — belum ada data yang ditulis.' : 'Import selesai (demo).');
       default: return fail('Aksi tidak dikenal: ' + a, 'UNKNOWN');
     }

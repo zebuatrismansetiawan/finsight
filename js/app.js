@@ -17,14 +17,14 @@ const S = {
 };
 
 // v1.2: akses menu diatur Super Admin per peran (server = sumber kebenaran, lihat S.akses).
-const MENU_PERAN = ['dashboard', 'kualitas', 'debitur', 'risiko', 'blast', 'template', 'log'];
-const LABEL_MENU = { dashboard: 'Dashboard', kualitas: 'Kualitas Kredit', debitur: 'Daftar Debitur', risiko: 'Penagihan', blast: 'WA Blast', template: 'Template WA', log: 'Log Blast' };
+const MENU_PERAN = ['dashboard', 'kualitas', 'debitur', 'risiko', 'blast', 'template', 'log', 'analisa'];
+const LABEL_MENU = { dashboard: 'Dashboard', kualitas: 'Kualitas Kredit', debitur: 'Daftar Debitur', risiko: 'Penagihan', blast: 'WA Blast', template: 'Template WA', log: 'Log Blast', analisa: 'Analisa' };
 const RUTE_INDUK = { 'debitur-pmi': 'debitur' };              // sub-page mengikuti hak akses induknya
 const labelPeran = (p) => (p === 'Admin' ? 'Super Admin' : p === 'RM' ? 'RM - Relationship Manager' : p || '');
 const MENU = [
   ['dashboard', 'Dashboard', 'dashboard'], ['kualitas', 'Kualitas Kredit (Kol. 1-5)', 'pie'], ['debitur', 'Daftar Debitur', 'users'],
   ['risiko', 'Penagihan', 'alert'], ['blast', 'WA Blast', 'send'], ['template', 'Template WA', 'template'],
-  ['log', 'Log Blast', 'history'], ['pengguna', 'Pengguna & Peran', 'shield'], ['pengaturan', 'Pengaturan', 'settings']
+  ['log', 'Log Blast', 'history'], ['analisa', 'Analisa', 'scroll'], ['pengguna', 'Pengguna & Peran', 'shield'], ['pengaturan', 'Pengaturan', 'settings']
 ];
 const KOL = {
   1: { n: 'Lancar', s: 'L', c: '#16A34A' }, 2: { n: 'Dalam Perhatian Khusus', s: 'DPK', c: '#2563EB' },
@@ -48,9 +48,11 @@ const M = (() => {
         pl: +r[c.pl] || 0, bd: +r[c.bd] || 0, jt: r[c.jt] || '', st: r[c.st], kol: +r[c.kol] || 1, sb: r[c.sb], sa: +r[c.sa] || 0, an: +r[c.an] || 0,
         oo: r[c.oo], rm: r[c.rm] || '', kl: r[c.kl] === null || r[c.kl] === undefined ? null : +r[c.kl],
         rp: c.rp === undefined ? '' : String(r[c.rp] || ''), ra: c.ra === undefined ? '' : String(r[c.ra] || ''),   // v1.1 (data lama: kosong)
-        pt: c.pt === undefined ? '' : String(r[c.pt] || ''), il: c.il === undefined ? '' : String(r[c.il] || '')    // v1.2
+        pt: c.pt === undefined ? '' : String(r[c.pt] || ''), il: c.il === undefined ? '' : String(r[c.il] || ''),   // v1.2
+        jw: c.jw === undefined ? '' : String(r[c.jw] || ''), bt: c.bt === undefined ? '' : String(r[c.bt] || ''), sx: c.sx === undefined ? 0 : +r[c.sx] || 0   // v1.3
       };
-      o.rek = o.rp || o.id;
+      // v1.3: id = CIF (Debitur Umum) / Rek Afil (KUR PMI); nomor rekening pinjaman tetap dari Rek_Pinjaman
+      o.rek = o.rp || o.il || (c.jw === undefined ? o.id : '');
       o.aktif = o.st === 'Aktif';
       o.dd = o.jt ? U.selisihHari(hari, o.jt) : null;
       o.fBlokir = o.aktif && o.an > 0 && (o.sb === null || o.sb === 0);
@@ -58,7 +60,7 @@ const M = (() => {
       o.risiko = o.fBlokir || o.fSaldo;
       o.kurang = o.aktif ? Math.max(0, o.an - o.sa) : 0;
       o.mv = o.aktif && o.kl ? o.kol - o.kl : 0;
-      o.q = (o.id + ' ' + o.nm + ' ' + o.cif + ' ' + o.pic + ' ' + o.pr + ' ' + o.rm + ' ' + o.rp + ' ' + o.ra + ' ' + o.pt + ' ' + o.il).toLowerCase();
+      o.q = (o.id + ' ' + o.nm + ' ' + o.cif + ' ' + o.pic + ' ' + o.pr + ' ' + o.rm + ' ' + o.rp + ' ' + o.ra + ' ' + o.pt + ' ' + o.il + ' ' + o.bt).toLowerCase();
       return o;
     });
   }
@@ -138,7 +140,7 @@ const M = (() => {
 // ============================================================================
 //  APLIKASI
 // ============================================================================
-const VERSI_APP = '1.2.0';   // versi frontend (config.js milik Anda tidak perlu diubah)
+const VERSI_APP = '1.3.0';   // versi frontend (config.js milik Anda tidak perlu diubah)
 const App = (() => {
   const { $, $$, esc, ic } = U;
   let halaman = 'dashboard';
@@ -241,7 +243,7 @@ const App = (() => {
     const st = S.setting || {};
     if (S.me && st.NAMA_APLIKASI !== undefined) {
       return { nama: st.NAMA_APLIKASI || BRAND_DEF.nama, sub: st.SUBJUDUL || BRAND_DEF.sub, logo: logoValid(st.LOGO_DATA) ? st.LOGO_DATA : '',
-        ukuran: Math.max(24, Math.min(80, Number(st.LOGO_UKURAN) || 34)), teks: st.LOGO_TEKS !== 'tidak' };
+        ukuran: Math.max(24, Math.min(80, Number(st.LOGO_UKURAN) || 34)), teks: st.LOGO_TEKS !== 'tidak', ts: st.TURNSTILE_SITEKEY || '' };
     }
     try { const b = Object.assign({}, BRAND_DEF, JSON.parse(localStorage.getItem('fs_brand') || '{}')); if (!logoValid(b.logo)) b.logo = ''; return b; } catch (e) { return Object.assign({}, BRAND_DEF); }
   }
@@ -318,7 +320,7 @@ const App = (() => {
       <main id="view" class="view" tabindex="-1"></main>
       <footer class="foot">
         <span>${esc(st.NAMA_APLIKASI || 'FinSight')} © ${new Date().getFullYear()}${st.NAMA_INSTITUSI ? ' ' + esc(st.NAMA_INSTITUSI) : ''} • Terhubung ke Google Sheets</span>
-        <span class="foot-l"><a href="#" data-g="bantuan">Bantuan</a><a href="#" data-g="privasi">Kebijakan Privasi</a><span class="muted">v${esc(VERSI_APP)}</span></span>
+        <span class="foot-l"><a href="#" data-g="bantuan" class="fl-a">Bantuan</a><a href="#" data-g="privasi" class="fl-b">Kebijakan Privasi</a><span class="muted fl-c">v${esc(VERSI_APP)}</span></span>
       </footer>
     </div>
     ${navBawah()}`;
@@ -342,14 +344,14 @@ const App = (() => {
     el.innerHTML = `<span class="live"><i></i></span><span>Terakhir diperbarui: <b class="tnum">${S.lastSync ? U.jam(S.lastSync) : '—'}</b> <em>(Hampir real-time)</em></span>`;
   }
 
-  /** Floating bottom navigation (HP): Dashboard, Daftar Debitur, [Kualitas Kredit], Penagihan, Keluar. */
+  /** Floating bottom navigation (HP): Dashboard, Daftar Debitur, [Kualitas Kredit], Penagihan, Menu (v1.3). */
   function navBawah() {
     const it = [['dashboard', 'Dashboard', 'dashboard'], ['debitur', 'Debitur', 'users'], ['kualitas', 'Kualitas', 'pie'], ['risiko', 'Penagihan', 'alert']]
       .filter((m) => boleh(m[0]));
     const btn = (m) => m[0] === 'kualitas'
       ? `<a href="#/kualitas" class="bn-i bn-c" data-bn="kualitas" aria-label="Kualitas Kredit"><span class="bn-fab">${ic('pie', 24)}</span><span class="bn-t">Kualitas</span></a>`
       : `<a href="#/${m[0]}" class="bn-i" data-bn="${m[0]}">${ic(m[2], 22)}<span class="bn-t">${m[1]}</span>${m[0] === 'risiko' ? '<i class="bn-dot" id="bnRisk" hidden></i>' : ''}</a>`;
-    return `<nav class="bnav" id="bnav" aria-label="Navigasi utama">${it.map(btn).join('')}<button type="button" class="bn-i" data-g="keluar-bn">${ic('logout', 22)}<span class="bn-t">Keluar</span></button></nav>`;
+    return `<nav class="bnav" id="bnav" aria-label="Navigasi utama">${it.map(btn).join('')}<button type="button" class="bn-i bn-menu" data-g="side-open" aria-label="Buka menu lengkap">${ic('grid', 22)}<span class="bn-t">Menu</span></button></nav>`;
   }
 
   function tandaiNav() {
@@ -357,6 +359,8 @@ const App = (() => {
     $$('.nav-i').forEach((a) => a.classList.toggle('on', a.dataset.nav === induk));
     $$('.nav-s').forEach((a) => a.classList.toggle('on', a.dataset.sub === halaman));
     $$('.bn-i[data-bn]').forEach((a) => a.classList.toggle('on', a.dataset.bn === induk));
+    const bm = $('.bn-menu');
+    if (bm) bm.classList.toggle('on', !$$('.bn-i[data-bn]').some((a) => a.dataset.bn === induk));
     const br = $('#bnRisk');
     if (br && S.D.length) br.hidden = !M.kpi('ALL').risiko;
     const nr = $('#navRisk');
@@ -627,16 +631,27 @@ const App = (() => {
     const d = S.byId[id];
     if (!d) return U.toast('Debitur tidak ditemukan (mungkin sudah dihapus dari sheet).', 'warn');
     const util = d.pl ? d.bd / d.pl * 100 : 0;
-    const riw = S.log ? S.log.rows.filter((r) => r[5] === id || (d.il && r[5] === d.il)).slice(0, 8) : null;
+    const kunciLog = [id, d.rp, d.il].filter(Boolean).map(String);
+    const riw = S.log ? S.log.rows.filter((r) => kunciLog.includes(String(r[5]))).slice(0, 8) : null;
+    const pmi = d.pr === 'KUR PMI';
     const bisaWa = boleh('blast');
     const body = `
       <div class="dt-head"><span class="avatar lg" style="--c:${(S.prodMap[d.pr] || {}).warna || '#64748B'}">${esc(U.inisial(d.nm))}</span>
-        <div><h4>${esc(d.nm)}</h4><div class="muted">Rek ${esc(d.rek)}${d.cif ? ' • CIF ' + esc(d.cif) : ''}${d.pt ? ' • ' + esc(d.pt) : ''}</div>
+        <div><h4>${esc(d.nm)}</h4><div class="muted">${d.rek ? 'Rek ' + esc(d.rek) : ''}${d.cif ? (d.rek ? ' • ' : '') + 'CIF ' + esc(d.cif) : ''}${d.pt ? ' • ' + esc(UI.namaPt(d.pt)) : ''}</div>
         <div class="dt-tags">${UI.prod(d.pr)} ${UI.kol(d.kol)} ${UI.status(d.st)} ${d.oo ? '<span class="pill pill-grey">Opt-out WA</span>' : ''}</div></div></div>
       ${d.risiko ? `<div class="alert alert-neg">${ic('alert', 16)}<div><b>Berisiko gagal bayar</b> — ${d.fBlokir ? 'saldo blokir kosong' : ''}${d.fBlokir && d.fSaldo ? ' & ' : ''}${d.fSaldo ? 'saldo akhir < angsuran' : ''}. Kekurangan ${U.rp(d.kurang)}.</div></div>` : ''}
+      ${pmi ? `<h5 class="dt-sub">Detail KUR PMI ${d.sx ? `<span class="tag pos">${ic('link', 11)} Spreadsheet KUR PMI</span>` : '<span class="tag">Sheet Debitur</span>'}</h5>
+      <div class="dt-grid dt-pmi">
+        <div class="span2"><span>Nama</span><b>${esc(d.nm)}</b></div>
+        <div class="span2"><span>Nama perusahaan (PT)</span><b>${d.pt ? esc(UI.namaPt(d.pt)) : '<span class="muted">Belum diisi</span>'}</b></div>
+        <div><span>Jangka waktu</span><b>${d.jw ? esc(d.jw) : '<span class="muted">—</span>'}</b></div>
+        <div><span>Batch</span><b>${d.bt ? esc(d.bt) : '<span class="muted">—</span>'}</b></div>
+        <div class="span2"><span>Rek afiliasi (kunci)</span><b class="tnum">${d.ra ? esc(d.ra) : '<span class="muted">Belum diisi</span>'}</b></div>
+      </div>
+      ${!d.sx && S.ds && S.ds.sumberPmi ? `<p class="muted sm">${ic('info', 12)} Rek Afil ini belum ditemukan di spreadsheet KUR PMI.</p>` : ''}` : ''}
       <div class="dt-grid">
-        <div><span>Rek pinjaman</span><b class="tnum">${esc(d.rek)}</b></div>
-        <div><span>Rek afiliasi</span><b class="tnum">${d.ra ? esc(d.ra) : '<span class="muted">Belum diisi</span>'}</b></div>
+        <div><span>Rek pinjaman</span><b class="tnum">${d.rek ? esc(d.rek) : '<span class="muted">Belum diisi</span>'}</b></div>
+        ${pmi ? `<div><span>CIF</span><b class="tnum">${d.cif ? esc(d.cif) : '<span class="muted">—</span>'}</b></div>` : `<div><span>Rek afiliasi</span><b class="tnum">${d.ra ? esc(d.ra) : '<span class="muted">Belum diisi</span>'}</b></div>`}
         <div><span>Plafon</span><b class="tnum">${U.rp(d.pl)}</b></div>
         <div><span>Baki debet</span><b class="tnum">${U.rp(d.bd)}</b></div>
         <div class="span2"><span>Utilisasi plafon</span><div class="bar"><i style="width:${Math.min(100, util)}%"></i></div><small class="tnum">${U.pct(util)}</small></div>
@@ -655,7 +670,7 @@ const App = (() => {
       footer: `<button class="btn btn-secondary" data-x="salin">${ic('copy', 16)} Salin No. Rek</button>${bisaWa ? `<button class="btn btn-primary" data-x="wa" ${d.wv && !d.oo && d.aktif ? '' : 'disabled title="Nomor tidak valid / opt-out / lunas"'}>${ic('send', 16)} Kirim WA</button>` : ''}`
     });
     m.el.querySelectorAll('[data-x]').forEach((b) => b.onclick = () => {
-      if (b.dataset.x === 'salin') U.salin(d.rek);
+      if (b.dataset.x === 'salin') U.salin(d.rek || d.ra || d.cif);
       if (b.dataset.x === 'wa') { m.close(); blastKe([d.id], 'Detail debitur'); }
     });
   }
@@ -742,7 +757,6 @@ const App = (() => {
       title: 'Bantuan', size: 'md', body: `<ul class="help">
       <li><b>Pembaruan data</b>: edit langsung di Google Sheets. Aplikasi memeriksa perubahan tiap ${esc(S.setting.POLLING_DETIK || 30)} detik (indikator hijau di atas). Klik indikator untuk cek sekarang.</li>
       <li><b>Pencarian cepat</b>: tekan <kbd>/</kbd> di mana saja.</li>
-      <li><b>Periode</b>: tombol tanggal di atas mengganti periode Dashboard & Kualitas Kredit (periode lalu memakai snapshot akhir bulan).</li>
       <li><b>WA Blast</b>: pesan masuk antrean lalu dikirim bertahap. Debitur opt-out & nomor tidak valid otomatis dilewati.</li>
       <li><b>Keamanan</b>: login memakai NPP + kata sandi + kode Microsoft Authenticator. HP hilang? Minta Admin “Reset 2FA”.</li></ul>`
     });
@@ -754,6 +768,7 @@ const App = (() => {
   function init() {
     U.initTip();
     U.properAuto(document.body);
+    U.mataAuto();                       // v1.3: tombol lihat/sembunyikan di semua kolom kata sandi
     pasangEvent();
     if ('serviceWorker' in navigator && location.protocol === 'https:') {
       navigator.serviceWorker.register('./sw.js').then((reg) => {

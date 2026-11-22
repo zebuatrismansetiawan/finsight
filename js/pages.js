@@ -334,13 +334,14 @@ const PD = () => (App.halaman === 'debitur-pmi' ? Pages['debitur-pmi'] : Pages.d
 Pages.debitur = {
   judul: 'Daftar Debitur',
   mode: 'umum', kunciF: 'deb',
-  f() { return S.f[this.kunciF] = Object.assign({ q: '', pr: '', pt: '', st: 'Aktif', kol: '', jt: '', dari: '', sampai: '', sort: 'jt', dir: 1, hal: 1, per: 10 }, S.f[this.kunciF] || {}); },
+  f() { return S.f[this.kunciF] = Object.assign({ q: '', pr: '', pt: '', bt: '', st: 'Aktif', kol: '', jt: '', dari: '', sampai: '', sort: 'jt', dir: 1, hal: 1, per: 10 }, S.f[this.kunciF] || {}); },
   dasar() { return this.mode === 'pmi' ? S.D.filter((d) => d.pr === KODE_PMI) : S.D.filter((d) => d.pr !== KODE_PMI); },
   petaPt() { const m = {}; UI.daftarPt().forEach((n, i) => { m[UI.normPt(n)] = i; }); return m; },
   data(f) {
     let L = this.dasar();
     const q = (f.q || '').trim().toLowerCase(), h = S.hariIni;
     if (this.mode === 'pmi' && f.pt) { const pt = this.petaPt(); L = L.filter((d) => UI.grupPt(d, pt) === f.pt); }
+    if (this.mode === 'pmi' && f.bt) L = L.filter((d) => (f.bt === '__kosong' ? !d.bt : d.bt === f.bt));
     if (f.pr && this.mode !== 'pmi') L = L.filter((d) => d.pr === f.pr);
     if (f.st) L = L.filter((d) => d.st === f.st);
     if (f.kol) L = L.filter((d) => (f.kol === 'npl' ? d.kol >= 3 : d.kol === +f.kol));
@@ -357,6 +358,7 @@ Pages.debitur = {
     if (f.q) out.push(['Cari: “' + f.q + '”', 'q']);
     if (f.pr && this.mode !== 'pmi') out.push(['Produk: ' + f.pr, 'pr']);
     if (f.pt && this.mode === 'pmi') out.push(['PT: ' + this.namaGrup(f.pt), 'pt']);
+    if (f.bt && this.mode === 'pmi') out.push(['Batch: ' + (f.bt === '__kosong' ? 'belum ada' : f.bt), 'bt']);
     if (f.st) out.push(['Status: ' + f.st, 'st']);
     if (f.kol) out.push([f.kol === 'npl' ? 'Kol. 3–5 (NPL)' : 'Kol. ' + f.kol, 'kol']);
     if (jt) out.push([jt, 'jt']);
@@ -395,11 +397,12 @@ Pages.debitur = {
     let h = UI.head({ crumb: ['Portofolio Kredit', 'Daftar Debitur', pmi ? 'Debitur KUR PMI' : 'Debitur Umum'], title: pmi ? 'Debitur KUR PMI' : 'Daftar Debitur',
       sub: pmi ? 'Debitur KUR Pekerja Migran Indonesia, dikelompokkan per PT penempatan.' : 'Pencarian, pemfilteran komprehensif, dan ekspor data debitur portofolio (selain KUR PMI).', actions });
     h += this.subNav();
-    if (pmi) h += this.chipsPt(f);
+    h += this.bannerKunci();
+    if (pmi) h += this.infoSumber() + this.chipsPt(f);
     h += `<div class="card fbar col">
       <div class="fgrid${pmi ? ' pmi' : ''}">
         <div class="inp-ic f4">${ic('search', 16)}<input type="search" id="debQ" data-act="q" placeholder="Cari nama, rek, CIF, kontak, no. HP…  (tekan /)" value="${esc(f.q)}"></div>
-        ${pmi ? '' : UI.prodSelect(f.pr, 'pr', 'Semua Produk', [KODE_PMI])}
+        ${pmi ? this.pilihBatch(f) : UI.prodSelect(f.pr, 'pr', 'Semua Produk', [KODE_PMI])}
         <select class="sel" data-act="st"><option value="">Semua Status</option><option value="Aktif" ${f.st === 'Aktif' ? 'selected' : ''}>Status: Aktif</option><option value="Lunas" ${f.st === 'Lunas' ? 'selected' : ''}>Status: Lunas</option></select>
         <select class="sel" data-act="kol"><option value="">Semua Kol (1–5)</option>${[1, 2, 3, 4, 5].map((k) => `<option value="${k}" ${String(f.kol) === String(k) ? 'selected' : ''}>Kol. ${k} (${KOL[k].n})</option>`).join('')}<option value="npl" ${f.kol === 'npl' ? 'selected' : ''}>Kol. 3–5 (NPL)</option></select>
         <select class="sel" data-act="jt"><option value="">Semua jatuh tempo</option><option value="lewat" ${f.jt === 'lewat' ? 'selected' : ''}>Lewat jatuh tempo</option><option value="7" ${f.jt === '7' ? 'selected' : ''}>≤ 7 hari ke depan</option><option value="30" ${f.jt === '30' ? 'selected' : ''}>≤ 30 hari ke depan</option><option value="bulan" ${f.jt === 'bulan' ? 'selected' : ''}>Bulan ini</option><option value="rentang" ${f.jt === 'rentang' ? 'selected' : ''}>Rentang tanggal…</option></select>
@@ -442,16 +445,44 @@ Pages.debitur = {
           ${kirim ? `<button class="btn btn-sm btn-secondary" data-act="blastSel" ${S.sel.deb.size ? '' : 'disabled'}>${ic('send', 14)} Blast terpilih (${U.num(S.sel.deb.size)})</button>` : ''}
           <button class="btn btn-sm btn-secondary" data-act="cetak">${ic('print', 14)} Cetak</button></div>
         ${L.length ? `<div class="tbl-wrap"><table class="tbl tbl-deb"><thead><tr>${kirim ? '<th class="c w1"><span class="sr">Pilih</span></th>' : ''}
-          ${UI.th('Entitas / Kontak', 'nm', f, 'stick-h')}${UI.th('Rek Pinjaman', 'rp', f)}${UI.th('Rek Afil', 'ra', f)}${pmi ? UI.th('PT Penempatan', 'pt', f) : UI.th('Produk', 'pr', f, 'c')}${UI.th('Plafon', 'pl', f, 'num')}${UI.th('Baki Debet', 'bd', f, 'num')}${UI.th('Angsuran', 'an', f, 'num')}${UI.th('Saldo Blokir', 'sb', f, 'num')}${UI.th('Saldo Akhir', 'sa', f, 'num')}${UI.th('Jatuh Tempo', 'jt', f)}${UI.th('Kol. OJK', 'kol', f, 'c')}${UI.th('Status', 'st', f, 'c')}<th class="c">Aksi</th></tr></thead><tbody>
+          ${UI.th('Entitas / Kontak', 'nm', f, 'stick-h')}${UI.th('Rek Pinjaman', 'rp', f)}${UI.th('Rek Afil', 'ra', f)}${pmi ? UI.th('PT Penempatan', 'pt', f) + UI.th('Batch', 'bt', f) + UI.th('Jangka Waktu', 'jw', f) : UI.th('Produk', 'pr', f, 'c')}${UI.th('Plafon', 'pl', f, 'num')}${UI.th('Baki Debet', 'bd', f, 'num')}${UI.th('Angsuran', 'an', f, 'num')}${UI.th('Saldo Blokir', 'sb', f, 'num')}${UI.th('Saldo Akhir', 'sa', f, 'num')}${UI.th('Jatuh Tempo', 'jt', f)}${UI.th('Kol. OJK', 'kol', f, 'c')}${UI.th('Status', 'st', f, 'c')}<th class="c">Aksi</th></tr></thead><tbody>
           ${rows.map((d) => `<tr class="${d.aktif ? '' : 'row-off'} ${S.sel.deb.has(d.id) ? 'row-sel' : ''}">${kirim ? `<td class="c"><input type="checkbox" data-act="sel" data-id="${esc(d.id)}" ${S.sel.deb.has(d.id) ? 'checked' : ''} aria-label="Pilih ${esc(d.nm)}"></td>` : ''}
             <td class="stick"><div class="ent"><span class="avatar xs" style="--c:${UI.warnaProd(d.pr)}">${esc(U.inisial(d.nm))}</span><div><button class="lnk" data-detail="${esc(d.id)}"><b>${esc(d.nm)}</b></button><small class="muted">${ic('phone', 11, d.wv ? 'pos' : 'neg')} ${esc(d.wa || 'tidak valid')}${d.pic ? ' • ' + esc(d.pic) : ''}${d.oo ? ' • <span class="neg">opt-out</span>' : ''}</small></div></div></td>
-            <td class="rek tnum">${esc(d.rek)}</td><td class="rek tnum">${esc(d.ra)}</td>
-            ${pmi ? `<td class="pt-cell"${d.pt && UI.namaPt(d.pt) !== d.pt ? ` title="Tertulis di data: ${esc(d.pt)}"` : ''}>${d.pt ? esc(UI.namaPt(d.pt)) : '<span class="muted">Belum diisi</span>'}</td>` : `<td class="c">${UI.prod(d.pr)}</td>`}<td class="num muted">${U.rpS(d.pl)}</td><td class="num b ${d.kol === 5 ? 'neg' : ''}">${U.rpS(d.bd)}</td><td class="num">${U.rpS(d.an)}</td>
+            <td class="rek tnum">${d.rek ? esc(d.rek) : '<span class="muted">—</span>'}</td><td class="rek tnum">${esc(d.ra)}</td>
+            ${pmi ? `<td class="pt-cell"${d.pt && UI.namaPt(d.pt) !== d.pt ? ` title="Tertulis di data: ${esc(d.pt)}"` : ''}>${d.pt ? esc(UI.namaPt(d.pt)) : '<span class="muted">Belum diisi</span>'}</td><td class="nw">${d.bt ? esc(d.bt) : '<span class="muted">—</span>'}</td><td class="nw">${d.jw ? esc(d.jw) : '<span class="muted">—</span>'}</td>` : `<td class="c">${UI.prod(d.pr)}</td>`}<td class="num muted">${U.rpS(d.pl)}</td><td class="num b ${d.kol === 5 ? 'neg' : ''}">${U.rpS(d.bd)}</td><td class="num">${U.rpS(d.an)}</td>
             <td class="num ${d.fBlokir ? 'neg b' : ''}">${d.sb === null || d.sb === undefined ? (d.aktif ? '<span class="neg">Kosong</span>' : '') : U.rpS(d.sb)}</td><td class="num ${d.fSaldo ? 'neg b' : ''}">${U.rpS(d.sa)}</td>
             <td><b class="dt">${U.tgl2(d.jt)}</b>${UI.jtInfo(d)}</td><td class="c">${d.aktif ? UI.kol(d.kol, true) : ''}</td><td class="c">${UI.status(d.st)}</td>
             <td class="c"><div class="acts">${kirim && d.aktif ? `<button class="btn-icon sm pos" data-wa="${esc(d.id)}" title="Kirim WA" ${d.wv && !d.oo ? '' : 'disabled'}>${ic('chat', 15)}</button>` : ''}<button class="btn-icon sm" data-detail="${esc(d.id)}" title="Detail">${ic('eye', 15)}</button></div></td></tr>`).join('')}
           </tbody></table></div>${UI.pager(L.length, f.hal, f.per)}` : App.kosong('search', 'Tidak ada debitur yang cocok', 'Ubah kata kunci atau reset filter.')}
       </div>`;
+  },
+  /** v1.3: daftar batch KUR PMI (dari spreadsheet KUR PMI) untuk filter. */
+  pilihBatch(f) {
+    const { esc } = U;
+    const n = {}; let kosong = 0;
+    this.dasar().forEach((d) => { if (d.bt) n[d.bt] = (n[d.bt] || 0) + 1; else kosong++; });
+    const ks = Object.keys(n).sort((a, b) => a.localeCompare(b, 'id', { numeric: true }));
+    if (!ks.length) return `<select class="sel" data-act="bt" disabled><option>Batch (belum ada data)</option></select>`;
+    return `<select class="sel" data-act="bt" aria-label="Filter batch"><option value="">Semua Batch</option>${ks.map((k) => `<option value="${esc(k)}" ${f.bt === k ? 'selected' : ''}>${esc(k)} (${U.num(n[k])})</option>`).join('')}${kosong ? `<option value="__kosong" ${f.bt === '__kosong' ? 'selected' : ''}>Batch belum ada (${U.num(kosong)})</option>` : ''}</select>`;
+  },
+  /** v1.3: keterangan sumber detail KUR PMI (spreadsheet terpisah). */
+  infoSumber() {
+    const { esc, ic } = U;
+    const sp = S.ds && S.ds.sumberPmi, admin = S.me.peran === 'Admin';
+    const nP = S.D.filter((d) => d.pr === KODE_PMI).length, nS = S.D.filter((d) => d.pr === KODE_PMI && d.sx).length;
+    if (!sp) return admin ? `<div class="alert alert-info">${ic('link', 16)}<div>Detail KUR PMI (Nama, Nama Perusahaan, Jangka Waktu, Batch) masih dari sheet Debitur. <a href="#" data-act="aturSumber">Hubungkan spreadsheet KUR PMI</a> agar diambil otomatis lewat Rek Afil.</div></div>` : '';
+    return `<div class="card src-bar">${ic('link', 16, 'pos')}<span>Detail KUR PMI dari <b>${esc(sp.nama)}</b> — cocok lewat Rek Afil: <b class="tnum">${U.num(nS)}</b> dari ${U.num(nP)} debitur${nP - nS ? ` • <span class="warn">${U.num(nP - nS)} belum ditemukan</span>` : ''}</span>${admin ? `<a href="#" class="lnk-a" data-act="aturSumber">${ic('settings', 14)} Atur</a>` : ''}</div>`;
+  },
+  /** v1.3: peringatan kunci ganda / kosong (CIF untuk Debitur Umum, Rek Afil untuk KUR PMI) — Super Admin. */
+  bannerKunci() {
+    const { esc, ic } = U;
+    const k = S.ds && S.ds.kunci;
+    if (!k || S.me.peran !== 'Admin' || (!k.nDup && !k.nTanpa)) return '';
+    const dup = k.dup.slice(0, 4).map((x) => `baris ${x.baris} (${esc(x.kunci === 'CIF' ? 'CIF' : 'Rek Afil')} ${esc(x.nilai)} sama dengan baris ${x.sama})`).join('; ');
+    const tanpa = k.tanpa.slice(0, 4).map((x) => `baris ${x.baris}${x.nama ? ' “' + esc(x.nama) + '”' : ''}`).join(', ');
+    return `<div class="alert alert-warn kunci-bar">${ic('alertc', 16)}<div><b>Periksa kunci data di sheet Debitur.</b>
+      ${k.nDup ? `<br>${U.num(k.nDup)} baris diabaikan karena kunci ganda (1 CIF / 1 Rek Afil = 1 debitur): ${dup}${k.nDup > 4 ? ', …' : ''}.` : ''}
+      ${k.nTanpa ? `<br>${U.num(k.nTanpa)} debitur belum punya kunci (CIF untuk Debitur Umum, Rek_Afiliasi untuk KUR PMI) — sementara memakai Rek Pinjaman: ${tanpa}${k.nTanpa > 4 ? ', …' : ''}.` : ''}</div></div>`;
   },
   /** Spesifikasi laporan = format tabel di aplikasi (dipakai Excel, PDF & Cetak). */
   laporan() {
@@ -483,6 +514,8 @@ Pages.debitur = {
     unf: (el) => { const f = PD().f(); f[el.dataset.k] = ''; f.hal = 1; App.render({ tetap: true }); },
     reset: () => { S.f[PD().kunciF] = { st: '' }; App.render({ tetap: true }); },
     pt: (el) => { const f = PD().f(); f.pt = el.dataset.v; f.hal = 1; App.render({ tetap: true }); },
+    bt: (el) => { const f = PD().f(); f.bt = el.value; f.hal = 1; PD().segar(); },
+    aturSumber: (el, e) => { if (e) e.preventDefault(); S.f.set = Object.assign(S.f.set || {}, { tab: 'pmi' }); App.go('pengaturan'); },
     kelolaPt: (el, e) => { if (e) e.preventDefault(); S.f.set = Object.assign(S.f.set || {}, { tab: 'pmi' }); App.go('pengaturan'); },
     sort: (el) => { const f = PD().f(); const k = el.dataset.k; f.dir = f.sort === k ? -f.dir : (['pl', 'bd', 'an', 'kol'].includes(k) ? -1 : 1); f.sort = k; PD().segar(); },
     hal: (el) => { PD().f().hal = +el.dataset.v; PD().segar(); document.getElementById('debArea').scrollIntoView({ block: 'start', behavior: 'smooth' }); },
@@ -1189,7 +1222,7 @@ Pages.pengaturan = {
     const f = S.f.set || (S.f.set = { tab: 'profil' });
     if (!f.tab) f.tab = 'profil';
     if (!admin) f.tab = 'profil';
-    const tabs = [['profil', 'Profil & Keamanan', 'user']].concat(admin ? [['umum', 'Umum', 'settings'], ['logo', 'Logo Aplikasi', 'image'], ['pmi', 'Mitra KUR PMI', 'plane'], ['gateway', 'Gateway WA', 'send'], ['sinkron', 'Sinkronisasi & Data', 'cloud'], ['impor', 'Import Data', 'upload']] : []);
+    const tabs = [['profil', 'Profil & Keamanan', 'user']].concat(admin ? [['umum', 'Umum', 'settings'], ['logo', 'Logo Aplikasi', 'image'], ['pmi', 'Mitra KUR PMI', 'plane'], ['keamanan', 'Keamanan Sistem', 'shieldalert'], ['gateway', 'Gateway WA', 'send'], ['sinkron', 'Sinkronisasi & Data', 'cloud'], ['impor', 'Import Data', 'upload']] : []);
     let h = UI.head({ crumb: ['Administrasi', 'Pengaturan'], title: 'Pengaturan', sub: admin ? 'Profil, keamanan akun, konfigurasi aplikasi, gateway WA, dan migrasi data.' : 'Profil dan keamanan akun Anda.' });
     h += `<div class="set-wrap"><nav class="set-nav">${tabs.map((t) => `<button class="${f.tab === t[0] ? 'on' : ''}" data-act="tab" data-v="${t[0]}">${ic(t[2], 17)}<span>${t[1]}</span></button>`).join('')}</nav><div class="set-body">`;
     if (admin && f.tab !== 'profil' && !S.adminSet) h += '<div class="card pad"><span class="spin"></span> Memuat pengaturan…</div>';
@@ -1199,6 +1232,78 @@ Pages.pengaturan = {
   async mount(root) {
     pasangAksi(root, this);
     if (S.me.peran === 'Admin' && !S.adminSet) await this.muat();
+    const tab = (S.f.set || {}).tab;
+    if (S.me.peran === 'Admin' && S.adminSet && tab === 'pmi' && !this.src && !this._srcMuat) this.muatSumber();
+    if (S.me.peran === 'Admin' && S.adminSet && tab === 'keamanan' && !this.kam && !this._kamMuat) this.muatKeamanan();
+  },
+  async muatSumber() {
+    this._srcMuat = true;
+    const r = await Api.call('pmi.sumber.info', {});
+    this._srcMuat = false;
+    this.src = r.success ? r.data : { aktif: false, galat: r.message };
+    // ganti kartu sumber saja (jangan render ulang seluruh tab — daftar PT yang sedang diketik tetap utuh)
+    const el = document.getElementById('srcCard');
+    if (el) el.outerHTML = this.kartuSumber();
+    else if (App.halaman === 'pengaturan' && (S.f.set || {}).tab === 'pmi') App.render({ tetap: true });
+  },
+  async muatKeamanan() {
+    this._kamMuat = true;
+    const r = await Api.call('keamanan.status', {});
+    this._kamMuat = false;
+    this.kam = r.success ? r.data : { galat: r.message };
+    if (App.halaman === 'pengaturan') App.render({ tetap: true });
+  },
+  /** v1.3: spreadsheet KUR PMI terpisah (Nama, Nama Perusahaan, Jangka Waktu, Batch, Rek Afil). */
+  kartuSumber() {
+    const { esc, ic } = U;
+    const s = this.src;
+    if (!s) return `<div class="card pad-l" id="srcCard"><h3>Sumber detail KUR PMI</h3><p class="muted"><span class="spin"></span> Memeriksa…</p></div>`;
+    return `<div class="card pad-l" id="srcCard"><h3>${ic('link', 18)} Sumber detail KUR PMI (spreadsheet terpisah)</h3>
+      <p class="muted">Nama, Nama Perusahaan, Jangka Waktu, dan Batch debitur KUR PMI diambil dari spreadsheet lain, dicocokkan lewat <b>Rek Afil</b>. Baki debet, saldo, kol & jatuh tempo tetap dari sheet Debitur. Spreadsheet hanya <b>dibaca</b>.</p>
+      ${s.aktif ? `<div class="src-st ${s.galat ? 'bad' : 'ok'}">${ic(s.galat ? 'alertc' : 'ok', 18)}<div><b>${s.galat ? 'Tidak dapat dibaca' : esc(s.nama)}</b>
+          <small>${s.galat ? esc(s.galat) : `${U.num(s.baris)} baris • kolom: ${(s.kolom || []).map(esc).join(', ')}${s.tanpaSumber ? ` • <span class="warn">${U.num(s.tanpaSumber)} debitur KUR PMI belum ditemukan</span>` : ' • semua debitur KUR PMI cocok'}`}</small></div>
+          <a class="lnk-a" href="${esc(s.url)}" target="_blank" rel="noopener noreferrer">Buka ${ic('ext', 13)}</a></div>` : `<div class="src-st">${ic('info', 18)}<div><b>Belum terhubung</b><small>Detail KUR PMI saat ini dari kolom sheet Debitur (PT_PMI).</small></div></div>`}
+      <div class="form-g g2 mt">
+        <label class="fld"><span>Link spreadsheet KUR PMI</span><input id="srcUrl" placeholder="https://docs.google.com/spreadsheets/d/…/edit" value="${esc(s.aktif ? s.url : '')}" autocomplete="off"><small class="muted">Akun pemilik Apps Script harus punya akses (minimal pembaca).</small></label>
+        <label class="fld"><span>Nama sheet (opsional)</span><input id="srcSheet" placeholder="Kosong = sheet pertama" value="${esc(s.sheet || '')}" maxlength="100"><small class="muted">Kolom wajib: Rek Afil. Kolom lain: Nama, Nama Perusahaan, Jangka Waktu, Batch.</small></label>
+      </div>
+      <div class="card-f"><span class="muted">${ic('info', 14)} Perubahan di spreadsheet KUR PMI terbaca otomatis ±5 menit.</span><div class="row-g">${s.aktif ? `<button class="btn btn-danger-soft" data-act="srcPutus">${ic('unlink', 16)} Putuskan</button>` : ''}<button class="btn btn-primary" data-act="srcSimpan">${ic('link', 16)} ${s.aktif ? 'Perbarui' : 'Hubungkan'}</button></div></div></div>`;
+  },
+  /** v1.3: Keamanan sistem — Cloudflare (Turnstile & gerbang Worker), berbagi Drive, akun. */
+  tab_keamanan() {
+    const { esc, ic } = U;
+    const k = this.kam;
+    if (!k) return `<div class="card pad"><span class="spin"></span> Memeriksa keamanan…</div>`;
+    if (k.galat) return `<div class="alert alert-neg">${ic('alertc', 16)}<div>${esc(k.galat)}</div></div>`;
+    const item = (ok, judul, ket, warn) => `<li class="${ok ? 'ok' : warn ? 'warn' : 'bad'}">${ic(ok ? 'ok' : warn ? 'alertc' : 'xcircle', 18)}<div><b>${judul}</b><small>${ket}</small></div></li>`;
+    const a = k.akun;
+    const cek = [
+      ...k.berbagi.map((b) => item(!!b.aman, esc(b.jenis) + (b.nama ? ' — ' + esc(b.nama) : ''), b.galat ? esc(b.galat) : b.publik ? '<b>Dibagikan ke siapa saja yang punya link!</b> Ubah berbagi di Google Drive menjadi "Dibatasi".' : b.domain ? 'Dibagikan ke seluruh domain organisasi. Sebaiknya "Dibatasi".' : `Dibatasi • ${U.num(b.editor)} editor, ${U.num(b.pembaca)} pembaca — pastikan hanya orang yang berwenang.`, !b.publik)),
+      item(k.gerbang.aktif, 'Gerbang Cloudflare Worker', k.gerbang.aktif ? 'Aktif — URL Apps Script tidak bisa dipakai langsung; permintaan dibatasi per IP.' : 'Belum aktif. Disarankan: blokir bot, batasi tebak sandi per IP, sembunyikan URL Apps Script.', true),
+      item(k.turnstile.aktif, 'Cloudflare Turnstile di halaman masuk', k.turnstile.aktif ? 'Aktif — login wajib lolos verifikasi Cloudflare.' : 'Belum aktif. Menahan robot penebak sandi.', true),
+      item(a.superAdmin <= 3, 'Jumlah Super Admin', U.num(a.superAdmin) + ' akun Super Admin aktif' + (a.superAdmin > 3 ? ' — kurangi bila tidak perlu.' : '.'), true),
+      item(!a.tanpa2fa.length, 'Authenticator (2FA)', a.tanpa2fa.length ? U.num(a.tanpa2fa.length) + ' akun belum menyelesaikan 2FA: ' + a.tanpa2fa.map(esc).join(', ') : 'Semua akun aktif memakai authenticator.', true),
+      item(!a.kedaluwarsa.length, 'Sandi awal (= NPP)', a.belumAktif.length ? `${U.num(a.belumAktif.length)} akun belum aktivasi (berlaku ${k.aktivasiJam} jam sejak dibuat/direset)${a.kedaluwarsa.length ? '; ' + U.num(a.kedaluwarsa.length) + ' sudah kedaluwarsa: ' + a.kedaluwarsa.map(esc).join(', ') + ' — Reset akses bila masih dipakai' : ''}.` : 'Tidak ada akun yang masih memakai sandi awal.', true),
+      item(!(k.wa.mode === 'fonnte' && !k.wa.tokenAda), 'Gateway WhatsApp', k.wa.mode === 'fonnte' ? (k.wa.tokenAda ? 'Mode kirim sungguhan, token tersimpan di Script Properties.' : 'Mode kirim tanpa token!') : 'Mode simulasi.', true),
+      item(k.log24.gagalLogin < 20, 'Aktivitas 24 jam', `${U.num(k.log24.gagalLogin)} gagal login, ${U.num(k.log24.ditolak)} akses ditolak (lihat Audit_Log).`, true)
+    ];
+    const t = k.turnstile, g = k.gerbang;
+    return `<div class="card pad-l"><div class="row-g sb"><h3>${ic('shieldalert', 18)} Pemeriksaan keamanan</h3><button class="btn btn-secondary btn-sm" data-act="kamSegar">${ic('refresh', 15)} Periksa ulang</button></div>
+        <ul class="kam-list">${cek.join('')}</ul>
+        <p class="muted sm">${ic('info', 13)} Data tersimpan di Google Sheets milik akun Anda dan hanya diakses lewat Apps Script ("Execute as: Me"). Browser tidak pernah membuka spreadsheet langsung. Lindungi akun Google pemilik dengan verifikasi 2 langkah.</p></div>
+      <div class="card pad-l"><h3>${ic('fingerprint', 18)} Cloudflare Turnstile (halaman masuk)</h3>
+        <p class="muted">Buat widget di dasbor Cloudflare → Turnstile → <b>Add widget</b> (hostname: domain aplikasi Anda). Tempel Site key & Secret key di sini. Secret disimpan di Script Properties dan tidak pernah dikirim ke browser.</p>
+        <div class="form-g g2"><label class="fld"><span>Site key</span><input id="tsSite" value="${esc(t.siteKey || '')}" placeholder="0x4AAAAAAA…" autocomplete="off"></label>
+          <label class="fld"><span>Secret key ${t.secretAda ? `<em class="muted">(tersimpan: ${esc(t.secretSamar)})</em>` : ''}</span><input id="tsSecret" type="password" placeholder="${t.secretAda ? 'Kosongkan bila tidak diubah' : '0x4AAAAAAA…'}" autocomplete="off"></label></div>
+        <div class="card-f"><span class="muted">${ic('info', 14)} Bila halaman masuk bermasalah, jalankan <code>matikanTurnstile</code> dari editor Apps Script.</span><div class="row-g">${t.aktif ? `<button class="btn btn-danger-soft" data-act="tsOff">Matikan</button>` : ''}<button class="btn btn-primary" data-act="tsSimpan">${ic('check', 16)} ${t.aktif ? 'Simpan' : 'Aktifkan Turnstile'}</button></div></div></div>
+      <div class="card pad-l"><h3>${ic('cloud', 18)} Gerbang Cloudflare Worker</h3>
+        <p class="muted">Semua permintaan aplikasi lewat Cloudflare: hanya dari alamat aplikasi Anda, dibatasi per IP, ukuran dibatasi, dan URL Apps Script tersembunyi. Ikuti panduan bagian <b>Cloudflare</b> (berkas <code>worker.js</code>).</p>
+        <div class="src-st ${g.lewatSekarang ? 'ok' : ''}">${ic(g.lewatSekarang ? 'ok' : 'info', 18)}<div><b>${g.aktif ? 'Gerbang aktif' : g.rahasiaCocok ? 'Aplikasi sudah lewat Worker — siap diaktifkan' : 'Aplikasi belum lewat Worker'}</b><small>${g.lewatSekarang ? 'Permintaan ini lewat Cloudflare' + (g.ip ? ' • IP ' + esc(g.ip) : '') + (g.negara ? ' • ' + esc(g.negara) : '') : 'GAS_URL di js/config.js masih menunjuk langsung ke Apps Script.'}</small></div></div>
+        ${g.aktif ? '' : `<ol class="kam-steps"><li>Buat rahasia acak: <button class="btn btn-secondary btn-sm" data-act="gwAcak">${ic('dice', 14)} Buat rahasia</button> lalu salin.</li><li>Pasang <code>worker.js</code> di Cloudflare; isi variabel <code>GAS_URL</code>, <code>ALLOWED_ORIGINS</code>, dan secret <code>GATEWAY_SECRET</code> (rahasia di atas).</li><li>Ganti <code>GAS_URL</code> di <code>js/config.js</code> ke alamat Worker, push, muat ulang aplikasi.</li><li>Tempel rahasia yang sama di bawah → <b>Aktifkan gerbang</b>.</li></ol>`}
+        <div class="row-g">${g.aktif ? '' : `<input id="gwSecret" type="password" class="grow" placeholder="Rahasia gerbang (≥ 32 karakter)" autocomplete="off"><button class="btn btn-primary" data-act="gwAktif">${ic('lock', 16)} Aktifkan gerbang</button>`}${g.aktif ? `<button class="btn btn-danger-soft" data-act="gwOff">Matikan gerbang</button>` : ''}</div>
+        <p class="muted sm">${ic('info', 13)} Darurat (Worker bermasalah): jalankan <code>matikanGerbang</code> dari editor Apps Script, lalu kembalikan GAS_URL ke URL /exec.</p></div>
+      <div class="card pad-l"><h3>${ic('key', 18)} Masa berlaku sandi awal</h3><p class="muted">Sandi awal (= NPP) hanya berlaku sekian jam sejak akun dibuat atau direset. Setelah itu wajib Reset akses — mencegah orang lain mengaktifkan akun yang belum dipakai.</p>
+        <div class="row-g"><input id="aktJam" type="number" min="1" max="720" value="${esc(k.aktivasiJam)}" style="max-width:120px"><span class="muted">jam</span><button class="btn btn-primary" data-act="aktSimpan">${ic('check', 16)} Simpan</button></div></div>`;
   },
   async muat() {
     const r = await Api.call('setting.get', {});
@@ -1248,7 +1353,7 @@ Pages.pengaturan = {
         <button class="btn-icon sm" data-act="pmiHapus" data-i="${i}" title="Hapus">${ic('trash', 15)}</button></div>`).join('')}</div>
       <button class="btn btn-secondary btn-sm mt" data-act="pmiTambah">${ic('plus', 15)} Tambah PT</button>
       ${Object.keys(lain).length ? `<div class="alert alert-warn mt">${ic('info', 16)}<div>Nilai <code>PT_PMI</code> yang belum terdaftar: ${Object.keys(lain).map((k) => `<b>${esc(k)}</b> (${lain[k]})`).join(', ')}. Tambahkan ke daftar atau perbaiki di sheet.</div></div>` : ''}
-      <div class="card-f"><span class="muted">${ic('info', 14)} ${ubah ? '<b class="warn">Ada perubahan yang belum disimpan.</b>' : 'Mengganti nama PT juga memperbarui kolom PT_PMI debitur terkait di sheet.'}</span><div class="row-g">${ubah ? `<button class="btn btn-ghost" data-act="pmiBatal">Batal</button>` : ''}<button class="btn btn-primary" data-act="pmiSimpan" ${ubah ? '' : 'disabled'}>${ic('check', 16)} Simpan daftar PT</button></div></div></div>`;
+      <div class="card-f"><span class="muted">${ic('info', 14)} ${ubah ? '<b class="warn">Ada perubahan yang belum disimpan.</b>' : 'Mengganti nama PT juga memperbarui kolom PT_PMI debitur terkait di sheet.'}</span><div class="row-g">${ubah ? `<button class="btn btn-ghost" data-act="pmiBatal">Batal</button>` : ''}<button class="btn btn-primary" data-act="pmiSimpan" ${ubah ? '' : 'disabled'}>${ic('check', 16)} Simpan daftar PT</button></div></div></div>` + this.kartuSumber();
   },
   tab_logo() {
     const { esc, ic } = U;
@@ -1455,6 +1560,65 @@ Pages.pengaturan = {
       U.toast(r.message, r.success ? 'ok' : 'err');
     },
     pindai: (el) => Pages.pengaturan.impor(true, el),
-    impor: (el) => Pages.pengaturan.impor(false, el)
+    impor: (el) => Pages.pengaturan.impor(false, el),
+    // ----- v1.3: sumber KUR PMI
+    srcSimpan: async (el) => {
+      const url = document.getElementById('srcUrl').value.trim(), sheet = document.getElementById('srcSheet').value.trim();
+      if (!url) return U.toast('Tempel link spreadsheet KUR PMI.', 'warn');
+      el.disabled = true; const lbl = el.innerHTML; el.innerHTML = '<span class="spin"></span> Membaca…';
+      const r = await Api.call('pmi.sumber.simpan', { url, sheet }, { timeout: 90000 });
+      el.disabled = false; el.innerHTML = lbl;
+      if (!r.success) return U.toast(r.message, 'err', 7000);
+      U.toast(r.message, 'ok', 5000);
+      await App.muatData(false);
+      await Pages.pengaturan.muatSumber();
+    },
+    srcPutus: async () => {
+      if (!(await U.konfirmasi({ title: 'Putuskan spreadsheet KUR PMI?', body: 'Detail KUR PMI kembali diambil dari sheet Debitur. Spreadsheet KUR PMI tidak diubah.', ok: 'Putuskan' }))) return;
+      const r = await Api.call('pmi.sumber.hapus', {});
+      if (!r.success) return U.toast(r.message, 'err');
+      U.toast(r.message, 'ok'); await App.muatData(false); await Pages.pengaturan.muatSumber();
+    },
+    // ----- v1.3: keamanan sistem
+    kamSegar: () => { Pages.pengaturan.kam = null; App.render({ tetap: true }); },
+    tsSimpan: async (el) => {
+      const siteKey = document.getElementById('tsSite').value.trim(), secret = document.getElementById('tsSecret').value.trim();
+      el.disabled = true;
+      const r = await Api.call('keamanan.simpan', { aksi: 'turnstile', siteKey, secret });
+      el.disabled = false;
+      if (!r.success) return U.toast(r.message, 'err');
+      S.setting.TURNSTILE_SITEKEY = siteKey; App.simpanBrand(); App.simpanLokal();
+      U.toast(r.message, 'ok'); Pages.pengaturan.kam = null; App.render({ tetap: true });
+    },
+    tsOff: async () => {
+      if (!(await U.konfirmasi({ title: 'Matikan Turnstile?', body: 'Halaman masuk tidak lagi memakai verifikasi Cloudflare.', ok: 'Matikan', bahaya: true }))) return;
+      const r = await Api.call('keamanan.simpan', { aksi: 'turnstileOff' });
+      if (!r.success) return U.toast(r.message, 'err');
+      S.setting.TURNSTILE_SITEKEY = ''; App.simpanBrand(); App.simpanLokal();
+      U.toast(r.message, 'ok'); Pages.pengaturan.kam = null; App.render({ tetap: true });
+    },
+    gwAcak: async () => {
+      const b = crypto.getRandomValues(new Uint8Array(32));
+      const v = Array.from(b).map((x) => 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789-_'[x % 58]).join('') + Array.from(crypto.getRandomValues(new Uint8Array(16))).map((x) => x.toString(16).padStart(2, '0')).join('');
+      const i = document.getElementById('gwSecret'); if (i) { i.value = v; i.type = 'text'; }
+      U.salin(v);
+    },
+    gwAktif: async (el) => {
+      const secret = document.getElementById('gwSecret').value.trim();
+      el.disabled = true;
+      const r = await Api.call('keamanan.simpan', { aksi: 'gerbang', secret });
+      el.disabled = false;
+      if (!r.success) return U.toast(r.message, 'err', 9000);
+      U.toast(r.message, 'ok', 6000); Pages.pengaturan.kam = null; App.render({ tetap: true });
+    },
+    gwOff: async () => {
+      if (!(await U.konfirmasi({ title: 'Matikan gerbang Cloudflare?', body: 'URL Apps Script kembali bisa dipanggil langsung (tanpa pembatasan per IP).', ok: 'Matikan', bahaya: true }))) return;
+      const r = await Api.call('keamanan.simpan', { aksi: 'gerbangOff' });
+      U.toast(r.message, r.success ? 'ok' : 'err'); Pages.pengaturan.kam = null; App.render({ tetap: true });
+    },
+    aktSimpan: async () => {
+      const r = await Api.call('keamanan.simpan', { aksi: 'aktivasi', jam: document.getElementById('aktJam').value });
+      U.toast(r.message, r.success ? 'ok' : 'err'); if (r.success) { Pages.pengaturan.kam = null; App.render({ tetap: true }); }
+    }
   }
 };

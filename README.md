@@ -10,6 +10,7 @@ Selama masih `GANTI_...`, aplikasi berjalan dalam **mode demo** (data fiktif; ak
 ## Struktur
 ```
 index.html        manifest.json      sw.js (service worker PWA)
+vercel.json       header keamanan (Vercel)   _headers  header keamanan (Cloudflare Pages/Netlify)
 css/style.css
 js/config.js      URL backend (publik, bukan rahasia)
 js/api.js         klien REST (POST text/plain, dedupe, batch, retry)
@@ -18,11 +19,13 @@ js/pages.js       halaman: Dashboard, Kualitas Kredit, Debitur (Umum & KUR PMI),
 js/auth.js        halaman masuk, login NPP + ganti sandi + QR Microsoft Authenticator (sekali pakai, 3 menit)
 js/qr.js          pembuat QR lokal (rahasia TOTP tidak dikirim ke layanan luar)
 js/laporan.js     tampilan laporan seragam untuk Excel, PDF & Cetak
+js/surat.js       mesin surat Word (.docx): penanda {{…}}, pratinjau, import .xlsx/.csv
+js/analisa.js     halaman Analisa
 js/xlsx.js        pembuat Excel bergaya di browser   js/charts.js  grafik SVG   js/icons.js  ikon Lucide (ISC)
 js/demo.js        backend tiruan, hanya dimuat di mode demo
 icons/            ikon PWA
 ```
 
 ## Keamanan
-Tidak ada rahasia di repository ini. Token gateway, hash sandi, dan rahasia TOTP hanya ada di Script Properties backend.
+Tidak ada rahasia di repository ini. Content-Security-Policy ada di index.html (bila memakai Cloudflare Worker di domain sendiri, tambahkan domainnya di connect-src). Token gateway, hash sandi, dan rahasia TOTP hanya ada di Script Properties backend.
 Panduan lengkap: `PANDUAN-INSTALASI.md`.

@@ -204,9 +204,11 @@ ${ring.length ? `<table class="ring"><tr>${ring.map((r) => `<td><div class="kl">
     const k = [
       { h: 'No', t: 'no' },
       { h: 'Entitas / Kontak', t: 'ent', x: (d) => d.nm + '\n' + kontak(d), p: (d) => ({ v: d.nm, l2: kontak(d) }) },
-      { h: 'Rek Pinjaman', t: 'rek', x: (d) => d.rek },
+      { h: 'Rek Pinjaman', t: 'rek', x: (d) => d.rek || '' },
       { h: 'Rek Afil', t: 'rek', x: (d) => d.ra || '' },
       opsi.pt ? { h: 'PT Penempatan', t: 'teks', w: 20, x: (d) => (d.pt ? UI.namaPt(d.pt) : 'Belum diisi'), p: (d) => (d.pt ? UI.namaPt(d.pt) : { v: 'Belum diisi', c: 'mut' }) } : { h: 'Produk', t: 'prod', x: (d) => d.pr },
+      opsi.pt ? { h: 'Batch', t: 'teks', w: 11, x: (d) => d.bt || '' } : null,
+      opsi.pt ? { h: 'Jangka Waktu', t: 'teks', w: 12, x: (d) => d.jw || '' } : null,
       { h: 'Plafon', t: 'rp', sum: true, x: (d) => d.pl },
       { h: 'Baki Debet', t: 'rp', sum: true, x: (d) => d.bd, p: (d) => ({ v: U.rpS(d.bd), c: 'b' + (d.kol === 5 ? ' neg' : '') }) },
       { h: 'Angsuran', t: 'rp', sum: true, x: (d) => d.an },
@@ -216,7 +218,7 @@ ${ring.length ? `<table class="ring"><tr>${ring.map((r) => `<td><div class="kl">
       { h: 'Jatuh Tempo', t: 'tgl', x: (d) => d.jt, p: (d) => ({ v: d.jt ? U.tgl2(d.jt) : '', l2: jtTeks(d) }) },
       { h: 'Kol. OJK', t: 'kol', x: (d) => (d.aktif ? d.kol : '') },
       { h: 'Status', t: 'status', x: (d) => d.st }
-    ];
+    ].filter(Boolean);
     return k;
   }
   function jtTeks(d) {

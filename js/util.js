@@ -215,8 +215,42 @@ const U = (() => {
     }).observe(root, { childList: true, subtree: true });
   }
 
+  // ---------- v1.3: tombol lihat/sembunyikan untuk SEMUA kolom kata sandi ----------
+  // Kolom yang sudah punya tombol sendiri (data-eye, mis. halaman masuk) dilewati.
+  function pasangMata(root) {
+    (root || document).querySelectorAll('input[type=password]:not([data-mata-ok])').forEach((inp) => {
+      inp.setAttribute('data-mata-ok', '1');
+      const p = inp.parentElement;
+      if (!p || p.querySelector('[data-eye]')) return;
+      const w = document.createElement('span');
+      w.className = 'pw-wrap' + (inp.classList.contains('grow') ? ' grow' : '');
+      p.insertBefore(w, inp); w.appendChild(inp);
+      const b = document.createElement('button');
+      b.type = 'button'; b.className = 'pw-eye'; b.setAttribute('data-mata', '');
+      b.setAttribute('aria-label', 'Tampilkan kata sandi'); b.setAttribute('aria-pressed', 'false'); b.title = 'Tampilkan';
+      b.innerHTML = ic('eye', 17);
+      w.appendChild(b);
+    });
+  }
+  function mataAuto() {
+    pasangMata(document);
+    new MutationObserver((ms) => { if (ms.some((m) => m.addedNodes.length)) pasangMata(document); }).observe(document.body, { childList: true, subtree: true });
+    document.addEventListener('click', (e) => {
+      const b = e.target.closest('[data-mata]');
+      if (!b) return;
+      e.preventDefault(); e.stopPropagation();
+      const i = b.parentElement.querySelector('input');
+      const lihat = i.type === 'password';
+      i.type = lihat ? 'text' : 'password';
+      b.innerHTML = ic(lihat ? 'eyeoff' : 'eye', 17);
+      b.setAttribute('aria-label', lihat ? 'Sembunyikan kata sandi' : 'Tampilkan kata sandi');
+      b.setAttribute('aria-pressed', String(lihat)); b.title = lihat ? 'Sembunyikan' : 'Tampilkan';
+      i.focus({ preventScroll: true });
+    }, true);
+  }
+
   return {
-    proper: (t) => properTeks(String(t || ''), { awal: true }), properAuto,
+    proper: (t) => properTeks(String(t || ''), { awal: true }), properAuto, mataAuto, pasangMata,
     $, $$, esc, ic, num, dec, rp, rpS, rpParts, pct, tgl, tgl2, periodeLabel, jam, tglJam, isoLokal, selisihHari,
     tambahHari, periodeGeser, debounce, inisial, unduh, b64ToBlob, salin, toast, modal, konfirmasi, initTip, BLN, BULAN
   };
