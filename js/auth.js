@@ -14,22 +14,70 @@ const Auth = (() => {
     render();
   }
 
+  /** Panel kiri berwarna (desain mengikuti contoh, disesuaikan identitas FinSight). Ilustrasi = SVG orisinal. */
   function sisi() {
-    return `<div class="lg-brand">
-      <div class="lg-logo" id="lgLogo">${logoLogin()}</div>
-      <h1>Monitoring portofolio kredit & penagihan dalam satu layar.</h1>
-      <ul class="lg-feat">
-        <li>${ic('pie', 18)} Kualitas kredit Kol. 1–5 & pergerakannya, hampir real-time</li>
-        <li>${ic('alert', 18)} Deteksi dini debitur berisiko gagal bayar</li>
-        <li>${ic('send', 18)} WA blast penagihan dengan template & log lengkap</li>
-      </ul>
-      <div class="lg-sec">${ic('shield', 18)}<span>Dilindungi kata sandi pribadi + <b>autentikasi dua faktor</b> (Microsoft Authenticator).</span></div>
-    </div>`;
+    return `<section class="lg-art" aria-hidden="false">
+      <div class="lg-art-in">
+        <h1>Monitoring portofolio kredit &amp; penagihan <span class="lg-u">dalam satu layar.<svg viewBox="0 0 220 14" preserveAspectRatio="none" aria-hidden="true"><path d="M3 10 C 60 2, 150 2, 217 8" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round"/></svg></span></h1>
+        <p>Pantau kualitas kredit Kol. 1–5, deteksi dini debitur berisiko, dan kirim pengingat WA penagihan — hampir real-time dari Google Sheets.</p>
+      </div>
+      <div class="lg-ill">${ilustrasi()}</div>
+    </section>`;
+  }
+
+  function ilustrasi() {
+    return `<svg viewBox="0 0 440 300" role="img" aria-label="Ilustrasi dashboard portofolio kredit">
+      <defs>
+        <linearGradient id="lgBar" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#F43F7A"/><stop offset="1" stop-color="#8B5CF6"/></linearGradient>
+        <linearGradient id="lgPh" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#312E81"/><stop offset="1" stop-color="#4C1D95"/></linearGradient>
+      </defs>
+      <circle cx="398" cy="58" r="30" fill="#fff" opacity=".08"/><circle cx="22" cy="200" r="16" fill="#fff" opacity=".07"/>
+      <g opacity=".9" fill="#fff"><path d="M402 118l3 8 8 3-8 3-3 8-3-8-8-3 8-3z"/><path d="M28 70l2 5 5 2-5 2-2 5-2-5-5-2 5-2z"/><circle cx="250" cy="22" r="2.5"/><circle cx="18" cy="160" r="2"/></g>
+      <rect x="44" y="52" width="268" height="176" rx="20" fill="#4A0D2E" opacity=".18"/>
+      <rect x="36" y="40" width="268" height="176" rx="20" fill="#fff"/>
+      <circle cx="62" cy="66" r="9" fill="#FCE7F3"/><path d="M58 70v-5m4 5v-8m4 8v-3" stroke="#DB2777" stroke-width="2" stroke-linecap="round"/>
+      <rect x="78" y="60" width="74" height="7" rx="3.5" fill="#E2E0EE"/><rect x="78" y="71" width="44" height="5" rx="2.5" fill="#F1F0F7"/>
+      <rect x="236" y="58" width="52" height="18" rx="9" fill="#DCFCE7"/><circle cx="248" cy="67" r="3" fill="#16A34A"/><rect x="255" y="64" width="25" height="5" rx="2.5" fill="#86EFAC"/>
+      <g><rect x="52" y="90" width="72" height="38" rx="10" fill="#F7F6FB"/><rect x="60" y="98" width="30" height="5" rx="2.5" fill="#CBD5E1"/><rect x="60" y="108" width="48" height="10" rx="3" fill="#0F172A" opacity=".85"/>
+         <rect x="134" y="90" width="72" height="38" rx="10" fill="#F7F6FB"/><rect x="142" y="98" width="30" height="5" rx="2.5" fill="#CBD5E1"/><rect x="142" y="108" width="40" height="10" rx="3" fill="#DB2777"/>
+         <rect x="216" y="90" width="72" height="38" rx="10" fill="#F7F6FB"/><rect x="224" y="98" width="30" height="5" rx="2.5" fill="#CBD5E1"/><rect x="224" y="108" width="44" height="10" rx="3" fill="#7C3AED"/></g>
+      <g fill="url(#lgBar)"><rect x="62" y="172" width="16" height="30" rx="5"/><rect x="90" y="158" width="16" height="44" rx="5"/><rect x="118" y="166" width="16" height="36" rx="5"/><rect x="146" y="148" width="16" height="54" rx="5"/><rect x="174" y="156" width="16" height="46" rx="5"/><rect x="202" y="140" width="16" height="62" rx="5"/></g>
+      <path d="M58 168 L86 152 L114 160 L142 140 L170 148 L198 130 L226 136" fill="none" stroke="#0F172A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" opacity=".55"/>
+      <rect x="52" y="206" width="236" height="1.5" fill="#EEEDF5"/>
+      <rect x="250" y="94" width="138" height="132" rx="20" fill="#4A0D2E" opacity=".16" transform="translate(6 8)"/>
+      <rect x="250" y="94" width="138" height="132" rx="20" fill="#fff"/>
+      <g transform="translate(319 150)" fill="none" stroke-width="13">
+        <circle r="30" stroke="#F1F0F7"/>
+        <circle r="30" stroke="#16A34A" stroke-dasharray="130 189" transform="rotate(-90)"/>
+        <circle r="30" stroke="#2563EB" stroke-dasharray="24 189" stroke-dashoffset="-132" transform="rotate(-90)"/>
+        <circle r="30" stroke="#F59E0B" stroke-dasharray="14 189" stroke-dashoffset="-158" transform="rotate(-90)"/>
+        <circle r="30" stroke="#E11D48" stroke-dasharray="12 189" stroke-dashoffset="-174" transform="rotate(-90)"/>
+      </g>
+      <rect x="296" y="196" width="46" height="6" rx="3" fill="#E2E0EE"/><rect x="304" y="207" width="30" height="5" rx="2.5" fill="#F1F0F7"/>
+      <g transform="translate(300 164) rotate(8)">
+        <rect x="0" y="0" width="92" height="128" rx="18" fill="url(#lgPh)"/>
+        <rect x="7" y="9" width="78" height="110" rx="12" fill="#F8FAFC"/>
+        <rect x="34" y="13" width="24" height="4" rx="2" fill="#CBD5E1"/>
+        <rect x="14" y="26" width="58" height="26" rx="9" fill="#DCF8C6"/><rect x="20" y="33" width="42" height="4" rx="2" fill="#16A34A" opacity=".55"/><rect x="20" y="41" width="30" height="4" rx="2" fill="#16A34A" opacity=".35"/>
+        <rect x="24" y="58" width="54" height="20" rx="9" fill="#fff" stroke="#E2E8F0"/><rect x="31" y="64" width="34" height="4" rx="2" fill="#CBD5E1"/>
+        <rect x="14" y="84" width="58" height="22" rx="9" fill="#DCF8C6"/><path d="M58 98l3 3 6-7" stroke="#16A34A" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+      </g>
+      <g transform="translate(58 246)">
+        <circle r="30" fill="#fff"/><circle r="30" fill="none" stroke="#FBCFE8" stroke-width="4"/>
+        <path d="M0-15 L12-10 V0 C12 9 6 14 0 17 C-6 14 -12 9 -12 0 V-10 Z" fill="#DB2777"/>
+        <path d="M-5 0 L-1 4 L6-4" stroke="#fff" stroke-width="2.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+      </g>
+      <g transform="translate(150 252)">
+        <ellipse cx="0" cy="14" rx="26" ry="8" fill="#B45309" opacity=".35"/>
+        <ellipse cx="0" cy="10" rx="24" ry="8" fill="#F59E0B"/><ellipse cx="0" cy="4" rx="24" ry="8" fill="#FBBF24"/><ellipse cx="0" cy="-2" rx="24" ry="8" fill="#F59E0B"/><ellipse cx="0" cy="-8" rx="24" ry="8" fill="#FCD34D"/>
+        <text x="0" y="-5" text-anchor="middle" font-size="9" font-weight="800" fill="#92400E" font-family="Inter,Arial">Rp</text>
+      </g>
+    </svg>`;
   }
 
   function logoLogin() {
     const b = App.brand();
-    return `${App.logoHtml(b, Math.max(40, Math.min(80, Math.round(b.ukuran * 1.35))))}${b.teks ? `<div><b>${esc(b.nama)}</b><span>${esc(b.sub)}</span></div>` : ''}`;
+    return `${App.logoHtml(b, Math.max(36, Math.min(72, Math.round(b.ukuran * 1.2))))}${b.teks ? `<div><b>${esc(b.nama)}</b><span>${esc(b.sub)}</span></div>` : ''}`;
   }
   let brandDicek = false;
   async function cekBrand() {
@@ -55,14 +103,17 @@ const Auth = (() => {
   function pesan() { return st.pesan ? `<div class="alert alert-${st.jenis === 'ok' ? 'pos' : st.jenis === 'warn' ? 'warn' : 'neg'}" role="alert">${ic(st.jenis === 'ok' ? 'ok' : 'alertc', 16)}<div>${esc(st.pesan)}</div></div>` : ''; }
 
   function formLogin() {
-    return `<h2>Masuk</h2><p class="lg-sub">Gunakan NPP 5 digit dan kata sandi Anda.</p>${pesan()}
+    return `<div class="lg-head"><h2>Selamat Datang</h2><p class="lg-sub">Silakan masuk ke akun Anda</p></div>${pesan()}
       <form id="fLogin" autocomplete="on" novalidate>
-        <label class="fld"><span>NPP</span><div class="inp-ic">${ic('user', 17)}<input id="iNpp" name="username" inputmode="numeric" pattern="\\d{5}" maxlength="5" placeholder="5 digit angka" value="${esc(st.npp)}" autocomplete="username" required ${st.npp ? '' : 'autofocus'}></div></label>
-        <label class="fld"><span>Kata sandi</span><div class="inp-ic">${ic('lock', 17)}<input id="iPw" name="password" type="password" placeholder="Kata sandi" autocomplete="current-password" required ${st.npp ? 'autofocus' : ''}><button type="button" class="eye" data-eye="iPw" aria-label="Tampilkan sandi">${ic('eye', 17)}</button></div></label>
-        <button class="btn btn-primary btn-block" type="submit">${st.sibuk ? '<span class="spin"></span> Memeriksa…' : 'Masuk ' + ic('arrowright', 17)}</button>
+        <label class="lg-fld"><span class="sr">NPP</span>${ic('user', 18)}<input id="iNpp" name="username" inputmode="numeric" pattern="\\d{5}" maxlength="5" placeholder="NPP (5 digit angka)" value="${esc(st.npp)}" autocomplete="username" required ${st.npp ? '' : 'autofocus'}></label>
+        <label class="lg-fld"><span class="sr">Kata sandi</span>${ic('lock', 18)}<input id="iPw" name="password" type="password" placeholder="Kata sandi" autocomplete="current-password" required ${st.npp ? 'autofocus' : ''}><button type="button" class="eye" data-eye="iPw" aria-label="Tampilkan sandi">${ic('eye', 18)}</button></label>
+        <div class="lg-row"><button type="button" class="btn-link sm" data-a="lupa">Lupa kata sandi?</button></div>
+        <button class="btn btn-primary btn-block lg-btn" type="submit">${st.sibuk ? '<span class="spin"></span> Memeriksa…' : 'Masuk'}</button>
       </form>
-      <div class="lg-hint">${ic('info', 15)}<span><b>Login pertama kali?</b> Kata sandi awal = NPP Anda. Setelah itu Anda wajib mengganti sandi dan memindai QR dengan Microsoft Authenticator.</span></div>
-      ${Api.DEMO ? `<div class="lg-demo"><b>Mode demo</b> — akun: <code>10001</code> Admin, <code>20001</code> RM, <code>30001</code> Manager. Sandi pertama = NPP.</div>` : ''}`;
+      <div class="lg-or"><span>Keamanan berlapis</span></div>
+      <div class="lg-badges"><span>${ic('lock', 17)} Sandi pribadi</span><span>${ic('shield', 17)} Authenticator</span></div>
+      <p class="lg-note">Login pertama? Kata sandi awal = <b>NPP Anda</b>.</p>
+      ${Api.DEMO ? `<div class="lg-demo"><b>Mode demo</b> — akun: <code>10001</code> Super Admin, <code>20001</code> RM, <code>30001</code> Manager. Sandi pertama = NPP.</div>` : ''}`;
   }
 
   function aturanSandi(v, npp) {
@@ -139,14 +190,14 @@ const Auth = (() => {
         ${Api.DEMO && window.DemoAPI ? `<div class="lg-demo">Demo: kode saat ini <b id="demoKode">…</b></div>` : ''}
         <button class="btn btn-primary btn-block" type="submit">${st.sibuk ? '<span class="spin"></span> Memverifikasi…' : 'Masuk ' + ic('arrowright', 17)}</button>
       </form>
-      <div class="lg-hint">${ic('info', 15)}<span>Kode berganti setiap 30 detik. HP hilang atau ganti HP? Hubungi Admin untuk <b>Reset 2FA</b>.</span></div>
+      <div class="lg-hint">${ic('info', 15)}<span>Kode berganti setiap 30 detik. HP hilang atau ganti HP? Hubungi Super Admin untuk <b>Reset 2FA</b>.</span></div>
       <button class="btn-link" data-a="ulang">${ic('left', 15)} Ganti akun</button>`;
   }
 
   function render() {
     const app = $('#app');
     const isi = { LOGIN: formLogin, GANTI_SANDI: formGanti, SETUP_2FA: form2fa, OTP: formOtp }[st.langkah]();
-    app.innerHTML = `<div class="login"><div class="blob blob-a"></div><div class="blob blob-b"></div>${sisi()}<div class="lg-card-wrap"><div class="lg-card">${isi}</div><p class="lg-foot">© ${new Date().getFullYear()} FinSight • Akses terbatas untuk pegawai terdaftar</p></div></div>`;
+    app.innerHTML = `<div class="login"><div class="lg-shell">${sisi()}<section class="lg-panel"><div class="lg-card"><div class="lg-logo" id="lgLogo">${logoLogin()}</div>${isi}</div></section></div><p class="lg-foot">© ${new Date().getFullYear()} ${esc(App.brand().nama)} • Akses terbatas untuk pegawai terdaftar</p></div>`;
     pasang();
     jalankanHitungMundur();
     cekBrand();
@@ -162,6 +213,7 @@ const Auth = (() => {
     app.querySelectorAll('[data-a]').forEach((b) => b.onclick = () => {
       if (b.dataset.a === 'ulang') tampil();
       if (b.dataset.a === 'qrBaru') kirim('auth.qrBaru', { tiket: st.tiket });
+      if (b.dataset.a === 'lupa') { st.pesan = 'Hubungi Super Admin untuk mereset kata sandi Anda (menu Pengguna & Peran → Reset akses). Setelah direset, kata sandi kembali = NPP.'; st.jenis = 'warn'; render(); }
     });
     const fL = $('#fLogin');
     if (fL) {
@@ -230,6 +282,7 @@ const Auth = (() => {
       clearInterval(demoTimer); clearInterval(qrTimer);
       st.data = null;                       // QR dibuang dari memori setelah aktif
       Api.simpanSesi(d.token, d.me, Api.expDariToken(d.token));
+      S.akses = Array.isArray(d.akses) ? d.akses : null;
       App.aktif();
       U.toast('Selamat datang, ' + d.me.nama + '.', 'ok');
       App.mulai();

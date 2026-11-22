@@ -9,18 +9,18 @@
 'use strict';
 
 const S = {
-  me: null, setting: {}, produk: [], prodMap: {}, ds: null, D: [], byId: {}, snap: [], tpl: [], tplAll: null, gw: null,
+  me: null, akses: null, setting: {}, produk: [], prodMap: {}, ds: null, D: [], byId: {}, snap: [], tpl: [], tplAll: null, gw: null,
   ver: '', lver: '', sver: '', periodeIni: '', hariIni: '', periode: '',
   log: null, logQ: null, users: null, adminSet: null, devStatus: null,
   lastSync: 0, online: true, syncing: false, perluRender: false,
   f: {}, sel: { deb: new Set(), risk: new Set() }, blast: { ids: [], sumber: '', tplId: '', step: 1 }, batchAktif: null
 };
 
-const PERAN_MENU = {
-  dashboard: ['Admin', 'RM', 'Manager'], kualitas: ['Admin', 'RM', 'Manager'], debitur: ['Admin', 'RM', 'Manager'],
-  risiko: ['Admin', 'RM', 'Manager'], blast: ['Admin', 'RM'], template: ['Admin'], log: ['Admin', 'RM', 'Manager'],
-  pengguna: ['Admin'], pengaturan: ['Admin', 'RM', 'Manager']
-};
+// v1.2: akses menu diatur Super Admin per peran (server = sumber kebenaran, lihat S.akses).
+const MENU_PERAN = ['dashboard', 'kualitas', 'debitur', 'risiko', 'blast', 'template', 'log'];
+const LABEL_MENU = { dashboard: 'Dashboard', kualitas: 'Kualitas Kredit', debitur: 'Daftar Debitur', risiko: 'Penagihan', blast: 'WA Blast', template: 'Template WA', log: 'Log Blast' };
+const RUTE_INDUK = { 'debitur-pmi': 'debitur' };              // sub-page mengikuti hak akses induknya
+const labelPeran = (p) => (p === 'Admin' ? 'Super Admin' : p === 'RM' ? 'RM - Relationship Manager' : p || '');
 const MENU = [
   ['dashboard', 'Dashboard', 'dashboard'], ['kualitas', 'Kualitas Kredit (Kol. 1-5)', 'pie'], ['debitur', 'Daftar Debitur', 'users'],
   ['risiko', 'Penagihan', 'alert'], ['blast', 'WA Blast', 'send'], ['template', 'Template WA', 'template'],
@@ -47,8 +47,10 @@ const M = (() => {
         id: String(r[c.id]), nm: r[c.nm] || '', cif: r[c.cif] || '', pic: r[c.pic] || '', wa: r[c.wa] || '', wv: r[c.wv], pr: r[c.pr] || '-',
         pl: +r[c.pl] || 0, bd: +r[c.bd] || 0, jt: r[c.jt] || '', st: r[c.st], kol: +r[c.kol] || 1, sb: r[c.sb], sa: +r[c.sa] || 0, an: +r[c.an] || 0,
         oo: r[c.oo], rm: r[c.rm] || '', kl: r[c.kl] === null || r[c.kl] === undefined ? null : +r[c.kl],
-        rp: c.rp === undefined ? '' : String(r[c.rp] || ''), ra: c.ra === undefined ? '' : String(r[c.ra] || '')   // v1.1 (data lama: kosong)
+        rp: c.rp === undefined ? '' : String(r[c.rp] || ''), ra: c.ra === undefined ? '' : String(r[c.ra] || ''),   // v1.1 (data lama: kosong)
+        pt: c.pt === undefined ? '' : String(r[c.pt] || ''), il: c.il === undefined ? '' : String(r[c.il] || '')    // v1.2
       };
+      o.rek = o.rp || o.id;
       o.aktif = o.st === 'Aktif';
       o.dd = o.jt ? U.selisihHari(hari, o.jt) : null;
       o.fBlokir = o.aktif && o.an > 0 && (o.sb === null || o.sb === 0);
@@ -56,7 +58,7 @@ const M = (() => {
       o.risiko = o.fBlokir || o.fSaldo;
       o.kurang = o.aktif ? Math.max(0, o.an - o.sa) : 0;
       o.mv = o.aktif && o.kl ? o.kol - o.kl : 0;
-      o.q = (o.id + ' ' + o.nm + ' ' + o.cif + ' ' + o.pic + ' ' + o.pr + ' ' + o.rm + ' ' + o.rp + ' ' + o.ra).toLowerCase();
+      o.q = (o.id + ' ' + o.nm + ' ' + o.cif + ' ' + o.pic + ' ' + o.pr + ' ' + o.rm + ' ' + o.rp + ' ' + o.ra + ' ' + o.pt + ' ' + o.il).toLowerCase();
       return o;
     });
   }
@@ -136,7 +138,7 @@ const M = (() => {
 // ============================================================================
 //  APLIKASI
 // ============================================================================
-const VERSI_APP = '1.1.0';   // versi frontend (config.js milik Anda tidak perlu diubah)
+const VERSI_APP = '1.2.0';   // versi frontend (config.js milik Anda tidak perlu diubah)
 const App = (() => {
   const { $, $$, esc, ic } = U;
   let halaman = 'dashboard';
@@ -146,14 +148,14 @@ const App = (() => {
   const kunciCache = () => 'fs_cache_' + (Api.DEMO ? 'demo_' : '') + ((S.me && S.me.npp) || (Api.sesi && Api.sesi.me && Api.sesi.me.npp) || 'x');
   function simpanLokal() {
     try {
-      localStorage.setItem(kunciCache(), JSON.stringify({ t: Date.now(), ver: S.ver, ds: S.ds, snap: S.snap, produk: S.produk, setting: S.setting, tpl: S.tpl, gw: S.gw, me: S.me, periodeIni: S.periodeIni }));
+      localStorage.setItem(kunciCache(), JSON.stringify({ t: Date.now(), ver: S.ver, ds: S.ds, snap: S.snap, produk: S.produk, setting: S.setting, tpl: S.tpl, gw: S.gw, me: S.me, akses: S.akses, periodeIni: S.periodeIni }));
     } catch (e) { /* kuota penuh → abaikan */ }
   }
   function muatLokal() {
     try {
       const c = JSON.parse(localStorage.getItem(kunciCache()) || 'null');
       if (!c || !c.ds || Date.now() - c.t > 7 * 86400e3) return false;
-      S.setting = c.setting || {}; S.produk = c.produk || []; S.snap = c.snap || []; S.tpl = c.tpl || []; S.gw = c.gw; S.me = S.me || c.me;
+      S.setting = c.setting || {}; S.produk = c.produk || []; S.snap = c.snap || []; S.tpl = c.tpl || []; S.gw = c.gw; S.me = S.me || c.me; if (!S.akses && c.akses) S.akses = c.akses;
       S.periodeIni = c.periodeIni || U.isoLokal(new Date()).slice(0, 7);
       S.hariIni = U.isoLokal(new Date());
       if (!S.periode) S.periode = S.periodeIni;
@@ -174,6 +176,7 @@ const App = (() => {
   }
   function terapkanBoot(d) {
     S.me = d.me; S.setting = d.setting || {}; S.produk = d.produk || []; S.snap = d.snap || [];
+    if (Array.isArray(d.akses)) S.akses = d.akses;
     S.periodeIni = d.periode; S.hariIni = d.hariIni; S.lver = d.lver; S.gw = d.gw;
     if (!S.periode || S.periode > S.periodeIni) S.periode = S.periodeIni;
     if (d.tpl) S.tpl = d.tpl;
@@ -252,21 +255,41 @@ const App = (() => {
   /** Perbarui logo di sidebar tanpa render ulang seluruh halaman. */
   function segarBrand() {
     const b = brand(), el = $('#side .brand');
-    simpanBrand(b);
+    simpanBrand(b); pasangFavicon(b);
+    $$('.top-logo').forEach((x) => { x.innerHTML = logoHtml(b, 28); });
     if (el) { el.className = 'brand' + (b.teks ? '' : ' no-teks'); el.style.setProperty('--logo', b.ukuran + 'px'); el.innerHTML = brandIsi(b); }
   }
-  const boleh = (p) => S.me && (PERAN_MENU[p] || []).includes(S.me.peran);
+  /** Menu yang boleh dibuka pengguna ini (dari server; cadangan: dihitung dari PERAN_AKSES). */
+  function aksesKu() {
+    if (!S.me) return [];
+    if (S.me.peran === 'Admin') return MENU.map((m) => m[0]);
+    if (Array.isArray(S.akses)) return S.akses;
+    let m = {}; try { m = JSON.parse(S.setting.PERAN_AKSES || '{}') || {}; } catch (e) { m = {}; }
+    return (m[S.me.peran] || []).concat(['pengaturan']);
+  }
+  const boleh = (p) => !!S.me && aksesKu().includes(RUTE_INDUK[p] || p);
+  /** Pasang logo kustom juga sebagai ikon tab browser (favicon) & ikon pintasan iOS. */
+  function pasangFavicon(b) {
+    b = b || brand();
+    const ganti = (sel, href, type) => { const el = document.querySelector(sel); if (!el) return; if (!el.dataset.asli) el.dataset.asli = el.getAttribute('href'); el.setAttribute('href', href || el.dataset.asli); if (type !== undefined) { if (href) el.setAttribute('type', type); else el.setAttribute('type', 'image/svg+xml'); } };
+    const t = b.logo ? (b.logo.match(/^data:(image\/[a-z+]+)/) || [])[1] || 'image/png' : '';
+    ganti('link[rel="icon"]', b.logo, t);
+    ganti('link[rel="apple-touch-icon"]', b.logo);
+    if (b.nama) document.title = document.title.replace(/^[^—|-]*?(?=\s[—|-]\s|$)/, b.nama);
+  }
 
   function shell() {
     const app = $('#app');
     const st = S.setting || {}, br = brand();
-    const peranLbl = { Admin: 'Admin', RM: 'RM - Relationship Manager', Manager: 'Manager' }[S.me.peran] || S.me.peran;
+    const peranLbl = labelPeran(S.me.peran);
     app.innerHTML = `
     <div class="blob blob-a"></div><div class="blob blob-b"></div>
     <aside class="side" id="side">
       <div class="side-top">
         <a class="brand${br.teks ? '' : ' no-teks'}" href="#/dashboard" style="--logo:${br.ukuran}px">${brandIsi(br)}</a>
-        <nav class="nav">${MENU.filter((m) => boleh(m[0])).map((m) => `<a href="#/${m[0]}" data-nav="${m[0]}" class="nav-i" title="${esc(m[1])}">${ic(m[2], 19)}<span class="nav-t">${esc(m[1])}</span>${m[0] === 'blast' ? '<span class="nav-badge">Baru</span>' : ''}${m[0] === 'risiko' ? '<span class="nav-cnt" id="navRisk"></span>' : ''}</a>`).join('')}</nav>
+        <nav class="nav">${MENU.filter((m) => boleh(m[0])).map((m) => `<a href="#/${m[0]}" data-nav="${m[0]}" class="nav-i" title="${esc(m[1])}">${ic(m[2], 19)}<span class="nav-t">${esc(m[1])}</span>${m[0] === 'blast' ? '<span class="nav-badge">Baru</span>' : ''}${m[0] === 'risiko' ? '<span class="nav-cnt" id="navRisk"></span>' : ''}</a>${m[0] === 'debitur' ? `<div class="nav-sub">
+            <a href="#/debitur" data-sub="debitur" class="nav-s">${ic('users', 15)}<span>Debitur Umum</span></a>
+            <a href="#/debitur-pmi" data-sub="debitur-pmi" class="nav-s">${ic('plane', 15)}<span>Debitur KUR PMI</span></a></div>` : ''}`).join('')}</nav>
       </div>
       <div class="side-user">
         <div class="avatar">${esc(U.inisial(S.me.nama))}</div>
@@ -278,15 +301,15 @@ const App = (() => {
     <div class="main">
       <header class="top">
         <button class="btn-icon ghost only-m" data-g="side-open" aria-label="Menu">${ic('menu', 20)}</button>
+        <a class="top-logo only-m" href="#/dashboard" aria-label="${esc(br.nama)}">${logoHtml(br, 28)}</a>
         <div class="gsearch">
           ${ic('search', 17, 'gs-ic')}
-          <input id="gsearch" type="search" placeholder="Cari debitur, ID, CIF, produk…" autocomplete="off" aria-label="Cari debitur">
+          <input id="gsearch" type="search" placeholder="Cari debitur, rek, CIF, produk…" autocomplete="off" aria-label="Cari debitur">
           <kbd class="hide-m">/</kbd>
           <div class="gs-drop" id="gsDrop"></div>
         </div>
         <div class="top-r">
           <div class="sync-pill" id="syncPill" data-g="sync-now" title="Klik untuk cek pembaruan sekarang"></div>
-          <button class="btn btn-secondary per-btn" data-g="periode" id="perBtn">${ic('calendar', 17)}<span id="perTxt"></span>${ic('down', 15)}</button>
           <button class="btn-icon bell" data-g="notif" aria-label="Notifikasi">${ic('bell', 19)}<span class="dot" id="bellDot" hidden></span></button>
           <button class="prof" data-g="profil" aria-label="Profil">${`<span class="avatar sm">${esc(U.inisial(S.me.nama))}</span>`}${ic('down', 15)}</button>
         </div>
@@ -297,11 +320,13 @@ const App = (() => {
         <span>${esc(st.NAMA_APLIKASI || 'FinSight')} © ${new Date().getFullYear()}${st.NAMA_INSTITUSI ? ' ' + esc(st.NAMA_INSTITUSI) : ''} • Terhubung ke Google Sheets</span>
         <span class="foot-l"><a href="#" data-g="bantuan">Bantuan</a><a href="#" data-g="privasi">Kebijakan Privasi</a><span class="muted">v${esc(VERSI_APP)}</span></span>
       </footer>
-    </div>`;
+    </div>
+    ${navBawah()}`;
+    pasangFavicon(br);
     updatePeriode(); updatePill(); notifikasi(); tandaiNav();
   }
 
-  function updatePeriode() {
+  function updatePeriode() {          // v1.2: pemilih tanggal di bilah atas dihapus (tetap aman dipanggil)
     const el = $('#perTxt'); if (!el) return;
     const p = S.periode || S.periodeIni;
     if (!p) { el.textContent = '-'; return; }
@@ -317,8 +342,23 @@ const App = (() => {
     el.innerHTML = `<span class="live"><i></i></span><span>Terakhir diperbarui: <b class="tnum">${S.lastSync ? U.jam(S.lastSync) : '—'}</b> <em>(Hampir real-time)</em></span>`;
   }
 
+  /** Floating bottom navigation (HP): Dashboard, Daftar Debitur, [Kualitas Kredit], Penagihan, Keluar. */
+  function navBawah() {
+    const it = [['dashboard', 'Dashboard', 'dashboard'], ['debitur', 'Debitur', 'users'], ['kualitas', 'Kualitas', 'pie'], ['risiko', 'Penagihan', 'alert']]
+      .filter((m) => boleh(m[0]));
+    const btn = (m) => m[0] === 'kualitas'
+      ? `<a href="#/kualitas" class="bn-i bn-c" data-bn="kualitas" aria-label="Kualitas Kredit"><span class="bn-fab">${ic('pie', 24)}</span><span class="bn-t">Kualitas</span></a>`
+      : `<a href="#/${m[0]}" class="bn-i" data-bn="${m[0]}">${ic(m[2], 22)}<span class="bn-t">${m[1]}</span>${m[0] === 'risiko' ? '<i class="bn-dot" id="bnRisk" hidden></i>' : ''}</a>`;
+    return `<nav class="bnav" id="bnav" aria-label="Navigasi utama">${it.map(btn).join('')}<button type="button" class="bn-i" data-g="keluar-bn">${ic('logout', 22)}<span class="bn-t">Keluar</span></button></nav>`;
+  }
+
   function tandaiNav() {
-    $$('.nav-i').forEach((a) => a.classList.toggle('on', a.dataset.nav === halaman));
+    const induk = RUTE_INDUK[halaman] || halaman;
+    $$('.nav-i').forEach((a) => a.classList.toggle('on', a.dataset.nav === induk));
+    $$('.nav-s').forEach((a) => a.classList.toggle('on', a.dataset.sub === halaman));
+    $$('.bn-i[data-bn]').forEach((a) => a.classList.toggle('on', a.dataset.bn === induk));
+    const br = $('#bnRisk');
+    if (br && S.D.length) br.hidden = !M.kpi('ALL').risiko;
     const nr = $('#navRisk');
     if (nr && S.D.length) { const n = M.kpi('ALL').risiko; nr.textContent = n ? U.num(n) : ''; nr.hidden = !n; }
   }
@@ -326,7 +366,9 @@ const App = (() => {
   // ---------- Router ----------
   function rute() {
     const h = (location.hash || '#/dashboard').replace(/^#\/?/, '').split('?')[0] || 'dashboard';
-    return Pages[h] && boleh(h) ? h : 'dashboard';
+    if (Pages[h] && boleh(h)) return h;
+    const awal = MENU.find((m) => boleh(m[0]) && Pages[m[0]]);
+    return awal ? awal[0] : 'pengaturan';
   }
   function go(p) { if (location.hash !== '#/' + p) location.hash = '#/' + p; else render(); }
   function render(opts = {}) {
@@ -476,7 +518,7 @@ const App = (() => {
     el.querySelectorAll('[data-i]').forEach((b) => b.onclick = () => { tutupPopover(); go(notifItems[+b.dataset.i].go); });
   }
   function popProfil(btn) {
-    const el = popover(btn, `<div class="pop-prof"><div class="avatar">${esc(U.inisial(S.me.nama))}</div><div><b>${esc(S.me.nama)}</b><small>NPP ${esc(S.me.npp)} • ${esc(S.me.peran)}</small></div></div>
+    const el = popover(btn, `<div class="pop-prof"><div class="avatar">${esc(U.inisial(S.me.nama))}</div><div><b>${esc(S.me.nama)}</b><small>NPP ${esc(S.me.npp)} • ${esc(labelPeran(S.me.peran))}</small></div></div>
       <button class="pop-i" data-x="set">${ic('settings', 15)}<span>Profil & Keamanan</span></button>
       ${installPrompt ? `<button class="pop-i" data-x="install">${ic('install', 15)}<span>Pasang aplikasi (PWA)</span></button>` : ''}
       <button class="pop-i" data-x="semua">${ic('phonem', 15)}<span>Keluar dari semua perangkat</span></button>
@@ -498,6 +540,17 @@ const App = (() => {
     Idle.hapus();
     location.hash = '';
     location.reload();
+  }
+
+  /** Tutup sesi di perangkat ini tanpa memanggil server (dipakai saat sesi ditolak / NPP diganti). */
+  function keluarPaksa(pesan) {
+    Api.simpanSesi(null);
+    Idle.hapus();
+    hapusLokal();
+    S.me = null; S.akses = null; S.users = null; S.adminSet = null;
+    document.querySelectorAll('.modal-wrap, .modal-bg, .popover, .drawer, .dr-scrim, .idle-warn').forEach((x) => x.remove());
+    document.body.classList.remove('side-open', 'modal-open');
+    Auth.tampil(pesan);
   }
 
   // ---------- Keluar otomatis bila 5 menit tanpa aktivitas ----------
@@ -563,7 +616,7 @@ const App = (() => {
     if (!q) { drop.classList.remove('show'); return; }
     const hasil = [];
     for (const d of S.D) { if (d.q.includes(q)) { hasil.push(d); if (hasil.length >= 8) break; } }
-    drop.innerHTML = (hasil.length ? hasil.map((d) => `<button class="gs-i" data-id="${esc(d.id)}"><span class="avatar xs" style="--c:${(S.prodMap[d.pr] || {}).warna || '#64748B'}">${esc(U.inisial(d.nm))}</span><span class="gs-t"><b>${esc(d.nm)}</b><small>${esc(d.id)}${d.cif ? ' • CIF ' + esc(d.cif) : ''}</small></span>${UI.prod(d.pr)}${UI.kol(d.kol, true)}</button>`).join('')
+    drop.innerHTML = (hasil.length ? hasil.map((d) => `<button class="gs-i" data-id="${esc(d.id)}"><span class="avatar xs" style="--c:${(S.prodMap[d.pr] || {}).warna || '#64748B'}">${esc(U.inisial(d.nm))}</span><span class="gs-t"><b>${esc(d.nm)}</b><small>Rek ${esc(d.rek)}${d.cif ? ' • CIF ' + esc(d.cif) : ''}</small></span>${UI.prod(d.pr)}${UI.kol(d.kol, true)}</button>`).join('')
       : `<div class="gs-empty">Tidak ada debitur cocok dengan “${esc(q)}”.</div>`) +
       `<button class="gs-all" data-all="1">${ic('search', 14)} Tampilkan semua hasil di Daftar Debitur</button>`;
     drop.classList.add('show');
@@ -574,15 +627,15 @@ const App = (() => {
     const d = S.byId[id];
     if (!d) return U.toast('Debitur tidak ditemukan (mungkin sudah dihapus dari sheet).', 'warn');
     const util = d.pl ? d.bd / d.pl * 100 : 0;
-    const riw = S.log ? S.log.rows.filter((r) => r[5] === id).slice(0, 8) : null;
-    const bisaWa = ['Admin', 'RM'].includes(S.me.peran);
+    const riw = S.log ? S.log.rows.filter((r) => r[5] === id || (d.il && r[5] === d.il)).slice(0, 8) : null;
+    const bisaWa = boleh('blast');
     const body = `
       <div class="dt-head"><span class="avatar lg" style="--c:${(S.prodMap[d.pr] || {}).warna || '#64748B'}">${esc(U.inisial(d.nm))}</span>
-        <div><h4>${esc(d.nm)}</h4><div class="muted">${esc(d.id)}${d.cif ? ' • CIF ' + esc(d.cif) : ''}</div>
+        <div><h4>${esc(d.nm)}</h4><div class="muted">Rek ${esc(d.rek)}${d.cif ? ' • CIF ' + esc(d.cif) : ''}${d.pt ? ' • ' + esc(d.pt) : ''}</div>
         <div class="dt-tags">${UI.prod(d.pr)} ${UI.kol(d.kol)} ${UI.status(d.st)} ${d.oo ? '<span class="pill pill-grey">Opt-out WA</span>' : ''}</div></div></div>
       ${d.risiko ? `<div class="alert alert-neg">${ic('alert', 16)}<div><b>Berisiko gagal bayar</b> — ${d.fBlokir ? 'saldo blokir kosong' : ''}${d.fBlokir && d.fSaldo ? ' & ' : ''}${d.fSaldo ? 'saldo akhir < angsuran' : ''}. Kekurangan ${U.rp(d.kurang)}.</div></div>` : ''}
       <div class="dt-grid">
-        <div><span>Rek pinjaman</span><b class="tnum">${esc(d.rp || d.id)}</b></div>
+        <div><span>Rek pinjaman</span><b class="tnum">${esc(d.rek)}</b></div>
         <div><span>Rek afiliasi</span><b class="tnum">${d.ra ? esc(d.ra) : '<span class="muted">Belum diisi</span>'}</b></div>
         <div><span>Plafon</span><b class="tnum">${U.rp(d.pl)}</b></div>
         <div><span>Baki debet</span><b class="tnum">${U.rp(d.bd)}</b></div>
@@ -599,17 +652,17 @@ const App = (() => {
       ${riw === null ? '<p class="muted">Riwayat sedang dimuat…</p>' : riw.length ? `<ul class="dt-log">${riw.map((r) => `<li>${UI.logStatus(r[9])}<span><b>${esc(r[8])}</b><small>${U.tglJam(r[2])} • oleh ${esc(r[4])}</small></span></li>`).join('')}</ul>` : '<p class="muted">Belum ada pesan WA.</p>'}`;
     const m = U.modal({
       title: 'Detail Debitur', body, size: 'drawer', cls: 'drawer',
-      footer: `<button class="btn btn-secondary" data-x="salin">${ic('copy', 16)} Salin ID</button>${bisaWa ? `<button class="btn btn-primary" data-x="wa" ${d.wv && !d.oo && d.aktif ? '' : 'disabled title="Nomor tidak valid / opt-out / lunas"'}>${ic('send', 16)} Kirim WA</button>` : ''}`
+      footer: `<button class="btn btn-secondary" data-x="salin">${ic('copy', 16)} Salin No. Rek</button>${bisaWa ? `<button class="btn btn-primary" data-x="wa" ${d.wv && !d.oo && d.aktif ? '' : 'disabled title="Nomor tidak valid / opt-out / lunas"'}>${ic('send', 16)} Kirim WA</button>` : ''}`
     });
     m.el.querySelectorAll('[data-x]').forEach((b) => b.onclick = () => {
-      if (b.dataset.x === 'salin') U.salin(d.id);
+      if (b.dataset.x === 'salin') U.salin(d.rek);
       if (b.dataset.x === 'wa') { m.close(); blastKe([d.id], 'Detail debitur'); }
     });
   }
 
   /** Bawa daftar ID ke halaman WA Blast (langkah 2: pilih template). */
   function blastKe(ids, sumber, tplId) {
-    if (!['Admin', 'RM'].includes(S.me.peran)) return U.toast('Peran Anda tidak dapat mengirim WA Blast.', 'warn');
+    if (!boleh('blast')) return U.toast('Peran Anda tidak dapat mengirim WA Blast.', 'warn');
     S.blast = { ids: ids.slice(), sumber, tplId: tplId || S.blast.tplId || '', step: ids.length ? (tplId ? 3 : 2) : 1, pilih: new Set(ids) };
     go('blast');
   }
@@ -617,30 +670,20 @@ const App = (() => {
   // ---------- Ekspor ----------
   function metaCetak(filter) {
     const st = S.setting;
-    return [`Dicetak: ${U.tglJam(Date.now())} WIB oleh ${S.me.nama} (NPP ${S.me.npp}, ${S.me.peran})`,
+    return [`Dicetak: ${U.tglJam(Date.now())} WIB oleh ${S.me.nama} (NPP ${S.me.npp}, ${labelPeran(S.me.peran)})`,
       `Filter: ${filter || 'Semua data'}`, (st.NAMA_INSTITUSI || st.NAMA_CABANG) ? [st.NAMA_INSTITUSI, st.NAMA_CABANG].filter(Boolean).join(' • ') : 'Dokumen RAHASIA — internal'];
   }
-  function eksporXlsx(judul, cols, rows, filter, extraSheets = []) {
+  /** Ekspor Excel format lama (kolom + baris) — kini memakai template laporan bergaya v1.2. */
+  function eksporXlsx(judul, cols, rows, filter, extraSheets = [], opsi = {}) {
     const nama = judul.replace(/[^\w\- ]+/g, '').replace(/\s+/g, '_') + '_' + U.isoLokal(new Date()).replace(/-/g, '') + '.xlsx';
-    const blob = XLSX.build([{ name: judul.slice(0, 31), title: judul + ' — ' + (S.setting.NAMA_APLIKASI || 'FinSight'), meta: metaCetak(filter), cols, rows }, ...extraSheets]);
+    const blob = XLSX.build([{ name: opsi.lembar || judul.slice(0, 31), judul, sub: opsi.sub, filter, ringkasan: opsi.ringkasan, satuan: opsi.satuan, cols, rows },
+      ...extraSheets.map((x) => Object.assign({ judul: x.judul || (judul + ' — ' + x.name), filter }, x))], Laporan.umumXlsx());
     U.unduh(blob, nama);
     Api.call('ekspor.catat', { jenis: 'xlsx', judul, jumlah: rows.length, filter });
     U.toast(`Excel “${nama}” diunduh (${U.num(rows.length)} baris).`, 'ok');
   }
-  async function eksporPdf(judul, kolom, baris, kanan, filter, ringkasan, btn) {
-    if (Api.DEMO) { cetak(judul, filter); return; }
-    if (btn) { btn.disabled = true; btn.dataset.l = btn.innerHTML; btn.innerHTML = `<span class="spin"></span> Membuat PDF…`; }
-    const r = await Api.call('ekspor.pdf', { judul, kolom, baris, kanan, filter, ringkasan }, { timeout: 90000 });
-    if (btn) { btn.disabled = false; btn.innerHTML = btn.dataset.l; }
-    if (!r.success) return U.toast(r.message, 'err');
-    U.unduh(U.b64ToBlob(r.data.base64, 'application/pdf'), r.data.nama);
-    U.toast(r.data.url ? 'PDF diunduh & tersimpan di folder Drive “Ekspor Laporan”.' : 'PDF diunduh.', 'ok', 5000);
-  }
-  function cetak(judul, filter) {
-    document.body.dataset.printTitle = judul;
-    document.body.dataset.printMeta = metaCetak(filter).join('  •  ');
-    window.print();
-  }
+  const eksporPdf = (spec, btn) => Laporan.pdf(spec, btn);
+  const cetak = (spec) => Laporan.cetak(spec);
 
   // ---------- Komponen kosong / skeleton ----------
   function kosong(icon, judul, teks) { return `<div class="empty">${ic(icon, 34)}<h4>${judul}</h4><p>${teks || ''}</p></div>`; }
@@ -658,6 +701,7 @@ const App = (() => {
         const a = g.dataset.g;
         if (g.tagName === 'A') e.preventDefault();
         if (a === 'logout') logout(false);
+        else if (a === 'keluar-bn') { if (await U.konfirmasi({ title: 'Keluar dari aplikasi?', body: 'Anda akan keluar dari FinSight di perangkat ini.', ok: 'Keluar' })) logout(false); }
         else if (a === 'side-open') { $('#side').classList.add('open'); document.body.classList.add('side-open'); }
         else if (a === 'side-close') { $('#side').classList.remove('open'); document.body.classList.remove('side-open'); }
         else if (a === 'periode') popPeriode(g);
@@ -688,12 +732,8 @@ const App = (() => {
       if (e.target.id === 'gsearch' && e.key === 'Enter') { S.f.deb = Object.assign(S.f.deb || {}, { q: e.target.value, hal: 1 }); $('#gsDrop').classList.remove('show'); go('debitur'); }
     });
     document.addEventListener('focusout', () => { if (S.perluRender) setTimeout(() => { if (S.perluRender) renderAman(); }, 50); });
-    Api.onAuth((msg) => {
-      Api.simpanSesi(null);
-      Idle.hapus();
-      U.toast(msg || 'Sesi berakhir. Silakan masuk kembali.', 'warn');
-      Auth.tampil();
-    });
+    // Sesi ditolak server (kedaluwarsa, dicabut, atau akun masuk di perangkat lain → tutup paksa).
+    Api.onAuth((msg) => keluarPaksa(msg || 'Sesi berakhir. Silakan masuk kembali.'));
     addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); installPrompt = e; });
   }
 
@@ -733,7 +773,7 @@ const App = (() => {
     } else mulai();
   }
 
-  return { init, mulai, render, go, detail, blastKe, eksporXlsx, eksporPdf, cetak, kosong, muatData, muatLog, simpanLokal, terapkanBoot, hapusLokal, tutupPopover, get halaman() { return halaman; }, logoSvg, logoHtml, brand, simpanBrand, segarBrand, aktif: () => Idle.reset(), Sync: () => Sync };
+  return { init, mulai, render, go, detail, blastKe, eksporXlsx, eksporPdf, cetak, kosong, muatData, muatLog, simpanLokal, terapkanBoot, hapusLokal, tutupPopover, get halaman() { return halaman; }, logoSvg, logoHtml, brand, simpanBrand, segarBrand, pasangFavicon, aksesKu, boleh, labelPeran, keluarPaksa, aktif: () => Idle.reset(), Sync: () => Sync };
 })();
 
 document.addEventListener('DOMContentLoaded', App.init);

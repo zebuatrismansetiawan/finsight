@@ -5,10 +5,10 @@
    - Panggilan ke Google Apps Script TIDAK PERNAH di-cache (data rahasia & selalu terbaru).
    - Naikkan VERSI setiap kali merilis perubahan frontend.
    ========================================================================== */
-const VERSI = 'finsight-v1.1.0';
-const ASET = ['./', './index.html', './css/style.css?v=1.1.0', './js/config.js?v=1.1.0', './js/icons.js?v=1.1.0', './js/util.js?v=1.1.0',
-  './js/api.js?v=1.1.0', './js/qr.js?v=1.1.0', './js/xlsx.js?v=1.1.0', './js/charts.js?v=1.1.0', './js/auth.js?v=1.1.0', './js/pages.js?v=1.1.0',
-  './js/app.js?v=1.1.0', './manifest.json', './icons/icon-192.png', './icons/icon-512.png', './icons/favicon.svg'];
+const VERSI = 'finsight-v1.2.0';
+const ASET = ['./', './index.html', './css/style.css?v=1.2.0', './js/config.js?v=1.2.0', './js/icons.js?v=1.2.0', './js/util.js?v=1.2.0',
+  './js/api.js?v=1.2.0', './js/qr.js?v=1.2.0', './js/xlsx.js?v=1.2.0', './js/charts.js?v=1.2.0', './js/laporan.js?v=1.2.0', './js/auth.js?v=1.2.0', './js/pages.js?v=1.2.0',
+  './js/app.js?v=1.2.0', './manifest.json', './icons/icon-192.png', './icons/icon-512.png', './icons/favicon.svg'];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(VERSI).then((c) => c.addAll(ASET)).then(() => self.skipWaiting()));

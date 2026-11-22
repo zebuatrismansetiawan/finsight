@@ -30,6 +30,7 @@ window.DemoAPI = (() => {
   const kolAcak = () => { const r = rnd(); return r < 0.844 ? 1 : r < 0.934 ? 2 : r < 0.968 ? 3 : r < 0.989 ? 4 : 5; };
   const bulat = (n, k = 1e5) => Math.round(n / k) * k;
 
+  const PT_DEMO = ['PT Minori Pemagang', 'PT Minori SSW', 'PT Aji', 'PT Nagomi', 'PT. Minori SSW', 'pt aji'];
   // ---------- Dataset ----------
   const rows = [];
   let no = 10000;
@@ -56,11 +57,13 @@ window.DemoAPI = (() => {
       let kl = lunas ? null : kol;
       if (!lunas && rnd() < 0.015) kl = Math.min(5, Math.max(1, kol + (rnd() < 0.68 ? -1 : 1)));
       const rp = '10' + String(no).padStart(8, '0'), ra = '0' + (2 + (no % 6)) + String((no * 7919) % 100000000).padStart(8, '0');
-      rows.push(['DEB-' + no, nm, String(ri(1000000, 9999999)), pilih(PIC), wa, wv ? 1 : 0, p.kode, pl, bd, jt, lunas ? 'Lunas' : 'Aktif', kol, sb, sa, an, rnd() < 0.02 ? 1 : 0, pilih(RM), kl, rp, ra]);
+      const pt = p.kode === 'KUR PMI' ? (rnd() < 0.03 ? '' : PT_DEMO[no % PT_DEMO.length]) : '';
+      // v1.2: kunci debitur (id) = Rek_Pinjaman
+      rows.push([rp, nm, String(ri(1000000, 9999999)), pilih(PIC), wa, wv ? 1 : 0, p.kode, pl, bd, jt, lunas ? 'Lunas' : 'Aktif', kol, sb, sa, an, rnd() < 0.02 ? 1 : 0, pilih(RM), kl, rp, ra, pt, '']);
     }
   });
   rows.sort((a, b) => (a[0] < b[0] ? 1 : -1));
-  const COLS = ['id', 'nm', 'cif', 'pic', 'wa', 'wv', 'pr', 'pl', 'bd', 'jt', 'st', 'kol', 'sb', 'sa', 'an', 'oo', 'rm', 'kl', 'rp', 'ra'];
+  const COLS = ['id', 'nm', 'cif', 'pic', 'wa', 'wv', 'pr', 'pl', 'bd', 'jt', 'st', 'kol', 'sb', 'sa', 'an', 'oo', 'rm', 'kl', 'rp', 'ra', 'pt', 'il'];
   let ver = String(Date.now()), lver = '1', sver = '1.1.1';
   const ds = () => ({ cols: COLS, rows, n: rows.length, dibangun: Date.now(), periode: PERIODE, adaBaseline: true, ver });
   const byId = () => { const m = {}; rows.forEach((r) => { m[r[0]] = r; }); return m; };
@@ -94,6 +97,17 @@ window.DemoAPI = (() => {
   const KET = { NAMA_APLIKASI: 'Nama aplikasi di sidebar & judul', SUBJUDUL: 'Teks kecil di bawah logo', NAMA_INSTITUSI: 'Nama institusi di footer & laporan', NAMA_CABANG: 'Nama unit/cabang (placeholder {cabang} di template WA)', POLLING_DETIK: 'Interval cek pembaruan data di browser (detik, 15–120)', JT_HARI: 'Rentang "jatuh tempo" ke depan (hari)', WA_MODE: 'fonnte = kirim sungguhan, simulasi = uji alur tanpa mengirim (UAT)', WA_KUOTA_HARIAN: 'Batas pesan WA per hari', WA_BATCH: 'Pesan yang diproses per eksekusi pemicu (10–40)', WA_JEDA: 'Jeda acak antarpesan di gateway (detik, format min-maks)', TOTP_ISSUER: 'Nama yang tampil di aplikasi Authenticator', SESI_JAM: 'Lama sesi login (jam, 1–24)', LOGO_DATA: 'Logo aplikasi', LOGO_UKURAN: 'Ukuran logo di sidebar (piksel, 24–80)', LOGO_TEKS: 'Tampilkan nama aplikasi di samping logo (ya/tidak)' };
   const setting = { NAMA_APLIKASI: 'FinSight', SUBJUDUL: 'Business Banking', NAMA_INSTITUSI: '', NAMA_CABANG: 'KC Contoh Jakarta', POLLING_DETIK: '30', JT_HARI: '30', WA_MODE: 'simulasi', WA_KUOTA_HARIAN: '1000', WA_BATCH: '25', WA_JEDA: '3-8', TOTP_ISSUER: 'FinSight Demo', SESI_JAM: '8', LOGO_DATA: '', LOGO_UKURAN: '34', LOGO_TEKS: 'ya' };
   let token = { ada: false, samar: '' };
+  setting.PERAN_AKSES = JSON.stringify({ RM: ['dashboard', 'kualitas', 'debitur', 'risiko', 'blast', 'log'], Manager: ['dashboard', 'kualitas', 'debitur', 'risiko', 'log'] });
+  setting.PMI_PT = JSON.stringify(['PT Minori Pemagang', 'PT Minori SSW', 'PT Aji', 'PT Nagomi']);
+  KET.PERAN_AKSES = 'Menu yang boleh dibuka tiap peran'; KET.PMI_PT = 'Daftar PT penempatan debitur KUR PMI';
+  const MENU_PERAN = ['dashboard', 'kualitas', 'debitur', 'risiko', 'blast', 'template', 'log'];
+  const peranAkses = () => { try { return JSON.parse(setting.PERAN_AKSES) || {}; } catch (e) { return {}; } };
+  const menuPeran = (p) => (p === 'Admin' ? MENU_PERAN.concat(['pengguna', 'pengaturan']) : (peranAkses()[p] || null) ? peranAkses()[p].concat(['pengaturan']) : []);
+  const labelPeran = (p) => (p === 'Admin' ? 'Super Admin' : p);
+  const normPt = (v) => String(v || '').toLowerCase().replace(/^\s*p\.?\s*t\.?\s+/, '').replace(/[^a-z0-9]/g, '');
+  // 1 akun = 1 perangkat: id sesi terakhir per NPP (disimpan di browser ini)
+  const KS = 'fs_demo_sesi';
+  const sesiAktif = () => { try { return JSON.parse(localStorage.getItem(KS) || '{}'); } catch (e) { return {}; } };
 
   // ---------- Log blast ----------
   const logs = [];
@@ -138,7 +152,15 @@ window.DemoAPI = (() => {
   const ok = (data, message) => ({ success: true, data: data === undefined ? null : data, message: message || '' });
   const fail = (message, code, data) => ({ success: false, message, code: code || 'ERROR', data: data || null });
   const me = (u) => ({ npp: u.npp, nama: u.nama, peran: u.peran, email: u.email });
-  const sesi = (t) => { const p = bacaTok(t); if (!p || p.s) return null; const u = users.find((x) => x.npp === p.n); if (!u || u.status !== 'Aktif' || u.peran !== p.r) return null; return u; };
+  let alasanSesi = '';
+  const sesi = (t) => {
+    alasanSesi = '';
+    const p = bacaTok(t); if (!p || p.s) return null;
+    const aktif = sesiAktif()[p.n];
+    if (aktif && p.j !== aktif) { alasanSesi = 'LAIN'; return null; }
+    const u = users.find((x) => x.npp === p.n); if (!u || u.status !== 'Aktif' || u.peran !== p.r) return null; return u;
+  };
+  const gagalSesi = () => (alasanSesi === 'LAIN' ? fail('Akun Anda baru saja masuk di perangkat lain. Sesi di perangkat ini ditutup otomatis.', 'AUTH', { alasan: 'LAIN' }) : fail('Sesi berakhir. Silakan masuk kembali.', 'AUTH'));
   const keamanan = (npp) => { const c = cred()[npp]; return !c ? 'Belum aktivasi' : c.ch ? 'Wajib ganti sandi' : !c.t ? 'Belum 2FA' : '2FA aktif'; };
 
   // ---------- Statistik log ----------
@@ -151,18 +173,17 @@ window.DemoAPI = (() => {
   const gw = (u) => { const s = statHari(); return { mode: setting.WA_MODE, tokenAda: token.ada, kuota: +setting.WA_KUOTA_HARIAN, terkirim: s.terkirim, gagal: s.gagal, antre: s.antre, bolehKirim: u && u.peran !== 'Manager' }; };
 
   let mutasiAkhir = Date.now();
+  // Hak akses rute = sama dengan server: '*' semua peran, 'A' Super Admin saja, ['menu',…] butuh salah satu menu
   const ROLES = {
-    'boot': 'ARM', 'sync.ping': 'ARM', 'data.debitur': 'ARM', 'data.snapshot': 'ARM', 'cache.refresh': 'ARM', 'auth.me': 'ARM', 'auth.logout': 'ARM', 'auth.ubahSandi': 'ARM',
-    'blast.kirim': 'AR', 'blast.proses': 'AR', 'blast.batal': 'AR', 'blast.status': 'ARM', 'log.list': 'ARM', 'template.list': 'AR', 'template.simpan': 'A', 'wa.tes': 'A',
-    'user.list': 'A', 'user.simpan': 'A', 'user.reset': 'A', 'setting.get': 'A', 'setting.simpan': 'A', 'rahasia.simpan': 'A', 'snapshot.jalankan': 'A',
-    'ekspor.pdf': 'ARM', 'ekspor.catat': 'ARM', 'import.run': 'A'
+    'blast.kirim': ['blast'], 'blast.proses': ['blast'], 'blast.batal': ['blast'], 'template.list': ['blast', 'template'], 'template.simpan': ['template'], 'wa.tes': 'A',
+    'user.list': 'A', 'user.simpan': 'A', 'user.reset': 'A', 'user.gantiNpp': 'A', 'peran.simpan': 'A', 'pmi.simpan': 'A', 'setting.get': 'A', 'setting.simpan': 'A', 'rahasia.simpan': 'A', 'snapshot.jalankan': 'A', 'import.run': 'A'
   };
-  const kodePeran = { Admin: 'A', RM: 'R', Manager: 'M' };
+  const boleh = (u, a) => { const r = ROLES[a]; if (!r || u.peran === 'Admin') return true; if (r === 'A') return false; const m = menuPeran(u.peran); return r.some((x) => m.includes(x)); };
 
   async function proses(body) {
     const a = body.action, d = body.data || {};
     if (a === 'batch') {
-      const u = sesi(body.token); if (!u) return fail('Sesi berakhir. Silakan masuk kembali.', 'AUTH');
+      const u = sesi(body.token); if (!u) return gagalSesi();
       const results = [];
       for (const c of body.calls || []) results.push(await proses({ action: c.action, data: c.data, token: body.token }));
       return ok({ results });
@@ -205,14 +226,15 @@ window.DemoAPI = (() => {
       if (lingkup === '2fa') { x.t = x.tp; x.ta = Date.now(); delete x.tp; delete x.tq; delete x.tx; }
       x.ls = L; setCred(c);
       u.login = new Date().toISOString();
-      return ok({ langkah: 'SELESAI', token: tok({ n: u.npp, r: u.peran, i: Date.now(), x: Date.now() + 8 * 36e5 }), me: me(u) }, lingkup === '2fa' ? 'Autentikasi dua faktor aktif.' : '');
+      const j = Math.random().toString(36).slice(2, 10), sa = sesiAktif(); sa[u.npp] = j; localStorage.setItem(KS, JSON.stringify(sa));
+      return ok({ langkah: 'SELESAI', token: tok({ n: u.npp, r: u.peran, i: Date.now(), x: Date.now() + 8 * 36e5, j }), me: me(u), akses: menuPeran(u.peran) }, lingkup === '2fa' ? 'Autentikasi dua faktor aktif.' : '');
     }
     // ----- butuh sesi
     const u = sesi(body.token);
-    if (!u) return fail('Sesi berakhir. Silakan masuk kembali.', 'AUTH');
-    if (ROLES[a] && !ROLES[a].includes(kodePeran[u.peran])) return fail('Anda tidak memiliki hak akses untuk fitur ini.', 'FORBIDDEN');
+    if (!u) return gagalSesi();
+    if (!boleh(u, a)) return fail('Anda tidak memiliki hak akses untuk fitur ini.', 'FORBIDDEN');
     switch (a) {
-      case 'boot': return ok(Object.assign({ me: me(u), setting, produk: PRODUK, ver, lver, server: Date.now(), periode: PERIODE, hariIni: HARI, snap, gw: gw(u) }, d.ver === ver ? { notModified: true } : { ds: ds() }, u.peran !== 'Manager' ? { tpl: tpl.filter((t) => t.aktif) } : {}));
+      case 'boot': return ok(Object.assign({ me: me(u), akses: menuPeran(u.peran), setting, produk: PRODUK, ver, lver, server: Date.now(), periode: PERIODE, hariIni: HARI, snap, gw: gw(u) }, d.ver === ver ? { notModified: true } : { ds: ds() }, boleh(u, 'blast.kirim') ? { tpl: tpl.filter((t) => t.aktif) } : {}));
       case 'sync.ping': {
         if (Date.now() - mutasiAkhir > 120000) {    // simulasi perubahan di Google Sheets tiap ±2 menit
           mutasiAkhir = Date.now();
@@ -301,12 +323,57 @@ window.DemoAPI = (() => {
         return ok({ rows: out, ringkas: ring, pengirim: peng, lver, terpotong: false });
       }
       case 'wa.tes': return ok({ ok: true }, 'Pesan tes diterima gateway (SIMULASI).');
-      case 'user.list': return ok({ users: users.map((x) => Object.assign({}, x, { keamanan: keamanan(x.npp) })) });
+      case 'user.list': return ok({ users: users.map((x) => Object.assign({}, x, { label: labelPeran(x.peran), keamanan: keamanan(x.npp) })) });
+      case 'user.gantiNpp': {
+        const x = users.find((y) => y.npp === d.npp), baru = String(d.baru || '');
+        if (!x) return fail('Pengguna tidak ditemukan.');
+        if (!/^\d{5}$/.test(baru)) return fail('NPP baru harus 5 digit angka.', 'VALIDATION');
+        if (baru === x.npp) return fail('NPP baru sama dengan NPP lama.', 'VALIDATION');
+        if (users.some((y) => y.npp === baru)) return fail('NPP ' + baru + ' sudah dipakai pengguna lain.', 'VALIDATION');
+        const lama = x.npp, c = cred(); if (c[lama]) { c[baru] = c[lama]; delete c[lama]; setCred(c); }
+        const sa = sesiAktif(); delete sa[lama]; localStorage.setItem(KS, JSON.stringify(sa));
+        x.npp = baru;
+        const diri = lama === u.npp;
+        return ok({ npp: baru, keluar: diri }, 'NPP ' + lama + ' diganti menjadi ' + baru + '.' + (diri ? ' Silakan masuk kembali dengan NPP baru.' : ' Pengguna masuk dengan NPP baru; kata sandi & authenticator tetap.'));
+      }
+      case 'peran.simpan': {
+        const m = d.peran || {}, baru = {};
+        for (const k of Object.keys(m)) {
+          const n = String(k).replace(/\s+/g, ' ').trim();
+          if (!/^[A-Za-z0-9][A-Za-z0-9 .&()\/-]{1,29}$/.test(n) || /^(super\s*-?\s*)?admin$/i.test(n)) return fail('Nama peran "' + n + '" tidak valid.', 'VALIDATION');
+          const mm = (m[k] || []).filter((x, i, a) => MENU_PERAN.includes(x) && a.indexOf(x) === i);
+          if (!mm.length) return fail('Peran "' + n + '" minimal boleh membuka 1 menu.', 'VALIDATION');
+          baru[n] = MENU_PERAN.filter((x) => mm.includes(x));
+        }
+        const pakai = {}; users.forEach((x) => { if (x.peran !== 'Admin') pakai[x.peran] = (pakai[x.peran] || 0) + 1; });
+        const hilang = Object.keys(pakai).filter((p) => !baru[p]);
+        if (hilang.length) return fail('Peran ' + hilang.map((p) => '"' + p + '" (' + pakai[p] + ' pengguna)').join(', ') + ' masih dipakai. Pindahkan penggunanya ke peran lain dulu.', 'VALIDATION');
+        setting.PERAN_AKSES = JSON.stringify(baru); sver = sver + '.';
+        return ok({ peran: baru, setting }, 'Hak akses peran disimpan. Berlaku langsung untuk semua pengguna.');
+      }
+      case 'pmi.simpan': {
+        const daftar = [], sudah = {}, ganti = {};
+        for (const it of d.daftar || []) {
+          const nama = String((it && it.nama) || '').replace(/\s+/g, ' ').trim(); if (!nama) continue;
+          const k = normPt(nama); if (!k) return fail('Nama PT "' + nama + '" tidak valid.', 'VALIDATION');
+          if (sudah[k]) return fail('PT "' + nama + '" ganda.', 'VALIDATION');
+          sudah[k] = 1; daftar.push(nama);
+          if (it.lama && it.lama !== nama) ganti[normPt(it.lama)] = nama;
+        }
+        let diganti = 0;
+        rows.forEach((r) => { const g = ganti[normPt(r[20])]; if (r[20] && g && r[20] !== g) { r[20] = g; diganti++; } });
+        if (diganti) ver = String(Date.now());
+        setting.PMI_PT = JSON.stringify(daftar); sver = sver + '.';
+        return ok({ daftar, diganti, setting }, 'Daftar PT KUR PMI disimpan.' + (diganti ? ' ' + diganti + ' debitur ikut diperbarui.' : ''));
+      }
       case 'user.simpan': {
         if (!/^\d{5}$/.test(d.npp || '')) return fail('NPP harus 5 digit angka.', 'VALIDATION');
         if (!String(d.nama || '').trim()) return fail('Nama wajib diisi.', 'VALIDATION');
         let x = users.find((y) => y.npp === d.npp);
         if (d.mode === 'tambah' && x) return fail('NPP ' + d.npp + ' sudah terdaftar.', 'VALIDATION');
+        const peranN = /^(super\s*-?\s*)?admin$/i.test(String(d.peran || '').trim()) ? 'Admin' : Object.keys(peranAkses()).find((k) => k.toLowerCase() === String(d.peran || '').trim().toLowerCase());
+        if (!peranN) return fail('Peran tidak valid.', 'VALIDATION');
+        d.peran = peranN;
         if (d.npp === u.npp && (d.peran !== 'Admin' || d.status !== 'Aktif')) return fail('Anda tidak dapat menurunkan peran atau menonaktifkan akun Anda sendiri.', 'VALIDATION');
         if (!x) { x = { npp: d.npp, dibuat: new Date().toISOString(), login: '' }; users.push(x); }
         Object.assign(x, { nama: d.nama, email: d.email || '', peran: d.peran, status: d.status });
@@ -318,11 +385,11 @@ window.DemoAPI = (() => {
         setCred(c);
         return ok(null, d.mode === 'buka' ? 'Kunci akun dibuka.' : d.mode === '2fa' ? 'Authenticator direset. QR baru tampil saat login berikutnya.' : 'Akses direset. Login dengan sandi = NPP.');
       }
-      case 'setting.get': return ok({ setting, keterangan: KET, rahasia: { FONNTE_TOKEN: token }, sistem: { versi: '1.1.0 (demo)', dataVer: ver, spreadsheetUrl: 'https://docs.google.com/spreadsheets/', folderEkspor: '', pemicu: ['onChangeData', 'prosesAntrian', 'warmupCache', 'snapshotHarian'] } });
+      case 'setting.get': return ok({ setting, keterangan: KET, rahasia: { FONNTE_TOKEN: token }, sistem: { versi: '1.2.0 (demo)', dataVer: ver, spreadsheetUrl: 'https://docs.google.com/spreadsheets/', folderEkspor: '', pemicu: ['onChangeData', 'prosesAntrian', 'warmupCache', 'snapshotHarian'] } });
       case 'setting.simpan': {
         const inp = d.setting || {};
         if (inp.LOGO_DATA && (String(inp.LOGO_DATA).length > 48000 || !/^data:image\/(png|jpeg|webp);base64,/.test(inp.LOGO_DATA))) return fail('Logo tidak valid atau terlalu besar. Gunakan PNG/JPG/WEBP — aplikasi otomatis memperkecilnya.', 'VALIDATION');
-        Object.keys(inp).forEach((k) => { if (k in setting) setting[k] = String(inp[k]); });
+        Object.keys(inp).forEach((k) => { if (k in setting && k !== 'PERAN_AKSES' && k !== 'PMI_PT') setting[k] = String(inp[k]); });
         if ('LOGO_UKURAN' in inp) setting.LOGO_UKURAN = String(Math.max(24, Math.min(80, Math.round(+inp.LOGO_UKURAN) || 34)));
         if ('LOGO_TEKS' in inp) setting.LOGO_TEKS = inp.LOGO_TEKS === 'tidak' ? 'tidak' : 'ya';
         sver = sver + '.'; return ok({ setting }, 'Pengaturan disimpan.');

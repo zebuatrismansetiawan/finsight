@@ -1,12 +1,80 @@
-# Panduan Instalasi FinSight v1.1.0
+# Panduan Instalasi FinSight v1.2.0
 
-Monitoring Portofolio Kredit & Penagihan — Google Apps Script (backend REST API) + GitHub Pages (frontend PWA)
+Monitoring Portofolio Kredit & Penagihan — Google Apps Script (backend REST API) + frontend PWA (GitHub Pages / Vercel)
 
 ---
 
-## ⬆️ Upgrade dari v1.0.0 ke v1.1.0 (aplikasi yang sudah berjalan)
+## ⬆️ Upgrade dari v1.1.0 ke v1.2.0 (aplikasi yang sudah berjalan)
 
-Data, akun, kata sandi, authenticator yang sudah aktif, token Fonnte, dan URL `/exec` **tidak berubah**. Pengguna tidak perlu mendaftar ulang.
+Data, akun, kata sandi, authenticator yang sudah aktif, token Fonnte, logo, dan URL `/exec` **tidak berubah**. Pengguna tidak perlu mendaftar ulang. Satu-satunya efek yang terasa: setelah upgrade setiap akun hanya bisa aktif di **1 perangkat**.
+
+**Yang berubah di v1.2.0**
+
+| # | Perubahan |
+|---|---|
+| 1 | **Halaman masuk baru**: kartu 2 panel (panel kiri berwarna + ilustrasi, panel kanan form "Selamat Datang"), tombol lihat sandi, "Lupa kata sandi?", lencana keamanan. Di HP tampil 1 kolom tanpa ilustrasi |
+| 2 | **Penagihan (HP)**: kartu Total Debitur Berisiko, Total Kekurangan Saldo, dan Jatuh Tempo Terdekat ditumpuk 1 kolom; angka, "Rp", satuan (Jt/M), serta tanggal–bulan–tahun sejajar dalam 1 baris dan tidak keluar kotak |
+| 3 | **Logo** yang diunggah kini dipakai di semua tempat: sidebar, bilah atas HP, halaman masuk, ikon tab browser (favicon), dan kop laporan Excel/PDF/Cetak |
+| 4 | **Kualitas Kredit**: kolom ID Debitur dihapus. Di database, **`Rek_Pinjaman` menjadi kunci debitur**; `ID_Debitur` kini opsional |
+| 5–6 | **Unduh Excel, PDF, dan Cetak** memakai tampilan yang sama dengan tabel aplikasi: kop berwarna + logo, filter & waktu cetak, kotak ringkasan, kolom sama persis (Entitas/Kontak … Status), chip Produk/Kol/Status berwarna, total, nomor halaman. Excel tetap berisi angka asli (bisa dijumlah/difilter) |
+| 7 | **Daftar Debitur** punya 2 sub-halaman: **Debitur Umum** dan **Debitur KUR PMI**. KUR PMI dikelompokkan per PT (bawaan: PT Minori Pemagang, PT Minori SSW, PT Aji, PT Nagomi) dari kolom baru **`PT_PMI`**; daftar PT dapat diubah Super Admin |
+| 8 | **Admin → Super Admin**. Super Admin dapat **mengganti NPP** (termasuk NPP sendiri), **membuat peran baru**, dan mencentang **menu apa saja** yang boleh dibuka tiap peran |
+| 9 | **HP: Floating Bottom Navigation** — Dashboard, Debitur, **Kualitas** (tombol tengah menonjol), Penagihan, Keluar |
+| 10 | Tombol tanggal di samping lonceng (bilah atas) dihapus |
+| 11 | **1 akun = 1 perangkat** (semua peran): login di perangkat baru otomatis menutup paksa sesi di perangkat lama |
+
+**A. Backend (Apps Script)** — ganti 7 berkas, `appsscript.json` tetap
+
+1. Buka proyek Apps Script FinSight. Di `Setup.gs`, **salin dulu baris `const ADMIN_AWAL = …` milik Anda** (berisi NPP Anda).
+2. Ganti seluruh isi berkas **`Kode`, `Auth`, `Data`, `Blast`, `Ekspor`, `Migrasi`, `Setup`** dengan berkas baru. Di `Setup.gs`, tempel kembali baris `ADMIN_AWAL` Anda.
+3. Simpan (Ctrl+S) → jalankan **`setupAppEnvironment`** sekali. Fungsi ini hanya:
+   - menambah kolom **`PT_PMI`** di sheet Debitur dan memastikan `Rek_Pinjaman` berformat teks;
+   - mengubah tulisan peran `Admin` → **`Super Admin`** di sheet Pengguna;
+   - menambah 2 baris pengaturan **`PERAN_AKSES`** (menu per peran) dan **`PMI_PT`** (daftar PT) di sheet Pengaturan;
+   - melaporkan di log berapa debitur yang **belum punya `Rek_Pinjaman`**.
+   Data, sandi, authenticator, dan rahasia tidak disentuh.
+4. **Deploy → Kelola deployment → ✏️ Edit → Versi: Versi baru → Deploy.** Jangan membuat deployment baru (URL `/exec` harus tetap sama).
+5. Di sheet Debitur: **isi `Rek_Pinjaman` untuk semua debitur** (unik per debitur) dan isi **`PT_PMI`** untuk debitur produk KUR PMI. Selama `Rek_Pinjaman` kosong, aplikasi sementara memakai `ID_Debitur`. Setelah semua `Rek_Pinjaman` terisi, kolom `ID_Debitur` boleh dihapus.
+
+> **Ganti backend dan frontend bersamaan.** Frontend v1.2 membutuhkan backend v1.2 (menu per peran & 1 perangkat dicek di server).
+
+**B. Frontend (GitHub Pages / Vercel)**
+
+1. Ekstrak `finsight-frontend-v1.2.0.zip`, lalu **salin semua isinya ke folder repository lama Anda** dan pilih *Ganti/Replace* bila ditanya. ZIP ini sengaja **tidak berisi `js/config.js`**, jadi URL `/exec` Anda tetap aman. Ada 1 berkas baru: `js/laporan.js`.
+2. Dari terminal di folder repository tersebut:
+   ```bash
+   git add .
+   git commit -m "FinSight v1.2.0"
+   git push
+   ```
+   GitHub Pages / Vercel memperbarui situs otomatis setelah *push*.
+3. Tunggu 1–2 menit, buka situs, tekan **Ctrl+Shift+R**. Di HP/PWA akan muncul "Versi baru tersedia" → muat ulang. Footer menampilkan **v1.2.0**.
+
+**C. Setelah upgrade (Super Admin)**
+
+| Tugas | Di mana |
+|---|---|
+| Atur menu tiap peran / buat peran baru | **Pengguna & Peran → tab Peran & Hak Akses Menu** → centang menu → **Simpan hak akses**. **+ Tambah Peran** untuk peran baru (mis. Kepala Cabang). Peran yang masih dipakai pengguna tidak bisa dihapus |
+| Ganti NPP pengguna (termasuk NPP sendiri) | **Pengguna & Peran → ✏️ Edit** → ubah NPP → konfirmasi. Kata sandi & authenticator ikut pindah; sesi lama ditutup. Bila NPP sendiri yang diganti, Anda keluar lalu masuk dengan NPP baru |
+| Ubah daftar PT KUR PMI | **Pengaturan → Mitra KUR PMI** (atau tombol **Kelola PT** di halaman Debitur KUR PMI): ganti nama, urutkan, tambah, hapus → **Simpan daftar PT**. Mengganti nama PT juga memperbarui isi kolom `PT_PMI` di sheet. Penulisan berbeda (mis. `pt aji`, `PT. Aji`) otomatis dikelompokkan ke PT yang sama |
+
+**Hak akses bawaan setelah upgrade** (sama seperti v1.1, bisa diubah):
+
+| Menu | Super Admin | RM | Manager |
+|---|:-:|:-:|:-:|
+| Dashboard, Kualitas Kredit, Daftar Debitur, Penagihan, Log Blast | ✅ | ✅ | ✅ |
+| WA Blast | ✅ | ✅ | — |
+| Template WA (kelola) | ✅ | — | — |
+| Pengguna & Peran, Pengaturan aplikasi | ✅ (khusus) | — | — |
+
+> **Catatan "1 perangkat".** Sesi lama ditutup begitu login di perangkat baru **berhasil sampai kode authenticator** (percobaan login yang gagal tidak mengganggu sesi yang sedang aktif). Perangkat lama kembali ke halaman masuk dengan pesan *"Akun Anda baru saja masuk di perangkat lain"* saat aplikasinya memeriksa data berikutnya (±30–60 detik bila tab terbuka) atau saat pengguna mengklik apa pun. Dua tab di browser yang sama tetap dihitung 1 perangkat.
+
+> **Catatan logo.** Ikon aplikasi yang sudah terpasang di layar utama HP (PWA) adalah ikon bawaan dan tidak bisa berganti otomatis oleh browser; selain itu semua tampilan memakai logo yang diunggah.
+
+> **Catatan tombol tanggal.** Tombol tanggal di bilah atas dulu juga dipakai untuk memilih *snapshot* bulan lalu. Karena tombolnya dihapus sesuai permintaan, aplikasi selalu menampilkan periode berjalan; data `Snapshot_Kol` tetap terisi dan grafik tren di Dashboard/Kualitas Kredit tetap memakai data bulan-bulan sebelumnya.
+
+<details>
+<summary><b>Riwayat: upgrade dari v1.0.0 ke v1.1.0</b></summary>
 
 **Yang berubah di v1.1.0**
 
@@ -43,7 +111,9 @@ Data, akun, kata sandi, authenticator yang sudah aktif, token Fonnte, dan URL `/
    ```
 3. Tunggu 1–2 menit, buka situs, tekan **Ctrl+Shift+R**. Di HP/PWA akan muncul pemberitahuan "Versi baru tersedia" → muat ulang. Footer menampilkan **v1.1.0**.
 
-> **Catatan QR "1 perangkat".** Standar TOTP (dipakai Microsoft Authenticator) tidak memberi tahu server berapa HP yang memindai sebuah QR. Karena itu v1.1.0 menutup celahnya dari sisi lain: QR hanya tampil 3 menit, tidak ada kunci teks yang bisa disalin, hanya satu QR yang berlaku pada satu waktu, dan QR tidak bisa ditampilkan lagi setelah aktivasi. Pindah ke HP lain hanya bisa lewat **Admin → Pengguna → Reset 2FA**, yang sekaligus mengeluarkan semua sesi lama.
+> **Catatan QR "1 perangkat".** Standar TOTP (dipakai Microsoft Authenticator) tidak memberi tahu server berapa HP yang memindai sebuah QR. Karena itu v1.1.0 menutup celahnya dari sisi lain: QR hanya tampil 3 menit, tidak ada kunci teks yang bisa disalin, hanya satu QR yang berlaku pada satu waktu, dan QR tidak bisa ditampilkan lagi setelah aktivasi. Pindah ke HP lain hanya bisa lewat **Super Admin → Pengguna → Reset 2FA**, yang sekaligus mengeluarkan semua sesi lama.
+
+</details>
 
 ---
 
@@ -56,17 +126,17 @@ HP / Laptop  →  GitHub Pages (frontend PWA)  ──fetch JSON──►  Google
 
 | Berkas | Dipasang di | Keterangan |
 |---|---|---|
-| `Kode.gs` | Apps Script | Router API, hak akses (RBAC) per panggilan, audit log |
-| `Auth.gs` | Apps Script | Login NPP, ganti sandi wajib, 2FA Microsoft Authenticator (TOTP), sesi |
-| `Data.gs` | Apps Script | Baca Sheets, cache berlapis, dataset debitur, snapshot kolektibilitas, pengaturan |
+| `Kode.gs` | Apps Script | Router API, hak akses per menu & peran (dicek tiap panggilan), audit log |
+| `Auth.gs` | Apps Script | Login NPP, ganti sandi wajib, 2FA Microsoft Authenticator (TOTP), sesi 1 perangkat, ganti NPP |
+| `Data.gs` | Apps Script | Baca Sheets, cache berlapis, dataset debitur, snapshot kolektibilitas, pengaturan, peran & Mitra KUR PMI |
 | `Blast.gs` | Apps Script | Template WA, antrean WA blast (Fonnte), log |
-| `Ekspor.gs` | Apps Script | Laporan PDF ke folder Drive |
+| `Ekspor.gs` | Apps Script | Laporan PDF (tampilan sama dengan aplikasi) ke folder Drive |
 | `Migrasi.gs` | Apps Script | Import data dari spreadsheet lama (dry-run, aman diulang) |
 | `Setup.gs` | Apps Script | Instalasi otomatis, data contoh, fungsi darurat |
 | `appsscript.json` | Apps Script | Zona waktu Asia/Jakarta & setelan Web App |
-| `finsight-frontend-v1.1.0.zip` | GitHub Pages | Isi folder ini = isi repository (index.html di root). Tidak berisi `js/config.js` — instalasi baru: salin `js/config.js` dari paket v1.0.0 atau buat sesuai langkah 3.2 |
+| `finsight-frontend-v1.2.0.zip` | GitHub Pages / Vercel | Isi folder ini = isi repository (index.html di root). Tidak berisi `js/config.js` — instalasi baru: buat `js/config.js` sesuai langkah 3.2 |
 
-> **Mode demo.** Sebelum backend terpasang, frontend otomatis berjalan dengan data fiktif. Buka `index.html` lewat server lokal atau GitHub Pages lalu login dengan NPP `10001` (Admin), `20001` (RM), atau `30001` (Manager). Kata sandi pertama = NPP. Kode authenticator demo ditampilkan di layar.
+> **Mode demo.** Sebelum backend terpasang, frontend otomatis berjalan dengan data fiktif. Buka `index.html` lewat server lokal atau GitHub Pages lalu login dengan NPP `10001` (Super Admin), `20001` (RM), atau `30001` (Manager). Kata sandi pertama = NPP. Kode authenticator demo ditampilkan di layar.
 
 ---
 
@@ -86,9 +156,9 @@ Gunakan **akun Google yang akan memiliki data** (sebaiknya akun kerja yang diset
 7. Buka **Log eksekusi**. Harus muncul `✅ Setup selesai` beserta tautan spreadsheet. Setup membuat:
    - Folder Drive `📁 FinSight` berisi spreadsheet `🗃️ FinSight — Database` dan folder `📂 Ekspor Laporan`.
    - Sheet: `Debitur`, `Produk`, `Template_WA`, `Log_Blast`, `Pengguna`, `Snapshot_Kol`, `Snapshot_Debitur`, `Pengaturan`, `Audit_Log`, `AppConfig`.
-   - 3 template WA awal, 5 produk, akun Admin awal, serta 4 pemicu otomatis (lihat bagian 7).
+   - 3 template WA awal, 5 produk, akun Super Admin awal, serta 4 pemicu otomatis (lihat bagian 7).
    > Setup **aman dijalankan ulang**: tidak menimpa data, sandi, atau rahasia yang sudah ada.
-8. *(Opsional, untuk UAT)* Jalankan **`isiDataContoh`** → 150 debitur fiktif berawalan `DEMO-`. Hapus nanti dengan **`hapusDataContoh`**.
+8. *(Opsional, untuk UAT)* Jalankan **`isiDataContoh`** → 150 debitur fiktif (CIF berawalan `DEMO`, sebagian KUR PMI lengkap dengan PT). Hapus nanti dengan **`hapusDataContoh`**.
 9. **Deploy** → **Deployment baru** → ikon roda gigi → **Aplikasi web**:
    - *Jalankan sebagai*: **Saya**
    - *Siapa yang memiliki akses*: **Siapa saja (Anyone)**
@@ -108,7 +178,7 @@ Data debitur **diedit langsung di Google Sheets** (aplikasi bersifat monitoring)
 
 | Kolom | Isi | Nama lain yang juga dikenali |
 |---|---|---|
-| `ID_Debitur` *(wajib, unik)* | ID / no. rekening pinjaman | ID, No Rekening, No Pinjaman |
+| `Rek_Pinjaman` *(wajib, unik — kunci debitur)* | No. rekening pinjaman (format **teks**) | Rek Pinjaman, No Rek Pinjaman, Rekening Kredit |
 | `Nama` | Nama debitur | Nama Debitur |
 | `No_WA` | 08xx / 62xx (format **teks**) | No HP, WA, Telepon |
 | `Produk` | BWU / CCC / KUR / KUR PMI / KPP | Jenis Produk |
@@ -119,11 +189,12 @@ Data debitur **diedit langsung di Google Sheets** (aplikasi bersifat monitoring)
 | `Saldo_Blokir` | Angka; **kosong = dianggap belum diblokir** | — |
 | `Saldo_Akhir`, `Angsuran` | Angka | Saldo, Angsuran Bulanan |
 | `Opt_Out_WA` | `Ya` bila tidak ingin dihubungi | Opt Out |
-| `Rek_Pinjaman` | No. rekening pinjaman (format **teks**). Kosong = tampil `ID_Debitur` | Rek Pinjaman, No Rek Pinjaman, Rekening Kredit |
+| `PT_PMI` | Khusus produk KUR PMI: nama PT penempatan (mis. PT Minori SSW). Huruf besar/kecil & awalan "PT" bebas | PT, PT Penempatan, Perusahaan, Mitra, P3MI, LPK |
 | `Rek_Afiliasi` | No. rekening afiliasi/autodebet (format **teks**) | Rek Afil, Rekening Afiliasi, Rek Tabungan, Rek Autodebet |
 | `CIF`, `Kontak`, `RM` | Opsional, untuk tampilan | — |
+| `ID_Debitur` | *Opsional (data lama)*. Hanya dipakai sementara bila `Rek_Pinjaman` kosong | ID, No Pinjaman |
 
-**B. Menu Import** (Admin → Pengaturan → Import Data): tempel URL spreadsheet lama → **Pindai (dry-run)** → **Jalankan import**. Sumber hanya dibaca, kunci `ID_Debitur` mencegah baris ganda, nomor WA diperbaiki (angka 0 di depan yang hilang dipulihkan), dan rumus di sheet tujuan dipertahankan. Import aman diulang sebelum *go-live* untuk menangkap data terbaru (delta).
+**B. Menu Import** (Super Admin → Pengaturan → Import Data): tempel URL spreadsheet lama → **Pindai (dry-run)** → **Jalankan import**. Sumber hanya dibaca, kunci `Rek_Pinjaman` (atau `ID_Debitur` untuk data lama) mencegah baris ganda, nomor WA diperbaiki (angka 0 di depan yang hilang dipulihkan), dan rumus di sheet tujuan dipertahankan. Import aman diulang sebelum *go-live* untuk menangkap data terbaru (delta).
 
 > **Asumsi PRD yang perlu dikonfirmasi:** "Jatuh tempo 30 hari" dihitung **30 hari ke depan** dari hari ini (bisa diubah di Pengaturan → `JT_HARI`). Kolom `Tgl_Jatuh_Tempo` juga dipakai sebagai tanggal angsuran pada halaman Penagihan.
 
@@ -141,7 +212,7 @@ Data debitur **diedit langsung di Google Sheets** (aplikasi bersifat monitoring)
    dir            # Windows: pastikan index.html, css, js, icons terlihat di sini (Mac/Linux: ls)
    git init
    git add .
-   git commit -m "FinSight v1.1.0"
+   git commit -m "FinSight v1.2.0"
    git branch -M main
    git remote add origin https://github.com/USERNAME/finsight.git
    git push -u origin main
@@ -150,7 +221,7 @@ Data debitur **diedit langsung di Google Sheets** (aplikasi bersifat monitoring)
 4. Di repository: **Settings → Pages** → *Source*: **Deploy from a branch** → *Branch*: **main / (root)** → Save → centang **Enforce HTTPS**.
 5. Buka `https://USERNAME.github.io/finsight/` setelah 1–2 menit.
 
-**Update frontend:** ubah berkas → `git add . && git commit -m "update" && git push`. Bila mengubah CSS/JS, naikkan `VERSI` di `sw.js` (mis. `finsight-v1.1.1`) dan angka `?v=` di `index.html` agar pengguna PWA mendapat versi baru.
+**Update frontend:** ubah berkas → `git add . && git commit -m "update" && git push`. Bila mengubah CSS/JS, naikkan `VERSI` di `sw.js` (mis. `finsight-v1.2.1`) dan angka `?v=` di `index.html` agar pengguna PWA mendapat versi baru.
 
 > Ingin dipandu langkah demi langkah sambil kirim screenshot terminal? Minta saja — panduan GitHub Pages bisa dilakukan satu perintah per langkah.
 
@@ -158,7 +229,7 @@ Data debitur **diedit langsung di Google Sheets** (aplikasi bersifat monitoring)
 
 ## 4. Login pertama & manajemen pengguna
 
-**Admin awal:**
+**Super Admin awal:**
 1. Buka situs → NPP = NPP admin di `Setup.gs`, kata sandi = **NPP yang sama**.
 2. Wajib **membuat kata sandi baru** (min. 8 karakter, huruf + angka, tidak memuat NPP).
 3. Muncul **kode QR** (berlaku 3 menit, sekali pakai). Di HP: pasang **Microsoft Authenticator** → **+** → **Akun lainnya (Google, Facebook, dll.)** → **Pindai kode QR**. (Google Authenticator/Authy juga bisa.) Bila waktu habis, klik **Buat QR baru**.
@@ -166,19 +237,25 @@ Data debitur **diedit langsung di Google Sheets** (aplikasi bersifat monitoring)
 
 **Keluar otomatis:** bila 5 menit tidak ada aktivitas (klik, ketik, gulir, gerak mouse), aplikasi menampilkan peringatan 30 detik lalu keluar sendiri. Menutup tab lalu membukanya lagi setelah lebih dari 5 menit juga wajib login ulang. Pemeriksaan data otomatis di latar belakang tidak dihitung sebagai aktivitas.
 
-**Logo aplikasi (Admin):** Pengaturan → **Logo Aplikasi** → unggah PNG/JPG/WEBP/SVG → geser **Ukuran logo** → **Simpan logo**. Gambar otomatis diperkecil dan disimpan di sheet Pengaturan (`LOGO_DATA`), lalu tampil di sidebar & halaman masuk semua pengguna. **Logo bawaan** mengembalikan logo FinSight.
+**Logo aplikasi (Super Admin):** Pengaturan → **Logo Aplikasi** → unggah PNG/JPG/WEBP/SVG → geser **Ukuran logo** → **Simpan logo**. Gambar otomatis diperkecil dan disimpan di sheet Pengaturan (`LOGO_DATA`), lalu tampil di sidebar, bilah atas HP, halaman masuk, ikon tab browser, dan kop laporan Excel/PDF/Cetak semua pengguna. **Logo bawaan** mengembalikan logo FinSight.
 
 **Login berikutnya:** NPP + kata sandi → kode 6 digit dari aplikasi authenticator.
 
-**Menambah pengguna:** menu **Pengguna & Peran** → *Tambah Pengguna* (NPP, nama, peran Admin/RM/Manager). Pengguna baru mengikuti alur yang sama (sandi awal = NPP).
+**Menambah pengguna:** menu **Pengguna & Peran** → *Tambah Pengguna* (NPP, nama, peran Super Admin/RM/Manager/peran buatan sendiri). Pengguna baru mengikuti alur yang sama (sandi awal = NPP).
 
-| Kejadian | Tindakan Admin (menu Pengguna → *Reset akses*) |
+**Peran & menu:** tab **Peran & Hak Akses Menu** — centang menu yang boleh dibuka tiap peran, atau **+ Tambah Peran**. Menu yang tidak dicentang hilang dari sidebar & bottom bar dan ditolak server.
+
+**Ganti NPP:** **✏️ Edit** pengguna → ubah NPP. Sandi & authenticator ikut pindah; pengguna masuk dengan NPP baru.
+
+**1 akun = 1 perangkat:** login yang berhasil di perangkat baru menutup paksa sesi di perangkat lama.
+
+| Kejadian | Tindakan Super Admin (menu Pengguna → *Reset akses*) |
 |---|---|
 | Lupa kata sandi | **Reset sandi & 2FA** → login lagi dengan sandi = NPP |
 | Ganti/hilang HP | **Reset 2FA saja** → QR baru (sekali pakai) muncul saat login berikutnya |
 | Salah sandi 5x (terkunci 15 menit) | **Buka kunci akun** |
 
-**Admin sendiri terkunci/lupa sandi:** buka editor Apps Script → jalankan **`resetAksesAdminAwal`**.
+**Super Admin sendiri terkunci/lupa sandi:** buka editor Apps Script → jalankan **`resetAksesAdminAwal`**.
 
 ---
 
@@ -186,7 +263,7 @@ Data debitur **diedit langsung di Google Sheets** (aplikasi bersifat monitoring)
 
 1. Bawaan aplikasi adalah **mode SIMULASI**: alur, antrean, dan log berjalan tetapi pesan **tidak** dikirim — cocok untuk UAT.
 2. Daftar di <https://fonnte.com>, hubungkan nomor WA, salin **token** perangkat.
-3. Admin → **Pengaturan → Gateway WA** → tempel token → **Simpan token**. Token disimpan di Script Properties dan hanya tampil tersamar (`ABCD••••••xyz`).
+3. Super Admin → **Pengaturan → Gateway WA** → tempel token → **Simpan token**. Token disimpan di Script Properties dan hanya tampil tersamar (`ABCD••••••xyz`).
 4. Pilih mode **Fonnte (kirim sungguhan)** → **Simpan**. Uji dengan **Kirim tes** ke nomor Anda.
 5. Atur kuota harian, pesan per menit (`WA_BATCH`), dan jeda (`WA_JEDA`, mis. `3-8` detik) sesuai paket Fonnte.
 
@@ -204,8 +281,8 @@ Semua rahasia ada di **Apps Script → ⚙️ Setelan Proyek → Properti skrip*
 |---|---|---|
 | `SESSION_SECRET` | Otomatis saat setup | Kunci tanda tangan token sesi |
 | `CRED_<NPP>` | Otomatis saat pengguna login | Hash + salt kata sandi & rahasia TOTP (bukan sandi asli) |
-| `LOCK_<NPP>`, `REV_<NPP>` | Otomatis | Penguncian akun & pencabutan sesi |
-| `FONNTE_TOKEN` | Admin lewat menu Gateway WA | Token gateway WA |
+| `LOCK_<NPP>`, `REV_<NPP>`, `REVA_<NPP>` | Otomatis | Penguncian akun, pencabutan sesi & alasan (mis. login di perangkat lain) |
+| `FONNTE_TOKEN` | Super Admin lewat menu Gateway WA | Token gateway WA |
 | `SPREADSHEET_ID`, `ROOT_FOLDER_ID`, `EXPORTS_FOLDER` | Otomatis saat setup | ID database & folder (dicatat juga di sheet AppConfig) |
 | `VER_*`, `DATA_HASH`, `ANTRIAN_*` | Otomatis | Versi cache & penunjuk antrean |
 
@@ -236,6 +313,10 @@ Browser memeriksa versi data setiap 30 detik (Pengaturan → `POLLING_DETIK`, 15
 | Area | Uji | Hasil yang diharapkan |
 |---|---|---|
 | Hak akses | Login sebagai Manager | Menu WA Blast, Template, Pengguna tidak tampil; buka `#/blast` dialihkan; server menolak aksi kirim |
+| Peran & menu | Cabut 1 menu dari RM, login sebagai RM | Menu hilang dari sidebar & bottom bar; alamatnya dialihkan |
+| 1 perangkat | Login akun yang sama di HP lalu di laptop | HP kembali ke halaman masuk dengan pesan "perangkat lain" |
+| Ganti NPP | Super Admin ganti NPP pengguna | Pengguna masuk dengan NPP baru, sandi & authenticator lama tetap |
+| KUR PMI | Buka Daftar Debitur → Debitur KUR PMI | Chip per PT + jumlah; Debitur Umum tidak memuat KUR PMI |
 | Login | NPP baru, sandi = NPP | Wajib ganti sandi → QR → kode 6 digit |
 | QR sekali pakai | Buka QR di 2 jendela, biarkan 3 menit, login ulang setelah aktif | QR lama ditolak; QR kedaluwarsa wajib dibuat ulang; QR tidak tampil lagi setelah aktif |
 | Keluar otomatis | Diamkan aplikasi 5 menit | Peringatan 30 detik → kembali ke halaman masuk |
@@ -243,8 +324,8 @@ Browser memeriksa versi data setiap 30 detik (Pengaturan → `POLLING_DETIK`, 15
 | Akurasi | Bandingkan KPI dengan SUM/COUNT di Sheets | Sama (uji sampel per produk) |
 | Sinkronisasi | Ubah, tambah, hapus baris Debitur | Tampil di web ≤ 60 detik |
 | WA Blast | Nomor tidak valid, opt-out, kirim ganda, 200+ penerima | Dilewati / peringatan / terkirim bertahap |
-| Ekspor | Excel & PDF dengan filter aktif | Isi sesuai filter, mencantumkan waktu cetak & nama pengguna; PDF tersimpan di Drive |
-| Responsif | HP, tablet, desktop | Menu geser di HP, KPI 2 kolom, tabel bisa digeser |
+| Ekspor | Excel, PDF & Cetak dengan filter aktif | Tampilan sama dengan tabel aplikasi; isi sesuai filter, mencantumkan logo, waktu cetak & nama pengguna; PDF tersimpan di Drive |
+| Responsif | HP, tablet, desktop | Bottom bar mengambang di HP (Kualitas di tengah), kartu Penagihan rapi 1 kolom, tabel bisa digeser |
 | Kerahasiaan | Lihat Network di DevTools | Tidak ada nomor WA lengkap/token di respons; token sesi dikirim di body |
 
 ---
@@ -260,6 +341,10 @@ Browser memeriksa versi data setiap 30 detik (Pengaturan → `POLLING_DETIK`, 15
 | "QR sudah tidak berlaku" saat aktivasi | QR baru dibuat di jendela/HP lain, atau lewat 3 menit | Masuk ulang / klik **Buat QR baru**, lalu pindai QR terbaru saja |
 | Tiba-tiba kembali ke halaman masuk | 5 menit tanpa aktivitas | Normal (keamanan). Login ulang |
 | Kolom Rek Pinjaman/Afil kosong | Header belum ada di sheet Debitur | Jalankan `setupAppEnvironment` atau tambah header `Rek_Pinjaman` & `Rek_Afiliasi` |
+| Jumlah debitur di aplikasi lebih sedikit dari baris sheet | Ada `Rek_Pinjaman` ganda (baris kedua diabaikan) | Pastikan setiap `Rek_Pinjaman` unik |
+| Debitur KUR PMI masuk grup "Belum terdaftar" | Nama di `PT_PMI` tidak ada di daftar PT | Tambahkan di Pengaturan → Mitra KUR PMI, atau perbaiki tulisan di sheet |
+| "Akun Anda baru saja masuk di perangkat lain" | Akun dipakai login di perangkat lain | Normal (1 akun = 1 perangkat). Bila bukan Anda, segera ganti sandi / minta Reset akses |
+| Menu tertentu hilang | Menu tidak dicentang untuk peran Anda | Minta Super Admin mengatur di Pengguna & Peran → Peran & Hak Akses Menu |
 | Data baru tidak muncul | Pemicu belum terpasang | Pengaturan → Sinkronisasi → *Pemicu aktif* harus 4; bila kosong jalankan setup lagi |
 | Tren Kol kosong | Snapshot baru 1 bulan | Normal — tren terisi otomatis tiap akhir bulan |
 | Pesan WA "Antre" terus | Mode Fonnte tanpa token / kuota habis | Isi token, cek kuota di menu Gateway |

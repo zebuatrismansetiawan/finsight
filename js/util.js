@@ -171,7 +171,7 @@ const U = (() => {
   // (tetap huruf kecil, kecuali menjadi kata pertama). Akronim (NPP, WA, OS),
   // angka, placeholder {nama}, email, dan isi <code>/<a>/<button> tidak diubah.
   const KATA_KECIL = new Set(['dan', 'untuk', 'dengan', 'per']);
-  const SEL_PROPER = ['.ph p', '.card-h p', '.hero p', '.sync-banner p', '.card p.muted', '.empty p', '.lg-sub', '.lg-hint > span', '.lg-feat li', '.lg-sec > span', '.tfa-once > span',
+  const SEL_PROPER = ['.ph p', '.card-h p', '.hero p', '.sync-banner p', '.card p.muted', '.empty p', '.lg-sub', '.lg-hint > span', '.lg-art p', '.lg-note', '.tfa-once > span',
     '.kpi-f > span', '.kolc-f > span', '.rk-f > span', '.card-f > span.muted', '.mk span', '.fld > small', '.opt small', '.preset small', '.imp small', '.dt-sub'].join(',');
   const LEWATI = 'code,kbd,pre,a,button,textarea,select,option,input,svg,.no-proper';
   function properTeks(t, st) {
