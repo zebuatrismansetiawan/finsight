@@ -165,7 +165,58 @@ const U = (() => {
     document.addEventListener('scroll', () => tipEl.classList.remove('show'), true);
   }
 
+
+  // ---------- Format Proper untuk subjudul & keterangan ----------
+  // Setiap kata diawali huruf kapital, KECUALI "dan", "untuk", "dengan", "per"
+  // (tetap huruf kecil, kecuali menjadi kata pertama). Akronim (NPP, WA, OS),
+  // angka, placeholder {nama}, email, dan isi <code>/<a>/<button> tidak diubah.
+  const KATA_KECIL = new Set(['dan', 'untuk', 'dengan', 'per']);
+  const SEL_PROPER = ['.ph p', '.card-h p', '.hero p', '.sync-banner p', '.card p.muted', '.empty p', '.lg-sub', '.lg-hint > span', '.lg-feat li', '.lg-sec > span', '.tfa-once > span',
+    '.kpi-f > span', '.kolc-f > span', '.rk-f > span', '.card-f > span.muted', '.mk span', '.fld > small', '.opt small', '.preset small', '.imp small', '.dt-sub'].join(',');
+  const LEWATI = 'code,kbd,pre,a,button,textarea,select,option,input,svg,.no-proper';
+  function properTeks(t, st) {
+    return t.replace(/[\p{L}\p{N}{}_@'’]+(?:[.\/][\p{L}\p{N}]+)*/gu, (w) => {
+      const awal = st.awal; st.awal = false;
+      if (/[{}@_]/.test(w) || /^\p{N}/u.test(w)) return w;
+      const lw = w.toLowerCase();
+      if (!awal && KATA_KECIL.has(lw)) return lw;
+      const kap = (x) => { const c = x.charAt(0); return c === c.toLowerCase() && c !== c.toUpperCase() ? c.toUpperCase() + x.slice(1) : x; };
+      return w.indexOf('/') > -1 ? w.split('/').map((x) => (/^\p{N}/u.test(x) ? x : kap(x))).join('/') : kap(w);
+    });
+  }
+  function properEl(el) {
+    if (!el || el.closest('.no-proper')) return;
+    const st = { awal: true };
+    const tw = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+    let n;
+    while ((n = tw.nextNode())) {
+      if (!n.nodeValue.trim()) continue;
+      const p = n.parentElement;
+      if (p && p !== el && p.closest(LEWATI) && el.contains(p.closest(LEWATI))) { st.awal = false; continue; }
+      const v = properTeks(n.nodeValue, st);
+      if (v !== n.nodeValue) n.nodeValue = v;
+    }
+  }
+  function properDi(root) {
+    if (!root || root.nodeType !== 1) return;
+    if (root.matches(SEL_PROPER)) properEl(root);
+    root.querySelectorAll(SEL_PROPER).forEach(properEl);
+    const atas = root.parentElement && root.parentElement.closest(SEL_PROPER);
+    if (atas) properEl(atas);
+  }
+  /** Pasang sekali: semua render berikutnya otomatis diformat sebelum tampil di layar. */
+  function properAuto(root) {
+    root = root || document.body;
+    properDi(root);
+    new MutationObserver((ms) => {
+      ms.forEach((m) => {
+        m.addedNodes.forEach((n) => { if (n.nodeType === 1) properDi(n); else if (n.nodeType === 3 && n.parentElement) { const a = n.parentElement.closest(SEL_PROPER); if (a) properEl(a); } });
+      });
+    }).observe(root, { childList: true, subtree: true });
+  }
+
   return {
+    proper: (t) => properTeks(String(t || ''), { awal: true }), properAuto,
     $, $$, esc, ic, num, dec, rp, rpS, rpParts, pct, tgl, tgl2, periodeLabel, jam, tglJam, isoLokal, selisihHari,
     tambahHari, periodeGeser, debounce, inisial, unduh, b64ToBlob, salin, toast, modal, konfirmasi, initTip, BLN, BULAN
   };

@@ -1,6 +1,49 @@
-# Panduan Instalasi FinSight v1.0.0
+# Panduan Instalasi FinSight v1.1.0
 
 Monitoring Portofolio Kredit & Penagihan — Google Apps Script (backend REST API) + GitHub Pages (frontend PWA)
+
+---
+
+## ⬆️ Upgrade dari v1.0.0 ke v1.1.0 (aplikasi yang sudah berjalan)
+
+Data, akun, kata sandi, authenticator yang sudah aktif, token Fonnte, dan URL `/exec` **tidak berubah**. Pengguna tidak perlu mendaftar ulang.
+
+**Yang berubah di v1.1.0**
+
+| # | Perubahan |
+|---|---|
+| 1 | Pengaturan → Import Data: kotak URL & 3 kotak nama sheet (Debitur, Pengguna, Template WA) tidak lagi keluar kotak |
+| 2 | QR Microsoft Authenticator **sekali pakai & satu perangkat**: berlaku 3 menit, kunci manual tidak ditampilkan, QR baru otomatis membatalkan QR lama (jendela/HP lain), QR hangus permanen setelah kode pertama terverifikasi |
+| 3 | Dashboard: "Total Limit Plafon" → **Total Maks Kredit**; baris "Plafon Belum Terserap" kini sejajar & rata kanan seperti "Angsuran Tertagih" |
+| 4 | Ikon abu-abu bertanda (—) dihapus di semua halaman |
+| 5 | **Pengaturan → Logo Aplikasi** (Admin): unggah logo + atur ukuran (24–80 px) + tampil/sembunyikan nama aplikasi |
+| 6 | Subjudul & keterangan ditulis format **Proper** (kecuali *dan, untuk, dengan, per*) |
+| 7 | Halaman "Risiko Gagal Bayar" → **Penagihan** (alamat `#/risiko` tetap) |
+| 8–9 | Kotak berdampingan di Dashboard dan Kualitas Kredit sama tinggi |
+| 10 | Daftar Debitur: kolom Debitur/CIF dihapus; urutan kolom **Entitas/Kontak, Rek Pinjaman, Rek Afil, Produk, Plafon, Baki Debet, Angsuran, Saldo Blokir, Saldo Akhir**, lalu Jatuh Tempo, Kol. OJK, Status, Aksi |
+| 11 | **Keluar otomatis setelah 5 menit tanpa aktivitas** (peringatan muncul 30 detik sebelumnya) |
+| 12 | Kartu "Insight portofolio" di Dashboard dihapus |
+
+**A. Backend (Apps Script)** — ganti 5 berkas, 3 lainnya tetap
+
+1. Buka proyek Apps Script FinSight. Di `Setup.gs`, **salin dulu baris `const ADMIN_AWAL = …` milik Anda** (berisi NPP Anda).
+2. Ganti seluruh isi berkas **`Kode`, `Auth`, `Data`, `Migrasi`, `Setup`** dengan berkas baru. Di `Setup.gs`, tempel kembali baris `ADMIN_AWAL` Anda. (`Blast`, `Ekspor`, `appsscript.json` tidak berubah.)
+3. Simpan (Ctrl+S) → jalankan **`setupAppEnvironment`** sekali. Fungsi ini hanya menambah kolom `Rek_Pinjaman` & `Rek_Afiliasi` di sheet Debitur (format teks) dan 3 baris `LOGO_*` di sheet Pengaturan — data, sandi, dan rahasia tidak disentuh.
+4. **Deploy → Kelola deployment → ✏️ Edit → Versi: Versi baru → Deploy.** Jangan membuat deployment baru (URL `/exec` harus tetap sama).
+5. Isi kolom `Rek_Pinjaman` dan `Rek_Afiliasi` di sheet Debitur (atau lewat menu Import). Selama `Rek_Pinjaman` kosong, kolom Rek Pinjaman menampilkan `ID_Debitur`.
+
+**B. Frontend (GitHub Pages)**
+
+1. Ekstrak `finsight-frontend-v1.1.0.zip`, lalu **salin semua isinya ke folder repository lama Anda** dan pilih *Ganti/Replace* bila ditanya. ZIP ini sengaja **tidak berisi `js/config.js`**, jadi URL `/exec` Anda tetap aman.
+2. Dari terminal di folder repository tersebut:
+   ```bash
+   git add .
+   git commit -m "FinSight v1.1.0"
+   git push
+   ```
+3. Tunggu 1–2 menit, buka situs, tekan **Ctrl+Shift+R**. Di HP/PWA akan muncul pemberitahuan "Versi baru tersedia" → muat ulang. Footer menampilkan **v1.1.0**.
+
+> **Catatan QR "1 perangkat".** Standar TOTP (dipakai Microsoft Authenticator) tidak memberi tahu server berapa HP yang memindai sebuah QR. Karena itu v1.1.0 menutup celahnya dari sisi lain: QR hanya tampil 3 menit, tidak ada kunci teks yang bisa disalin, hanya satu QR yang berlaku pada satu waktu, dan QR tidak bisa ditampilkan lagi setelah aktivasi. Pindah ke HP lain hanya bisa lewat **Admin → Pengguna → Reset 2FA**, yang sekaligus mengeluarkan semua sesi lama.
 
 ---
 
@@ -21,7 +64,7 @@ HP / Laptop  →  GitHub Pages (frontend PWA)  ──fetch JSON──►  Google
 | `Migrasi.gs` | Apps Script | Import data dari spreadsheet lama (dry-run, aman diulang) |
 | `Setup.gs` | Apps Script | Instalasi otomatis, data contoh, fungsi darurat |
 | `appsscript.json` | Apps Script | Zona waktu Asia/Jakarta & setelan Web App |
-| `finsight-frontend.zip` | GitHub Pages | Isi folder ini = isi repository (index.html di root) |
+| `finsight-frontend-v1.1.0.zip` | GitHub Pages | Isi folder ini = isi repository (index.html di root). Tidak berisi `js/config.js` — instalasi baru: salin `js/config.js` dari paket v1.0.0 atau buat sesuai langkah 3.2 |
 
 > **Mode demo.** Sebelum backend terpasang, frontend otomatis berjalan dengan data fiktif. Buka `index.html` lewat server lokal atau GitHub Pages lalu login dengan NPP `10001` (Admin), `20001` (RM), atau `30001` (Manager). Kata sandi pertama = NPP. Kode authenticator demo ditampilkan di layar.
 
@@ -76,11 +119,13 @@ Data debitur **diedit langsung di Google Sheets** (aplikasi bersifat monitoring)
 | `Saldo_Blokir` | Angka; **kosong = dianggap belum diblokir** | — |
 | `Saldo_Akhir`, `Angsuran` | Angka | Saldo, Angsuran Bulanan |
 | `Opt_Out_WA` | `Ya` bila tidak ingin dihubungi | Opt Out |
+| `Rek_Pinjaman` | No. rekening pinjaman (format **teks**). Kosong = tampil `ID_Debitur` | Rek Pinjaman, No Rek Pinjaman, Rekening Kredit |
+| `Rek_Afiliasi` | No. rekening afiliasi/autodebet (format **teks**) | Rek Afil, Rekening Afiliasi, Rek Tabungan, Rek Autodebet |
 | `CIF`, `Kontak`, `RM` | Opsional, untuk tampilan | — |
 
 **B. Menu Import** (Admin → Pengaturan → Import Data): tempel URL spreadsheet lama → **Pindai (dry-run)** → **Jalankan import**. Sumber hanya dibaca, kunci `ID_Debitur` mencegah baris ganda, nomor WA diperbaiki (angka 0 di depan yang hilang dipulihkan), dan rumus di sheet tujuan dipertahankan. Import aman diulang sebelum *go-live* untuk menangkap data terbaru (delta).
 
-> **Asumsi PRD yang perlu dikonfirmasi:** "Jatuh tempo 30 hari" dihitung **30 hari ke depan** dari hari ini (bisa diubah di Pengaturan → `JT_HARI`). Kolom `Tgl_Jatuh_Tempo` juga dipakai sebagai tanggal angsuran pada halaman Risiko.
+> **Asumsi PRD yang perlu dikonfirmasi:** "Jatuh tempo 30 hari" dihitung **30 hari ke depan** dari hari ini (bisa diubah di Pengaturan → `JT_HARI`). Kolom `Tgl_Jatuh_Tempo` juga dipakai sebagai tanggal angsuran pada halaman Penagihan.
 
 ---
 
@@ -96,7 +141,7 @@ Data debitur **diedit langsung di Google Sheets** (aplikasi bersifat monitoring)
    dir            # Windows: pastikan index.html, css, js, icons terlihat di sini (Mac/Linux: ls)
    git init
    git add .
-   git commit -m "FinSight v1.0.0"
+   git commit -m "FinSight v1.1.0"
    git branch -M main
    git remote add origin https://github.com/USERNAME/finsight.git
    git push -u origin main
@@ -105,7 +150,7 @@ Data debitur **diedit langsung di Google Sheets** (aplikasi bersifat monitoring)
 4. Di repository: **Settings → Pages** → *Source*: **Deploy from a branch** → *Branch*: **main / (root)** → Save → centang **Enforce HTTPS**.
 5. Buka `https://USERNAME.github.io/finsight/` setelah 1–2 menit.
 
-**Update frontend:** ubah berkas → `git add . && git commit -m "update" && git push`. Bila mengubah CSS/JS, naikkan `VERSI` di `sw.js` (mis. `finsight-v1.0.1`) dan angka `?v=` di `index.html` agar pengguna PWA mendapat versi baru.
+**Update frontend:** ubah berkas → `git add . && git commit -m "update" && git push`. Bila mengubah CSS/JS, naikkan `VERSI` di `sw.js` (mis. `finsight-v1.1.1`) dan angka `?v=` di `index.html` agar pengguna PWA mendapat versi baru.
 
 > Ingin dipandu langkah demi langkah sambil kirim screenshot terminal? Minta saja — panduan GitHub Pages bisa dilakukan satu perintah per langkah.
 
@@ -116,8 +161,12 @@ Data debitur **diedit langsung di Google Sheets** (aplikasi bersifat monitoring)
 **Admin awal:**
 1. Buka situs → NPP = NPP admin di `Setup.gs`, kata sandi = **NPP yang sama**.
 2. Wajib **membuat kata sandi baru** (min. 8 karakter, huruf + angka, tidak memuat NPP).
-3. Muncul **kode QR**. Di HP: pasang **Microsoft Authenticator** → **+** → **Akun lainnya (Google, Facebook, dll.)** → **Pindai kode QR**. (Google Authenticator/Authy juga bisa.)
-4. Masukkan kode 6 digit → masuk ke dashboard.
+3. Muncul **kode QR** (berlaku 3 menit, sekali pakai). Di HP: pasang **Microsoft Authenticator** → **+** → **Akun lainnya (Google, Facebook, dll.)** → **Pindai kode QR**. (Google Authenticator/Authy juga bisa.) Bila waktu habis, klik **Buat QR baru**.
+4. Masukkan kode 6 digit → masuk ke dashboard. Setelah ini QR hangus dan tidak dapat ditampilkan lagi.
+
+**Keluar otomatis:** bila 5 menit tidak ada aktivitas (klik, ketik, gulir, gerak mouse), aplikasi menampilkan peringatan 30 detik lalu keluar sendiri. Menutup tab lalu membukanya lagi setelah lebih dari 5 menit juga wajib login ulang. Pemeriksaan data otomatis di latar belakang tidak dihitung sebagai aktivitas.
+
+**Logo aplikasi (Admin):** Pengaturan → **Logo Aplikasi** → unggah PNG/JPG/WEBP/SVG → geser **Ukuran logo** → **Simpan logo**. Gambar otomatis diperkecil dan disimpan di sheet Pengaturan (`LOGO_DATA`), lalu tampil di sidebar & halaman masuk semua pengguna. **Logo bawaan** mengembalikan logo FinSight.
 
 **Login berikutnya:** NPP + kata sandi → kode 6 digit dari aplikasi authenticator.
 
@@ -126,7 +175,7 @@ Data debitur **diedit langsung di Google Sheets** (aplikasi bersifat monitoring)
 | Kejadian | Tindakan Admin (menu Pengguna → *Reset akses*) |
 |---|---|
 | Lupa kata sandi | **Reset sandi & 2FA** → login lagi dengan sandi = NPP |
-| Ganti/hilang HP | **Reset 2FA saja** → QR baru muncul saat login |
+| Ganti/hilang HP | **Reset 2FA saja** → QR baru (sekali pakai) muncul saat login berikutnya |
 | Salah sandi 5x (terkunci 15 menit) | **Buka kunci akun** |
 
 **Admin sendiri terkunci/lupa sandi:** buka editor Apps Script → jalankan **`resetAksesAdminAwal`**.
@@ -188,6 +237,8 @@ Browser memeriksa versi data setiap 30 detik (Pengaturan → `POLLING_DETIK`, 15
 |---|---|---|
 | Hak akses | Login sebagai Manager | Menu WA Blast, Template, Pengguna tidak tampil; buka `#/blast` dialihkan; server menolak aksi kirim |
 | Login | NPP baru, sandi = NPP | Wajib ganti sandi → QR → kode 6 digit |
+| QR sekali pakai | Buka QR di 2 jendela, biarkan 3 menit, login ulang setelah aktif | QR lama ditolak; QR kedaluwarsa wajib dibuat ulang; QR tidak tampil lagi setelah aktif |
+| Keluar otomatis | Diamkan aplikasi 5 menit | Peringatan 30 detik → kembali ke halaman masuk |
 | Keamanan | Salah sandi 5x | Akun terkunci 15 menit |
 | Akurasi | Bandingkan KPI dengan SUM/COUNT di Sheets | Sama (uji sampel per produk) |
 | Sinkronisasi | Ubah, tambah, hapus baris Debitur | Tampil di web ≤ 60 detik |
@@ -206,6 +257,9 @@ Browser memeriksa versi data setiap 30 detik (Pengaturan → `POLLING_DETIK`, 15
 | "Respons server bukan JSON" | Akses Web App bukan *Anyone* / URL `/dev` | Deploy ulang: *Siapa saja*, pakai URL `/exec` |
 | "Aplikasi belum di-setup" | `setupAppEnvironment` belum dijalankan | Jalankan dari editor |
 | Kode authenticator selalu salah | Jam HP tidak otomatis | Aktifkan *tanggal & waktu otomatis* di HP |
+| "QR sudah tidak berlaku" saat aktivasi | QR baru dibuat di jendela/HP lain, atau lewat 3 menit | Masuk ulang / klik **Buat QR baru**, lalu pindai QR terbaru saja |
+| Tiba-tiba kembali ke halaman masuk | 5 menit tanpa aktivitas | Normal (keamanan). Login ulang |
+| Kolom Rek Pinjaman/Afil kosong | Header belum ada di sheet Debitur | Jalankan `setupAppEnvironment` atau tambah header `Rek_Pinjaman` & `Rek_Afiliasi` |
 | Data baru tidak muncul | Pemicu belum terpasang | Pengaturan → Sinkronisasi → *Pemicu aktif* harus 4; bila kosong jalankan setup lagi |
 | Tren Kol kosong | Snapshot baru 1 bulan | Normal — tren terisi otomatis tiap akhir bulan |
 | Pesan WA "Antre" terus | Mode Fonnte tanpa token / kuota habis | Isi token, cek kuota di menu Gateway |

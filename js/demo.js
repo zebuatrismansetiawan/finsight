@@ -55,11 +55,12 @@ window.DemoAPI = (() => {
       no += ri(1, 3);
       let kl = lunas ? null : kol;
       if (!lunas && rnd() < 0.015) kl = Math.min(5, Math.max(1, kol + (rnd() < 0.68 ? -1 : 1)));
-      rows.push(['DEB-' + no, nm, String(ri(1000000, 9999999)), pilih(PIC), wa, wv ? 1 : 0, p.kode, pl, bd, jt, lunas ? 'Lunas' : 'Aktif', kol, sb, sa, an, rnd() < 0.02 ? 1 : 0, pilih(RM), kl]);
+      const rp = '10' + String(no).padStart(8, '0'), ra = '0' + (2 + (no % 6)) + String((no * 7919) % 100000000).padStart(8, '0');
+      rows.push(['DEB-' + no, nm, String(ri(1000000, 9999999)), pilih(PIC), wa, wv ? 1 : 0, p.kode, pl, bd, jt, lunas ? 'Lunas' : 'Aktif', kol, sb, sa, an, rnd() < 0.02 ? 1 : 0, pilih(RM), kl, rp, ra]);
     }
   });
   rows.sort((a, b) => (a[0] < b[0] ? 1 : -1));
-  const COLS = ['id', 'nm', 'cif', 'pic', 'wa', 'wv', 'pr', 'pl', 'bd', 'jt', 'st', 'kol', 'sb', 'sa', 'an', 'oo', 'rm', 'kl'];
+  const COLS = ['id', 'nm', 'cif', 'pic', 'wa', 'wv', 'pr', 'pl', 'bd', 'jt', 'st', 'kol', 'sb', 'sa', 'an', 'oo', 'rm', 'kl', 'rp', 'ra'];
   let ver = String(Date.now()), lver = '1', sver = '1.1.1';
   const ds = () => ({ cols: COLS, rows, n: rows.length, dibangun: Date.now(), periode: PERIODE, adaBaseline: true, ver });
   const byId = () => { const m = {}; rows.forEach((r) => { m[r[0]] = r; }); return m; };
@@ -90,8 +91,8 @@ window.DemoAPI = (() => {
     { id: 'TPL-001', nama: 'Reminder H-7 (Jadwal Angsuran)', isi: 'Yth. Bapak/Ibu {nama},\n\nKami mengingatkan angsuran kredit {produk} Anda sebesar *{angsuran}* akan jatuh tempo pada *{jatuh_tempo}*.\nMohon pastikan saldo rekening mencukupi sebelum tanggal tersebut.\n\nTerima kasih atas kerja samanya.\n— {cabang}', aktif: true, diperbarui: new Date(Date.now() - 20 * 864e5).toISOString(), oleh: '10001 Dewi Kartika' },
     { id: 'TPL-002', nama: 'Reminder H-3 (Defisit Saldo)', isi: 'Yth. Bapak/Ibu {nama},\n\nAngsuran {produk} Anda sebesar *{angsuran}* jatuh tempo pada *{jatuh_tempo}*. Saldo rekening saat ini belum mencukupi, kekurangan sekitar *{kekurangan}*.\nMohon segera melakukan setoran agar terhindar dari denda keterlambatan.\n\n— {cabang}', aktif: true, diperbarui: new Date(Date.now() - 12 * 864e5).toISOString(), oleh: '10001 Dewi Kartika' },
     { id: 'TPL-003', nama: 'Panggilan Mendesak (H-1 Jatuh Tempo)', isi: 'Yth. Bapak/Ibu {nama},\n\nAngsuran {produk} sebesar *{angsuran}* jatuh tempo BESOK ({jatuh_tempo}). Sisa baki debet Anda {baki_debet}.\nMohon konfirmasi setoran Anda dengan membalas pesan ini atau menghubungi RM Anda.\n\n— {cabang}', aktif: true, diperbarui: new Date(Date.now() - 5 * 864e5).toISOString(), oleh: '10001 Dewi Kartika' }];
-  const KET = { NAMA_APLIKASI: 'Nama aplikasi di sidebar & judul', SUBJUDUL: 'Teks kecil di bawah logo', NAMA_INSTITUSI: 'Nama institusi di footer & laporan', NAMA_CABANG: 'Nama unit/cabang (placeholder {cabang} di template WA)', POLLING_DETIK: 'Interval cek pembaruan data di browser (detik, 15–120)', JT_HARI: 'Rentang "jatuh tempo" ke depan (hari)', WA_MODE: 'fonnte = kirim sungguhan, simulasi = uji alur tanpa mengirim (UAT)', WA_KUOTA_HARIAN: 'Batas pesan WA per hari', WA_BATCH: 'Pesan yang diproses per eksekusi pemicu (10–40)', WA_JEDA: 'Jeda acak antarpesan di gateway (detik, format min-maks)', TOTP_ISSUER: 'Nama yang tampil di aplikasi Authenticator', SESI_JAM: 'Lama sesi login (jam, 1–24)' };
-  const setting = { NAMA_APLIKASI: 'FinSight', SUBJUDUL: 'Business Banking', NAMA_INSTITUSI: '', NAMA_CABANG: 'KC Contoh Jakarta', POLLING_DETIK: '30', JT_HARI: '30', WA_MODE: 'simulasi', WA_KUOTA_HARIAN: '1000', WA_BATCH: '25', WA_JEDA: '3-8', TOTP_ISSUER: 'FinSight Demo', SESI_JAM: '8' };
+  const KET = { NAMA_APLIKASI: 'Nama aplikasi di sidebar & judul', SUBJUDUL: 'Teks kecil di bawah logo', NAMA_INSTITUSI: 'Nama institusi di footer & laporan', NAMA_CABANG: 'Nama unit/cabang (placeholder {cabang} di template WA)', POLLING_DETIK: 'Interval cek pembaruan data di browser (detik, 15–120)', JT_HARI: 'Rentang "jatuh tempo" ke depan (hari)', WA_MODE: 'fonnte = kirim sungguhan, simulasi = uji alur tanpa mengirim (UAT)', WA_KUOTA_HARIAN: 'Batas pesan WA per hari', WA_BATCH: 'Pesan yang diproses per eksekusi pemicu (10–40)', WA_JEDA: 'Jeda acak antarpesan di gateway (detik, format min-maks)', TOTP_ISSUER: 'Nama yang tampil di aplikasi Authenticator', SESI_JAM: 'Lama sesi login (jam, 1–24)', LOGO_DATA: 'Logo aplikasi', LOGO_UKURAN: 'Ukuran logo di sidebar (piksel, 24–80)', LOGO_TEKS: 'Tampilkan nama aplikasi di samping logo (ya/tidak)' };
+  const setting = { NAMA_APLIKASI: 'FinSight', SUBJUDUL: 'Business Banking', NAMA_INSTITUSI: '', NAMA_CABANG: 'KC Contoh Jakarta', POLLING_DETIK: '30', JT_HARI: '30', WA_MODE: 'simulasi', WA_KUOTA_HARIAN: '1000', WA_BATCH: '25', WA_JEDA: '3-8', TOTP_ISSUER: 'FinSight Demo', SESI_JAM: '8', LOGO_DATA: '', LOGO_UKURAN: '34', LOGO_TEKS: 'ya' };
   let token = { ada: false, samar: '' };
 
   // ---------- Log blast ----------
@@ -184,6 +185,16 @@ window.DemoAPI = (() => {
       if (!c[p.n].t) return ok(await mulai2fa(u), 'Kata sandi berhasil diganti.');
       return ok({ langkah: 'OTP', tiket: tok({ n: p.n, s: 'otp', x: Date.now() + 6e5 }), nama: u.nama }, 'Kata sandi berhasil diganti.');
     }
+    if (a === 'app.brand') return ok({ nama: setting.NAMA_APLIKASI, sub: setting.SUBJUDUL, logo: setting.LOGO_DATA || '', ukuran: +setting.LOGO_UKURAN || 34, teks: setting.LOGO_TEKS !== 'tidak', sver });
+    if (a === 'auth.qrBaru' || a === 'auth.verifikasi2fa') {
+      const p = bacaTok(d.tiket);
+      if (!p || p.s !== '2fa') return fail('Langkah login kedaluwarsa. Silakan masuk ulang dari awal.', 'AUTH');
+      const x = cred()[p.n] || {};
+      if (x.t && !x.tp) return fail('QR ini sudah dipakai. Authenticator sudah aktif — silakan masuk ulang dan gunakan kode dari aplikasi.', 'QR_USED');
+      if (!x.tq || x.tq !== p.q) return fail('QR ini sudah tidak berlaku karena QR baru dibuat di perangkat/jendela lain. Silakan masuk ulang.', 'QR_REPLACED');
+      if (a === 'auth.qrBaru') return ok(await mulai2fa(users.find((y) => y.npp === p.n)), 'QR baru dibuat. QR sebelumnya tidak berlaku lagi.');
+      if (Date.now() > x.tx + 30e3) return fail('Masa berlaku QR habis. Buat QR baru lalu pindai ulang.', 'QR_EXPIRED');
+    }
     if (a === 'auth.verifikasi2fa' || a === 'auth.otp') {
       const p = bacaTok(d.tiket), lingkup = a === 'auth.otp' ? 'otp' : '2fa';
       if (!p || p.s !== lingkup) return fail('Langkah login kedaluwarsa. Silakan masuk ulang dari awal.', 'AUTH');
@@ -191,7 +202,7 @@ window.DemoAPI = (() => {
       const sec = lingkup === '2fa' ? x.tp : x.t;
       const L = await cekTotp(sec, String(d.kode || ''), lingkup === 'otp' ? x.ls : 0);
       if (L < 0) return fail(lingkup === '2fa' ? 'Kode tidak cocok. Pastikan jam ponsel otomatis lalu masukkan kode terbaru.' : 'Kode authenticator salah atau sudah dipakai.', 'OTP_FAIL');
-      if (lingkup === '2fa') { x.t = x.tp; delete x.tp; }
+      if (lingkup === '2fa') { x.t = x.tp; x.ta = Date.now(); delete x.tp; delete x.tq; delete x.tx; }
       x.ls = L; setCred(c);
       u.login = new Date().toISOString();
       return ok({ langkah: 'SELESAI', token: tok({ n: u.npp, r: u.peran, i: Date.now(), x: Date.now() + 8 * 36e5 }), me: me(u) }, lingkup === '2fa' ? 'Autentikasi dua faktor aktif.' : '');
@@ -303,12 +314,19 @@ window.DemoAPI = (() => {
       }
       case 'user.reset': {
         const c = cred();
-        if (d.mode === 'semua') delete c[d.npp]; else if (d.mode === '2fa' && c[d.npp]) { delete c[d.npp].t; delete c[d.npp].tp; delete c[d.npp].ls; }
+        if (d.mode === 'semua') delete c[d.npp]; else if (d.mode === '2fa' && c[d.npp]) { delete c[d.npp].t; delete c[d.npp].tp; delete c[d.npp].tq; delete c[d.npp].tx; delete c[d.npp].ls; }
         setCred(c);
         return ok(null, d.mode === 'buka' ? 'Kunci akun dibuka.' : d.mode === '2fa' ? 'Authenticator direset. QR baru tampil saat login berikutnya.' : 'Akses direset. Login dengan sandi = NPP.');
       }
-      case 'setting.get': return ok({ setting, keterangan: KET, rahasia: { FONNTE_TOKEN: token }, sistem: { versi: '1.0.0 (demo)', dataVer: ver, spreadsheetUrl: 'https://docs.google.com/spreadsheets/', folderEkspor: '', pemicu: ['onChangeData', 'prosesAntrian', 'warmupCache', 'snapshotHarian'] } });
-      case 'setting.simpan': Object.keys(d.setting || {}).forEach((k) => { if (k in setting) setting[k] = String(d.setting[k]); }); sver = sver + '.'; return ok({ setting }, 'Pengaturan disimpan.');
+      case 'setting.get': return ok({ setting, keterangan: KET, rahasia: { FONNTE_TOKEN: token }, sistem: { versi: '1.1.0 (demo)', dataVer: ver, spreadsheetUrl: 'https://docs.google.com/spreadsheets/', folderEkspor: '', pemicu: ['onChangeData', 'prosesAntrian', 'warmupCache', 'snapshotHarian'] } });
+      case 'setting.simpan': {
+        const inp = d.setting || {};
+        if (inp.LOGO_DATA && (String(inp.LOGO_DATA).length > 48000 || !/^data:image\/(png|jpeg|webp);base64,/.test(inp.LOGO_DATA))) return fail('Logo tidak valid atau terlalu besar. Gunakan PNG/JPG/WEBP — aplikasi otomatis memperkecilnya.', 'VALIDATION');
+        Object.keys(inp).forEach((k) => { if (k in setting) setting[k] = String(inp[k]); });
+        if ('LOGO_UKURAN' in inp) setting.LOGO_UKURAN = String(Math.max(24, Math.min(80, Math.round(+inp.LOGO_UKURAN) || 34)));
+        if ('LOGO_TEKS' in inp) setting.LOGO_TEKS = inp.LOGO_TEKS === 'tidak' ? 'tidak' : 'ya';
+        sver = sver + '.'; return ok({ setting }, 'Pengaturan disimpan.');
+      }
       case 'rahasia.simpan':
         if (d.kunci !== 'FONNTE_TOKEN') return fail('Kunci tidak diizinkan.', 'FORBIDDEN');
         token = d.nilai === '__HAPUS__' ? { ada: false, samar: '' } : { ada: true, samar: String(d.nilai).slice(0, 4) + '••••••' + String(d.nilai).slice(-3) };
@@ -322,9 +340,10 @@ window.DemoAPI = (() => {
 
   async function mulai2fa(u) {
     const bytes = crypto.getRandomValues(new Uint8Array(20)), sec = b32enc(Array.from(bytes));
-    const c = cred(); c[u.npp] = Object.assign(c[u.npp] || {}, { tp: sec }); setCred(c);
+    const tq = b32enc(Array.from(crypto.getRandomValues(new Uint8Array(8))));
+    const c = cred(); c[u.npp] = Object.assign(c[u.npp] || {}, { tp: sec, tq, tx: Date.now() + 180e3 }); setCred(c);
     const iss = setting.TOTP_ISSUER;
-    return { langkah: 'SETUP_2FA', tiket: tok({ n: u.npp, s: '2fa', x: Date.now() + 6e5 }), nama: u.nama, issuer: iss, akun: u.npp + ' ' + u.nama, secret: sec.replace(/(.{4})/g, '$1 ').trim(),
+    return { langkah: 'SETUP_2FA', tiket: tok({ n: u.npp, s: '2fa', q: tq, x: Date.now() + 6e5 }), nama: u.nama, issuer: iss, akun: u.npp + ' ' + u.nama, berlakuDetik: 180,
       otpauth: 'otpauth://totp/' + encodeURIComponent(iss + ':' + u.npp + ' ' + u.nama) + '?secret=' + sec + '&issuer=' + encodeURIComponent(iss) + '&algorithm=SHA1&digits=6&period=30' };
   }
 

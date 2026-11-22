@@ -15,7 +15,7 @@ const UI = (() => {
   const status = (s) => `<span class="pill ${s === 'Aktif' ? 'pill-pos' : 'pill-grey'}">${esc(s)}</span>`;
   function jtInfo(d) {
     if (!d.aktif) return '<small class="jt muted">Lunas</small>';
-    if (d.dd === null) return '<small class="jt muted">—</small>';
+    if (d.dd === null) return '';
     if (d.dd < 0) return `<small class="jt neg"><i></i>Lewat ${-d.dd} hr</small>`;
     if (d.dd === 0) return '<small class="jt warn"><i></i>Hari ini</small>';
     return `<small class="jt ${d.dd <= 3 ? 'warn' : 'pos'}"><i></i>${d.dd <= 7 ? 'H-' + d.dd : d.dd + ' hr lagi'}</small>`;
@@ -26,7 +26,7 @@ const UI = (() => {
   }
   /** pill perubahan %. buruk=true → kenaikan diberi warna merah. */
   function delta(v, buruk, suffix = '') {
-    if (v === null || v === undefined || !isFinite(v)) return '<span class="dl flat">—</span>';
+    if (v === null || v === undefined || !isFinite(v)) return '';
     const naik = v > 0.05, turun = v < -0.05;
     const baik = buruk ? turun : naik, jelek = buruk ? naik : turun;
     return `<span class="dl ${baik ? 'good' : jelek ? 'bad' : 'flat'}">${ic(naik ? 'arrowup' : turun ? 'arrowdown' : 'arrowright', 12)}${v > 0 ? '+' : ''}${U.dec(v, 1)}%${suffix}</span>`;
@@ -83,15 +83,16 @@ function pasangAksi(root, page) {
     if (!fn) return;
     const tag = el.tagName;
     if (tipe === 'click' && (tag === 'SELECT' || (tag === 'INPUT' && el.type !== 'checkbox' && el.type !== 'radio' && el.type !== 'button'))) return;
-    if (tipe === 'change' && !(tag === 'SELECT' || (tag === 'INPUT' && (el.type === 'checkbox' || el.type === 'radio' || el.type === 'date')))) return;
-    if (tipe === 'input' && !((tag === 'INPUT' && !['checkbox', 'radio', 'date'].includes(el.type)) || tag === 'TEXTAREA')) return;
+    if (tipe === 'change' && !(tag === 'SELECT' || (tag === 'INPUT' && ['checkbox', 'radio', 'date', 'file'].includes(el.type)))) return;
+    if (tipe === 'input' && !((tag === 'INPUT' && !['checkbox', 'radio', 'date', 'file'].includes(el.type)) || tag === 'TEXTAREA')) return;
     if (tipe === 'click' && tag === 'INPUT' && (el.type === 'checkbox' || el.type === 'radio')) return;
     if (tag === 'A' || (tag === 'BUTTON' && el.type !== 'submit')) e.preventDefault();
     fn(el, e);
   };
   root.onclick = (e) => go(e, 'click');
   root.onchange = (e) => go(e, 'change');
-  root.oninput = U.debounce((e) => go(e, 'input'), 140);
+  const tunda = U.debounce((e) => go(e, 'input'), 140);
+  root.oninput = (e) => (e.target.type === 'range' ? go(e, 'input') : tunda(e));
 }
 
 const Pages = {};
@@ -121,7 +122,7 @@ Pages.dashboard = {
     const util = A.plafon ? A.baki / A.plafon * 100 : 0;
     h += `<section class="grid g3">` +
       UI.kpi({ icon: 'users', c: '#8B5CF6', label: 'Jumlah Debitur', v: U.num(A.n), unit: 'Debitur', badge: UI.delta(B ? M.delta(A.n, B.n) : null), foot: ['Aktif • Lunas', `${U.num(A.aktif)} • ${U.num(A.lunas)}`], tip: B ? `Bulan lalu: ${U.num(B.n)} debitur` : 'Belum ada snapshot bulan lalu' }) +
-      UI.kpi({ icon: 'wallet', c: '#F43F7A', label: 'Total Limit Plafon', v: esc(pl.a), unit: pl.u, badge: UI.delta(B ? M.delta(A.plafon, B.plafon) : null), foot: ['Perubahan vs bulan lalu', B ? (A.plafon - B.plafon >= 0 ? '+' : '') + U.rpS(A.plafon - B.plafon) : '—', B && A.plafon >= B.plafon ? 'pos' : ''] }) +
+      UI.kpi({ icon: 'wallet', c: '#F43F7A', label: 'Total Maks Kredit', v: esc(pl.a), unit: pl.u, badge: UI.delta(B ? M.delta(A.plafon, B.plafon) : null), foot: ['Perubahan vs bulan lalu', B ? (A.plafon - B.plafon >= 0 ? '+' : '') + U.rpS(A.plafon - B.plafon) : '—', B && A.plafon >= B.plafon ? 'pos' : ''] }) +
       UI.kpi({ icon: 'bank', c: '#3B82F6', label: 'Total Baki Debet (OS)', v: esc(bk.a), unit: bk.u, badge: UI.delta(B ? M.delta(A.baki, B.baki) : null), foot: ['Utilisasi kredit', U.pct(util) + ' dari plafon'] }) +
       UI.kpi({ icon: 'ok', c: '#16A34A', label: 'Kredit Lunas', v: U.num(A.lunas), unit: 'Debitur', badge: UI.delta(B ? M.delta(A.lunas, B.lunas) : null), foot: K ? ['Total plafon lunas', U.rpS(K.plLunas), 'pos'] : ['Sumber', 'Snapshot'] }) +
       UI.kpi({ icon: 'calclock', c: '#EA580C', label: `Jatuh Tempo ≤ ${jh} Hari`, v: K ? U.num(K.jt) : '—', unit: K ? 'Debitur' : '', vcls: 'warn', badge: K && K.jt ? `<span class="badge-w">${ic('alert', 12)} Perlu tindakan</span>` : '', foot: K ? ['Angsuran tertagih', U.rpS(K.jtAn)] : ['Tersedia untuk', 'periode berjalan'] }) +
@@ -137,15 +138,8 @@ Pages.dashboard = {
     const bar = f.mode === 'n'
       ? Chart.barGroup({ cats, la: 'Total debitur', lb: 'Debitur aktif', fmt: (v) => U.num(v) + ' deb.', fmtAxis: (v) => U.num(v) })
       : Chart.barGroup({ cats, la: 'Plafon disetujui', lb: 'Baki debet berjalan', fmt: U.rpS, fmtAxis: (v) => U.rpS(v) });
-    const k2 = live ? M.kol(f.pr) : A.kol, k2p = B ? B.kol : null;
-    const share = (k) => { const n = k[2].b + k[3].b + k[4].b + k[5].b, t = n + k[1].b; return t ? n / t * 100 : 0; };
-    const s2 = share(k2), s2p = k2p ? share(k2p) : null;
     const nRisk = K ? K.risiko : 0;
-    const topProdRisk = live ? M.perProduk().slice().sort((a, b) => b.risiko - a.risiko)[0] : null;
-    const insight = s2p === null
-      ? `Porsi baki debet Kol. 2–5 saat ini <b>${U.pct(s2)}</b>. Perbandingan bulanan tersedia setelah snapshot bulan lalu terbentuk.`
-      : `Porsi baki Kol. 2–5 ${s2 >= s2p ? 'naik' : 'turun'} <b>${U.dec(Math.abs(s2 - s2p), 1)} poin</b> dibanding ${U.periodeLabel(prev)} (kini ${U.pct(s2)}).`;
-    h += `<section class="grid g12">
+    h += `<section class="grid g12 eq">
       <div class="card c8 pad-l">
         <div class="card-h"><div><h3><span class="sq"></span>Performa per Produk Kredit</h3><p>${f.mode === 'n' ? 'Total debitur vs debitur aktif per produk' : 'Plafon disetujui vs baki debet berjalan per produk'}</p></div>
           <div class="seg"><button class="${f.mode !== 'n' ? 'on' : ''}" data-act="mode" data-v="rp">Nominal</button><button class="${f.mode === 'n' ? 'on' : ''}" data-act="mode" data-v="n">Debitur</button></div></div>
@@ -153,18 +147,10 @@ Pages.dashboard = {
         <div class="card-f"><div class="legend"><span><i class="lg-a"></i>${f.mode === 'n' ? 'Total debitur' : 'Plafon disetujui'}</span><span><i class="lg-b"></i>${f.mode === 'n' ? 'Debitur aktif' : 'Baki debet berjalan'}</span></div>
           <span class="muted">Plafon terserap: <b class="tx">${U.pct(totPl ? totBaki / totPl * 100 : 0)}</b> • Buffer tersisa: <b class="pos">${U.rpS(totPl - totBaki)}</b></span></div>
       </div>
-      <div class="c4 col-stack">
-        <div class="card pad-l">
+      <div class="card c4 pad-l">
           <div class="card-h"><h3>Komposisi Baki Debet</h3><span class="tag">${U.periodeLabel(p)}</span></div>
           <div class="donut-box">${Chart.donut({ segs: pp.map((x) => ({ label: x.nama, value: x.baki, color: x.warna })), center: U.rpS(totBaki), sub: 'Total OS', fmt: U.rpS })}</div>
           <ul class="dleg">${pp.map((x) => `<li><span><i style="background:${x.warna}"></i>${esc(x.nama)}</span><span class="tnum muted">${U.rpS(x.baki)}</span><b class="tnum">${U.pct(totBaki ? x.baki / totBaki * 100 : 0, 0)}</b></li>`).join('')}</ul>
-        </div>
-        <div class="card insight ${s2p !== null && s2 > s2p ? 'neg' : ''}">
-          <span class="ins-ic">${ic(s2p !== null && s2 > s2p ? 'alert' : 'spark', 19)}</span>
-          <div><div class="ins-t">${s2p !== null && s2 > s2p ? 'Peringatan portofolio' : 'Insight portofolio'}</div>
-          <p>${insight}${live && nRisk ? ` Segera tinjau <b>${U.num(nRisk)} debitur berisiko</b>${topProdRisk && topProdRisk.risiko ? `, terbanyak pada produk <b>${esc(topProdRisk.kode)}</b>` : ''}.` : ''}</p>
-          <a href="#/risiko" class="ins-a">Tinjau daftar risiko debitur ${ic('arrowright', 15)}</a></div>
-        </div>
       </div></section>`;
 
     // --- pita produk
@@ -240,7 +226,7 @@ Pages.kualitas = {
     const perf = totD ? (val(1) + val(2)) / totD * 100 : 0;
     const per = M.periodes().filter((x) => x <= p).slice(-6);
     const series = [1, 2, 3, 4, 5].map((k) => ({ label: 'Kol. ' + k, color: KOL[k].c, values: per.map((x) => { const a = M.agregat(x, f.pr); return a ? (f.tren === 'b' ? a.kol[k].b : a.kol[k].n) : null; }) }));
-    h += `<section class="grid g12">
+    h += `<section class="grid g12 eq">
       <div class="card c5 pad-l"><div class="card-h"><div><h3>Komposisi Kolektibilitas</h3><p>Berdasarkan ${f.donut === 'b' ? 'baki debet' : 'jumlah debitur'} per ${U.periodeLabel(p)}</p></div>
         <div class="seg"><button class="${f.donut !== 'b' ? 'on' : ''}" data-act="donut" data-v="n">Debitur</button><button class="${f.donut === 'b' ? 'on' : ''}" data-act="donut" data-v="b">Baki</button></div></div>
         <div class="kol-donut">${Chart.donut({ segs: [1, 2, 3, 4, 5].map((k) => ({ label: 'Kol. ' + k + ' — ' + KOL[k].n, value: val(k), color: KOL[k].c })), center: f.donut === 'b' ? U.rpS(totD) : U.num(totD), sub: f.donut === 'b' ? 'Total baki' : 'Total debitur', size: 176, fmt: f.donut === 'b' ? U.rpS : (v) => U.num(v) + ' debitur' })}
@@ -405,12 +391,13 @@ Pages.debitur = {
           ${kirim ? `<button class="btn btn-sm btn-secondary" data-act="blastSel" ${S.sel.deb.size ? '' : 'disabled'}>${ic('send', 14)} Blast terpilih (${U.num(S.sel.deb.size)})</button>` : ''}
           <button class="btn btn-sm btn-secondary" data-act="cetak">${ic('print', 14)} Cetak</button></div>
         ${L.length ? `<div class="tbl-wrap"><table class="tbl tbl-deb"><thead><tr>${kirim ? '<th class="c w1"><span class="sr">Pilih</span></th>' : ''}
-          ${UI.th('Debitur / CIF', 'id', f, 'stick-h')}${UI.th('Entitas & Kontak', 'nm', f)}${UI.th('Produk', 'pr', f, 'c')}${UI.th('Plafon', 'pl', f, 'num')}${UI.th('Baki Debet', 'bd', f, 'num')}${UI.th('Jatuh Tempo', 'jt', f)}${UI.th('Kol. OJK', 'kol', f, 'c')}${UI.th('Angsuran', 'an', f, 'num')}${UI.th('Status', 'st', f, 'c')}<th class="c">Aksi</th></tr></thead><tbody>
+          ${UI.th('Entitas / Kontak', 'nm', f, 'stick-h')}${UI.th('Rek Pinjaman', 'rp', f)}${UI.th('Rek Afil', 'ra', f)}${UI.th('Produk', 'pr', f, 'c')}${UI.th('Plafon', 'pl', f, 'num')}${UI.th('Baki Debet', 'bd', f, 'num')}${UI.th('Angsuran', 'an', f, 'num')}${UI.th('Saldo Blokir', 'sb', f, 'num')}${UI.th('Saldo Akhir', 'sa', f, 'num')}${UI.th('Jatuh Tempo', 'jt', f)}${UI.th('Kol. OJK', 'kol', f, 'c')}${UI.th('Status', 'st', f, 'c')}<th class="c">Aksi</th></tr></thead><tbody>
           ${rows.map((d) => `<tr class="${d.aktif ? '' : 'row-off'} ${S.sel.deb.has(d.id) ? 'row-sel' : ''}">${kirim ? `<td class="c"><input type="checkbox" data-act="sel" data-id="${esc(d.id)}" ${S.sel.deb.has(d.id) ? 'checked' : ''} aria-label="Pilih ${esc(d.nm)}"></td>` : ''}
-            <td class="stick"><b class="tnum">${esc(d.id)}</b><small class="muted">${d.cif ? 'CIF ' + esc(d.cif) : '—'}</small></td>
-            <td><div class="ent"><span class="avatar xs" style="--c:${UI.warnaProd(d.pr)}">${esc(U.inisial(d.nm))}</span><div><button class="lnk" data-detail="${esc(d.id)}"><b>${esc(d.nm)}</b></button><small class="muted">${ic('phone', 11, d.wv ? 'pos' : 'neg')} ${esc(d.wa || 'tidak valid')}${d.pic ? ' • ' + esc(d.pic) : ''}${d.oo ? ' • <span class="neg">opt-out</span>' : ''}</small></div></div></td>
-            <td class="c">${UI.prod(d.pr)}</td><td class="num muted">${U.rpS(d.pl)}</td><td class="num b ${d.kol === 5 ? 'neg' : ''}">${U.rpS(d.bd)}</td>
-            <td><b class="dt">${U.tgl2(d.jt)}</b>${UI.jtInfo(d)}</td><td class="c">${d.aktif ? UI.kol(d.kol, true) : '<span class="kol k0"><i></i>—</span>'}</td><td class="num">${U.rpS(d.an)}</td><td class="c">${UI.status(d.st)}</td>
+            <td class="stick"><div class="ent"><span class="avatar xs" style="--c:${UI.warnaProd(d.pr)}">${esc(U.inisial(d.nm))}</span><div><button class="lnk" data-detail="${esc(d.id)}"><b>${esc(d.nm)}</b></button><small class="muted">${ic('phone', 11, d.wv ? 'pos' : 'neg')} ${esc(d.wa || 'tidak valid')}${d.pic ? ' • ' + esc(d.pic) : ''}${d.oo ? ' • <span class="neg">opt-out</span>' : ''}</small></div></div></td>
+            <td class="rek tnum">${esc(d.rp || d.id)}</td><td class="rek tnum">${esc(d.ra)}</td>
+            <td class="c">${UI.prod(d.pr)}</td><td class="num muted">${U.rpS(d.pl)}</td><td class="num b ${d.kol === 5 ? 'neg' : ''}">${U.rpS(d.bd)}</td><td class="num">${U.rpS(d.an)}</td>
+            <td class="num ${d.fBlokir ? 'neg b' : ''}">${d.sb === null || d.sb === undefined ? (d.aktif ? '<span class="neg">Kosong</span>' : '') : U.rpS(d.sb)}</td><td class="num ${d.fSaldo ? 'neg b' : ''}">${U.rpS(d.sa)}</td>
+            <td><b class="dt">${U.tgl2(d.jt)}</b>${UI.jtInfo(d)}</td><td class="c">${d.aktif ? UI.kol(d.kol, true) : ''}</td><td class="c">${UI.status(d.st)}</td>
             <td class="c"><div class="acts">${kirim && d.aktif ? `<button class="btn-icon sm pos" data-wa="${esc(d.id)}" title="Kirim WA" ${d.wv && !d.oo ? '' : 'disabled'}>${ic('chat', 15)}</button>` : ''}<button class="btn-icon sm" data-detail="${esc(d.id)}" title="Detail">${ic('eye', 15)}</button></div></td></tr>`).join('')}
           </tbody></table></div>${UI.pager(L.length, f.hal, f.per)}` : App.kosong('search', 'Tidak ada debitur yang cocok', 'Ubah kata kunci atau reset filter.')}
       </div>`;
@@ -419,10 +406,10 @@ Pages.debitur = {
     const f = this.f(), L = this.data(f), filt = this.labelFilter(f).map((x) => x[0]).join('; ') || 'Semua debitur';
     if (!L.length) return U.toast('Tidak ada data untuk diekspor.', 'warn');
     if (jenis === 'xlsx') {
-      App.eksporXlsx('Daftar Debitur', [{ h: 'ID Debitur', w: 14 }, { h: 'CIF', w: 12 }, { h: 'Nama Debitur', w: 34 }, { h: 'Kontak', w: 16 }, { h: 'No. WA (tersamar)', w: 18 }, { h: 'Produk', w: 10 },
+      App.eksporXlsx('Daftar Debitur', [{ h: 'ID Debitur', w: 14 }, { h: 'CIF', w: 12 }, { h: 'Rek Pinjaman', w: 18 }, { h: 'Rek Afiliasi', w: 18 }, { h: 'Nama Debitur', w: 34 }, { h: 'Kontak', w: 16 }, { h: 'No. WA (tersamar)', w: 18 }, { h: 'Produk', w: 10 },
         { h: 'Plafon', t: 'n', w: 17 }, { h: 'Baki Debet', t: 'n', w: 17 }, { h: 'Tgl Jatuh Tempo', t: 'd', w: 14 }, { h: 'Status', w: 9 }, { h: 'Kol', t: 'n', w: 6 },
         { h: 'Saldo Blokir', t: 'n', w: 15 }, { h: 'Saldo Akhir', t: 'n', w: 15 }, { h: 'Angsuran', t: 'n', w: 15 }, { h: 'Berisiko', w: 10 }, { h: 'Opt-out WA', w: 10 }, { h: 'RM', w: 18 }],
-        L.map((d) => [d.id, d.cif, d.nm, d.pic, d.wa, d.pr, d.pl, d.bd, d.jt, d.st, d.kol, d.sb, d.sa, d.an, d.risiko ? 'Ya' : '', d.oo ? 'Ya' : '', d.rm]), filt);
+        L.map((d) => [d.id, d.cif, d.rp || d.id, d.ra, d.nm, d.pic, d.wa, d.pr, d.pl, d.bd, d.jt, d.st, d.kol, d.sb, d.sa, d.an, d.risiko ? 'Ya' : '', d.oo ? 'Ya' : '', d.rm]), filt);
     } else {
       App.eksporPdf('Daftar Debitur', ['ID', 'Nama Debitur', 'Produk', 'Plafon', 'Baki Debet', 'Jatuh Tempo', 'Kol', 'Angsuran', 'Status'],
         L.map((d) => [d.id, d.nm, d.pr, U.rp(d.pl), U.rp(d.bd), U.tgl2(d.jt), d.kol, U.rp(d.an), d.st]), [3, 4, 7], filt,
@@ -464,7 +451,7 @@ Pages.debitur = {
 //  RISIKO GAGAL BAYAR
 // ============================================================================
 Pages.risiko = {
-  judul: 'Risiko Gagal Bayar',
+  judul: 'Penagihan',
   f() { return S.f.risk = Object.assign({ tab: 'all', sort: 'kurang', pr: '', q: '', hal: 1, per: 10, tpl: '' }, S.f.risk || {}); },
   data(f) {
     let L = M.risiko('ALL');
@@ -487,7 +474,7 @@ Pages.risiko = {
     const sel = S.sel.risk;
     let h = `<section class="card hero">
       <div><div class="ph-tags"><span class="tag neg"><i class="pulse"></i>Deteksi hampir real-time saldo rekening</span><span class="tag violet">${ic('shield', 13)} ${kirim ? 'Mode ' + (S.me.peran === 'RM' ? 'Relationship Manager' : 'Admin') + ': akses penuh penagihan' : 'Mode Manager: lihat saja'}</span></div>
-        <h1>Deteksi Risiko Gagal Bayar</h1><p>Deteksi dini debitur berisiko sebelum jatuh tempo (saldo blokir kosong atau saldo akhir &lt; angsuran).</p></div>
+        <h1>Penagihan</h1><p>Deteksi dini debitur berisiko sebelum jatuh tempo (saldo blokir kosong atau saldo akhir &lt; angsuran).</p></div>
       ${kirim ? `<div class="hero-a"><button class="btn btn-soft" data-act="semua">${ic('zap', 16)} Pilih semua berisiko (${U.num(this.data(f).length)})</button>
         <button class="btn btn-primary" data-act="lanjut" ${sel.size ? '' : 'disabled'}>${ic('chat', 17)} Lanjut ke WA Blast (${U.num(sel.size)} dipilih)</button></div>` : ''}</section>`;
     h += `<section class="grid g3">
@@ -566,11 +553,11 @@ Pages.risiko = {
     batal: () => { S.sel.risk.clear(); Pages.risiko.segar(); },
     tpl: (el) => { Pages.risiko.f().tpl = el.value; },
     pakaiTpl: (el) => { Pages.risiko.f().tpl = el.dataset.v; if (S.sel.risk.size) Pages.risiko.floatbar(); else U.toast('Pilih debitur terlebih dahulu.', 'info'); },
-    lanjut: () => { if (!S.sel.risk.size) return; App.blastKe(Array.from(S.sel.risk), 'Risiko Gagal Bayar', Pages.risiko.f().tpl); },
+    lanjut: () => { if (!S.sel.risk.size) return; App.blastKe(Array.from(S.sel.risk), 'Penagihan', Pages.risiko.f().tpl); },
     xlsx: () => {
       const f = Pages.risiko.f(), L = Pages.risiko.data(f);
       if (!L.length) return U.toast('Tidak ada data untuk diekspor.', 'warn');
-      App.eksporXlsx('Debitur Berisiko Gagal Bayar', [{ h: 'ID Debitur', w: 14 }, { h: 'Nama', w: 34 }, { h: 'Produk' }, { h: 'Kol', t: 'n', w: 6 }, { h: 'Saldo Blokir', t: 'n', w: 15 }, { h: 'Saldo Akhir', t: 'n', w: 15 }, { h: 'Angsuran', t: 'n', w: 15 }, { h: 'Kekurangan', t: 'n', w: 15 }, { h: 'Jatuh Tempo', t: 'd', w: 14 }, { h: 'Indikator', w: 34 }, { h: 'Baki Debet', t: 'n', w: 17 }],
+      App.eksporXlsx('Penagihan - Debitur Berisiko', [{ h: 'ID Debitur', w: 14 }, { h: 'Nama', w: 34 }, { h: 'Produk' }, { h: 'Kol', t: 'n', w: 6 }, { h: 'Saldo Blokir', t: 'n', w: 15 }, { h: 'Saldo Akhir', t: 'n', w: 15 }, { h: 'Angsuran', t: 'n', w: 15 }, { h: 'Kekurangan', t: 'n', w: 15 }, { h: 'Jatuh Tempo', t: 'd', w: 14 }, { h: 'Indikator', w: 34 }, { h: 'Baki Debet', t: 'n', w: 17 }],
         L.map((d) => [d.id, d.nm, d.pr, d.kol, d.sb, d.sa, d.an, d.kurang, d.jt, [d.fBlokir ? 'Saldo blokir kosong' : '', d.fSaldo ? 'Saldo < angsuran' : ''].filter(Boolean).join(' & '), d.bd]),
         { all: 'Semua risiko', blokir: 'Saldo blokir kosong', saldo: 'Saldo < angsuran', jt: 'Jatuh tempo ≤ 3 hari' }[f.tab] + (f.pr ? '; Produk ' + f.pr : ''));
     }
@@ -1037,7 +1024,7 @@ Pages.pengaturan = {
     const admin = S.me.peran === 'Admin';
     const f = S.f.set || (S.f.set = { tab: 'profil' });
     if (!admin) f.tab = 'profil';
-    const tabs = [['profil', 'Profil & Keamanan', 'user']].concat(admin ? [['umum', 'Umum', 'settings'], ['gateway', 'Gateway WA', 'send'], ['sinkron', 'Sinkronisasi & Data', 'cloud'], ['impor', 'Import Data', 'upload']] : []);
+    const tabs = [['profil', 'Profil & Keamanan', 'user']].concat(admin ? [['umum', 'Umum', 'settings'], ['logo', 'Logo Aplikasi', 'image'], ['gateway', 'Gateway WA', 'send'], ['sinkron', 'Sinkronisasi & Data', 'cloud'], ['impor', 'Import Data', 'upload']] : []);
     let h = UI.head({ crumb: ['Administrasi', 'Pengaturan'], title: 'Pengaturan', sub: admin ? 'Profil, keamanan akun, konfigurasi aplikasi, gateway WA, dan migrasi data.' : 'Profil dan keamanan akun Anda.' });
     h += `<div class="set-wrap"><nav class="set-nav">${tabs.map((t) => `<button class="${f.tab === t[0] ? 'on' : ''}" data-act="tab" data-v="${t[0]}">${ic(t[2], 17)}<span>${t[1]}</span></button>`).join('')}</nav><div class="set-body">`;
     if (admin && f.tab !== 'profil' && !S.adminSet) h += '<div class="card pad"><span class="spin"></span> Memuat pengaturan…</div>';
@@ -1076,6 +1063,47 @@ Pages.pengaturan = {
     return `<div class="card pad-l"><h3>Identitas aplikasi</h3><div class="form-g g2" id="fSet">${this.inp('NAMA_APLIKASI')}${this.inp('SUBJUDUL')}${this.inp('NAMA_INSTITUSI')}${this.inp('NAMA_CABANG')}${this.inp('TOTP_ISSUER')}${this.inp('SESI_JAM', 'number', 'min="1" max="24"')}</div>
       <div class="card-f"><span class="muted">${ic('info', 14)} Perubahan TOTP_ISSUER hanya berlaku untuk pendaftaran authenticator berikutnya.</span><button class="btn btn-primary" data-act="simpan">${ic('check', 16)} Simpan</button></div></div>`;
   },
+  draf() {
+    const st = S.adminSet.setting;
+    if (!this.logo) this.logo = { data: st.LOGO_DATA || '', ukuran: Math.max(24, Math.min(80, Number(st.LOGO_UKURAN) || 34)), teks: st.LOGO_TEKS !== 'tidak' };
+    return this.logo;
+  },
+  tab_logo() {
+    const { esc, ic } = U;
+    const L = this.draf(), st = S.adminSet.setting;
+    const b = { nama: st.NAMA_APLIKASI || 'FinSight', sub: st.SUBJUDUL || 'Business Banking', logo: L.data, ukuran: L.ukuran, teks: L.teks };
+    const ubah = L.data !== (st.LOGO_DATA || '') || String(L.ukuran) !== String(st.LOGO_UKURAN || 34) || (L.teks ? 'ya' : 'tidak') !== (st.LOGO_TEKS || 'ya');
+    return `<div class="card pad-l"><h3>Logo aplikasi</h3><p class="muted">Logo tampil di sidebar dan halaman masuk untuk semua pengguna. Gunakan PNG/JPG/WEBP/SVG (maks. 5 MB) — gambar otomatis diperkecil & disimpan di sheet Pengaturan.</p>
+      <div class="logo-ed">
+        <div class="logo-prev"><small class="muted">Pratinjau sidebar</small><div class="brand${b.teks ? '' : ' no-teks'}" id="logoPrev" style="--logo:${b.ukuran}px">${App.logoHtml(b, b.ukuran)}${b.teks ? `<div class="brand-t"><b>${esc(b.nama)}</b><span>${esc(b.sub)}</span></div>` : ''}</div></div>
+        <div class="form-g">
+          <label class="fld"><span>Unggah logo baru</span><input type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" data-act="logoFile" id="logoFile"><small class="muted">Disarankan logo persegi/horizontal berlatar transparan.</small></label>
+          <label class="fld"><span>Ukuran logo: <b class="tnum" id="logoUkTx">${L.ukuran} px</b></span><input type="range" min="24" max="80" step="1" value="${L.ukuran}" data-act="logoUk" id="logoUk"><small class="muted">Tinggi logo di sidebar (24–80 piksel). Di halaman masuk tampil sedikit lebih besar.</small></label>
+          <label class="chk"><input type="checkbox" data-act="logoTeks" ${L.teks ? 'checked' : ''}><span>Tampilkan nama aplikasi (${esc(b.nama)}) di samping logo</span></label>
+        </div>
+      </div>
+      <div class="card-f"><span class="muted">${ic('info', 14)} ${ubah ? '<b class="warn">Ada perubahan yang belum disimpan.</b>' : 'Nama & subjudul diubah di tab Umum.'}</span><div class="row-g">${st.LOGO_DATA || L.data ? `<button class="btn btn-secondary" data-act="logoBawaan">${ic('undo', 16)} Logo bawaan</button>` : ''}<button class="btn btn-primary" data-act="logoSimpan" ${ubah ? '' : 'disabled'}>${ic('check', 16)} Simpan logo</button></div></div></div>`;
+  },
+  /** Perkecil gambar ke ≤ 256 px lalu kompres sampai muat 1 sel Sheets (< 48.000 karakter). */
+  async olahLogo(file) {
+    if (!/^image\/(png|jpeg|webp|svg\+xml)$/.test(file.type)) throw new Error('Format tidak didukung. Gunakan PNG, JPG, WEBP, atau SVG.');
+    if (file.size > 5 * 1024 * 1024) throw new Error('Ukuran berkas maksimal 5 MB.');
+    const url = URL.createObjectURL(file);
+    try {
+      const img = await new Promise((ok, gagal) => { const i = new Image(); i.onload = () => ok(i); i.onerror = () => gagal(new Error('Gambar tidak dapat dibaca.')); i.src = url; });
+      const w0 = img.naturalWidth || 256, h0 = img.naturalHeight || 256;
+      for (const maks of [256, 200, 160, 128, 96]) {
+        const k = Math.min(1, maks / Math.max(w0, h0)), w = Math.max(1, Math.round(w0 * k)), h = Math.max(1, Math.round(h0 * k));
+        const c = document.createElement('canvas'); c.width = w; c.height = h;
+        const g = c.getContext('2d'); g.imageSmoothingQuality = 'high'; g.drawImage(img, 0, 0, w, h);
+        const kandidat = [c.toDataURL('image/png')];
+        [0.92, 0.85, 0.75].forEach((q) => kandidat.push(c.toDataURL('image/webp', q)));
+        const hasil = kandidat.filter((d) => /^data:image\/(png|webp);base64,/.test(d)).sort((a, b) => a.length - b.length)[0];
+        if (hasil && hasil.length < 46000) return hasil;
+      }
+      throw new Error('Logo terlalu detail untuk disimpan. Coba gambar yang lebih sederhana.');
+    } finally { URL.revokeObjectURL(url); }
+  },
   tab_gateway() {
     const { esc, ic } = U;
     const s = S.adminSet.setting, tok = S.adminSet.rahasia.FONNTE_TOKEN, dv = S.devStatus;
@@ -1096,7 +1124,7 @@ Pages.pengaturan = {
     return `<div class="card pad-l"><h3>Sinkronisasi hampir real-time</h3><p class="muted">Pemicu <b>onChange</b> menandai data berubah; browser memeriksa versi data secara berkala lalu memuat ulang otomatis. Pemicu <b>warmup</b> (5 menit) menangkap perubahan dari impor/skrip.</p>
         <div class="form-g g2" id="fSet">${this.inp('POLLING_DETIK', 'number', 'min="15" max="120"')}${this.inp('JT_HARI', 'number', 'min="1" max="180"')}</div>
         <div class="card-f"><div class="row-g"><button class="btn btn-secondary" data-act="sinkron">${ic('refresh', 16)} Sinkronkan sekarang</button><button class="btn btn-secondary" data-act="snapshot">${ic('calendar', 16)} Jalankan snapshot</button></div><button class="btn btn-primary" data-act="simpan">${ic('check', 16)} Simpan</button></div></div>
-      <div class="card pad-l"><h3>Informasi sistem</h3><dl class="info">
+      <div class="card pad-l"><h3>Informasi sistem</h3><dl class="info-dl">
         <dt>Versi aplikasi</dt><dd>${esc(si.versi)}</dd><dt>Versi data</dt><dd class="tnum">${esc(si.dataVer)}</dd><dt>Jumlah debitur</dt><dd class="tnum">${U.num(S.D.length)}</dd>
         <dt>Spreadsheet database</dt><dd><a href="${esc(si.spreadsheetUrl)}" target="_blank" rel="noopener">Buka Google Sheets ${ic('ext', 13)}</a></dd>
         <dt>Folder ekspor PDF</dt><dd>${si.folderEkspor ? `<a href="${esc(si.folderEkspor)}" target="_blank" rel="noopener">Buka di Drive ${ic('ext', 13)}</a>` : '—'}</dd>
@@ -1137,6 +1165,33 @@ Pages.pengaturan = {
   },
   act: {
     tab: (el) => { S.f.set.tab = el.dataset.v; App.render(); },
+    logoFile: async (el) => {
+      const f = el.files && el.files[0];
+      if (!f) return;
+      try { Pages.pengaturan.draf().data = await Pages.pengaturan.olahLogo(f); App.render({ tetap: true }); }
+      catch (e) { el.value = ''; U.toast(e.message, 'err'); }
+    },
+    logoUk: (el) => {
+      const L = Pages.pengaturan.draf(); L.ukuran = Math.max(24, Math.min(80, +el.value || 34));
+      const p = document.getElementById('logoPrev'), t = document.getElementById('logoUkTx');
+      if (p) { p.style.setProperty('--logo', L.ukuran + 'px'); const g = p.querySelector('img,svg'); if (g) { g.style.height = L.ukuran + 'px'; if (g.tagName.toLowerCase() === 'svg') { g.setAttribute('width', L.ukuran); g.setAttribute('height', L.ukuran); } } }
+      if (t) t.textContent = L.ukuran + ' px';
+      clearTimeout(Pages.pengaturan._tLogo);
+      Pages.pengaturan._tLogo = setTimeout(() => { if (App.halaman === 'pengaturan') App.render({ tetap: true }); }, 500);
+    },
+    logoTeks: (el) => { Pages.pengaturan.draf().teks = el.checked; App.render({ tetap: true }); },
+    logoBawaan: (el) => { const L = Pages.pengaturan.draf(); L.data = ''; L.ukuran = 34; L.teks = true; App.render({ tetap: true }); },
+    logoSimpan: async (el) => {
+      const L = Pages.pengaturan.draf();
+      el.disabled = true; const lbl = el.innerHTML; el.innerHTML = '<span class="spin"></span> Menyimpan…';
+      const r = await Api.call('setting.simpan', { setting: { LOGO_DATA: L.data, LOGO_UKURAN: String(L.ukuran), LOGO_TEKS: L.teks ? 'ya' : 'tidak' } });
+      el.disabled = false; el.innerHTML = lbl;
+      if (!r.success) return U.toast(r.message, 'err');
+      S.adminSet.setting = r.data.setting; S.setting = Object.assign(S.setting, r.data.setting);
+      Pages.pengaturan.logo = null;
+      App.segarBrand(); App.simpanLokal();
+      U.toast('Logo disimpan — tampil untuk semua pengguna.', 'ok'); App.render({ tetap: true });
+    },
     simpan: async (el) => {
       el.disabled = true;
       const r = await Api.call('setting.simpan', { setting: Pages.pengaturan.kumpul() });

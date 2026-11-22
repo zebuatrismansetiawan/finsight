@@ -16,7 +16,7 @@ const Auth = (() => {
 
   function sisi() {
     return `<div class="lg-brand">
-      <div class="lg-logo">${App.logoSvg(46)}<div><b>FinSight</b><span>Business Banking</span></div></div>
+      <div class="lg-logo" id="lgLogo">${logoLogin()}</div>
       <h1>Monitoring portofolio kredit & penagihan dalam satu layar.</h1>
       <ul class="lg-feat">
         <li>${ic('pie', 18)} Kualitas kredit Kol. 1–5 & pergerakannya, hampir real-time</li>
@@ -25,6 +25,22 @@ const Auth = (() => {
       </ul>
       <div class="lg-sec">${ic('shield', 18)}<span>Dilindungi kata sandi pribadi + <b>autentikasi dua faktor</b> (Microsoft Authenticator).</span></div>
     </div>`;
+  }
+
+  function logoLogin() {
+    const b = App.brand();
+    return `${App.logoHtml(b, Math.max(40, Math.min(80, Math.round(b.ukuran * 1.35))))}${b.teks ? `<div><b>${esc(b.nama)}</b><span>${esc(b.sub)}</span></div>` : ''}`;
+  }
+  let brandDicek = false;
+  async function cekBrand() {
+    if (brandDicek) return;
+    brandDicek = true;
+    const r = await Api.call('app.brand', {}, { token: '', publik: true });
+    if (!r || !r.success) return;
+    const lama = JSON.stringify(App.brand());
+    App.simpanBrand({ nama: r.data.nama || 'FinSight', sub: r.data.sub || 'Business Banking', logo: r.data.logo || '', ukuran: Number(r.data.ukuran) || 34, teks: r.data.teks !== false });
+    const el = $('#lgLogo');
+    if (el && JSON.stringify(App.brand()) !== lama) el.innerHTML = logoLogin();
   }
 
   function stepper() {
@@ -79,27 +95,41 @@ const Auth = (() => {
 
   function form2fa() {
     const d = st.data || {};
+    const sisa = qrSisa(), habis = sisa <= 0;
     let qr = '';
-    try { qr = QR.svg(d.otpauth, 184); } catch (e) { qr = '<p class="neg">Gagal membuat QR. Gunakan kode manual.</p>'; }
+    try { qr = QR.svg(d.otpauth, 184); } catch (e) { qr = '<p class="neg">Gagal membuat QR. Klik “Buat QR baru”.</p>'; }
     return `${stepper()}<h2>Daftarkan Microsoft Authenticator</h2><p class="lg-sub">Langkah terakhir login pertama: hubungkan akun ke aplikasi authenticator di HP Anda.</p>${pesan()}
       <div class="tfa">
-        <div class="tfa-qr">${qr}<small>Pindai dengan HP</small></div>
+        <div class="tfa-qr ${habis ? 'habis' : ''}" id="tfaQr"><div class="tfa-img">${qr}${habis ? `<div class="tfa-mati">${ic('clock', 22)}<b>QR kedaluwarsa</b><button type="button" class="btn btn-primary btn-sm" data-a="qrBaru">${ic('refresh', 15)} Buat QR baru</button></div>` : ''}</div>
+          <small id="qrSisa" class="${habis ? 'neg' : sisa <= 30 ? 'warn' : ''}">${habis ? 'Tidak berlaku lagi' : 'Berlaku ' + mmss(sisa)}</small></div>
         <ol class="tfa-steps">
           <li>Pasang <b>Microsoft Authenticator</b> dari Play Store / App Store.</li>
           <li>Buka aplikasi → <b>+</b> (Tambah akun) → <b>Akun lainnya (Google, Facebook, dll.)</b> → <b>Pindai kode QR</b>.</li>
           <li>Masukkan <b>6 digit</b> kode yang muncul untuk “${esc(d.issuer || 'FinSight')}” di bawah ini.</li>
         </ol>
       </div>
-      <details class="tfa-man"><summary>Tidak bisa memindai? Masukkan kode secara manual</summary>
-        <div class="tfa-key"><div><small>Nama akun</small><b>${esc(d.akun || st.npp)}</b></div><div><small>Kunci rahasia</small><code id="tfaKey">${esc(d.secret || '')}</code></div>
-        <button type="button" class="btn btn-secondary btn-sm" data-a="salin">${ic('copy', 15)} Salin kunci</button></div>
-        <small class="muted">Pilih jenis “Berbasis waktu (TOTP)”. Jangan bagikan kunci ini kepada siapa pun.</small>
-      </details>
+      <div class="tfa-once">${ic('shield', 16)}<span><b>QR hanya untuk 1 kali pemindaian di 1 perangkat.</b> Setelah kode terverifikasi, QR hangus dan tidak dapat ditampilkan lagi. Membuka QR baru (di jendela/perangkat lain) otomatis membatalkan QR ini. Ganti HP? Minta Admin melakukan <b>Reset 2FA</b>.</span></div>
       <form id="fOtp" novalidate>
-        <label class="fld"><span>Kode 6 digit dari aplikasi</span><input class="otp" id="iOtp" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="\\d{6}" placeholder="••••••" autofocus></label>
-        ${Api.DEMO && window.DemoAPI ? `<div class="lg-demo">Demo: kode saat ini <b id="demoKode">…</b></div>` : ''}
-        <button class="btn btn-primary btn-block" type="submit">${st.sibuk ? '<span class="spin"></span> Memverifikasi…' : 'Verifikasi & masuk ' + ic('check', 17)}</button>
-      </form>`;
+        <label class="fld"><span>Kode 6 digit dari aplikasi</span><input class="otp" id="iOtp" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="\\d{6}" placeholder="••••••" ${habis ? 'disabled' : 'autofocus'}></label>
+        ${Api.DEMO && window.DemoAPI && !habis ? `<div class="lg-demo">Demo: kode saat ini <b id="demoKode">…</b></div>` : ''}
+        <button class="btn btn-primary btn-block" type="submit" ${habis ? 'disabled' : ''}>${st.sibuk ? '<span class="spin"></span> Memverifikasi…' : 'Verifikasi & masuk ' + ic('check', 17)}</button>
+      </form>
+      <button class="btn-link" data-a="ulang">${ic('left', 15)} Kembali ke halaman masuk</button>`;
+  }
+  const qrSisa = () => Math.max(0, Math.ceil(((st.qrSampai || 0) - Date.now()) / 1000));
+  const mmss = (n) => Math.floor(n / 60) + ':' + String(n % 60).padStart(2, '0');
+  let qrTimer = null;
+  function jalankanHitungMundur() {
+    clearInterval(qrTimer);
+    if (st.langkah !== 'SETUP_2FA') return;
+    qrTimer = setInterval(() => {
+      const el = $('#qrSisa');
+      if (!el || st.langkah !== 'SETUP_2FA') return clearInterval(qrTimer);
+      const n = qrSisa();
+      if (n <= 0) { clearInterval(qrTimer); if (!st.sibuk) render(); return; }
+      el.textContent = 'Berlaku ' + mmss(n);
+      el.className = n <= 30 ? 'warn' : '';
+    }, 1000);
   }
 
   function formOtp() {
@@ -118,6 +148,8 @@ const Auth = (() => {
     const isi = { LOGIN: formLogin, GANTI_SANDI: formGanti, SETUP_2FA: form2fa, OTP: formOtp }[st.langkah]();
     app.innerHTML = `<div class="login"><div class="blob blob-a"></div><div class="blob blob-b"></div>${sisi()}<div class="lg-card-wrap"><div class="lg-card">${isi}</div><p class="lg-foot">© ${new Date().getFullYear()} FinSight • Akses terbatas untuk pegawai terdaftar</p></div></div>`;
     pasang();
+    jalankanHitungMundur();
+    cekBrand();
   }
 
   let demoTimer = null;
@@ -129,7 +161,7 @@ const Auth = (() => {
     });
     app.querySelectorAll('[data-a]').forEach((b) => b.onclick = () => {
       if (b.dataset.a === 'ulang') tampil();
-      if (b.dataset.a === 'salin') U.salin(($('#tfaKey') || {}).textContent.replace(/\s/g, ''));
+      if (b.dataset.a === 'qrBaru') kirim('auth.qrBaru', { tiket: st.tiket });
     });
     const fL = $('#fLogin');
     if (fL) {
@@ -185,17 +217,20 @@ const Auth = (() => {
     st.sibuk = false;
     if (!r.success) {
       if (r.data && r.data.tiket) st.tiket = r.data.tiket;
-      if (r.code === 'AUTH' || /kedaluwarsa|sudah dipakai|tidak valid\. Masuk ulang/i.test(r.message)) { tampil(r.message); return; }
+      if (r.code === 'QR_EXPIRED') { st.qrSampai = 0; return salah(r.message); }
+      if (r.code === 'AUTH' || r.code === 'QR_USED' || r.code === 'QR_REPLACED' || /kedaluwarsa|sudah dipakai|tidak valid\. Masuk ulang/i.test(r.message)) { tampil(r.message); return; }
       return salah(r.message);
     }
     const d = r.data;
     st.tiket = d.tiket || st.tiket; st.nama = d.nama || st.nama;
     if (d.langkah === 'GANTI_SANDI') { st.langkah = 'GANTI_SANDI'; st.pertama = d.pertama; st.alurPertama = true; st.pesan = d.pertama ? 'Login pertama berhasil. Silakan buat kata sandi baru.' : 'Admin meminta Anda mengganti kata sandi.'; st.jenis = 'ok'; }
-    else if (d.langkah === 'SETUP_2FA') { st.langkah = 'SETUP_2FA'; st.data = d; st.alurPertama = true; st.pesan = r.message || ''; st.jenis = 'ok'; }
+    else if (d.langkah === 'SETUP_2FA') { st.langkah = 'SETUP_2FA'; st.data = d; st.qrSampai = Date.now() + (Number(d.berlakuDetik) || 180) * 1000; st.alurPertama = true; st.pesan = r.message || ''; st.jenis = 'ok'; }
     else if (d.langkah === 'OTP') { st.langkah = 'OTP'; st.pesan = r.message || ''; st.jenis = 'ok'; }
     else if (d.langkah === 'SELESAI') {
-      clearInterval(demoTimer);
+      clearInterval(demoTimer); clearInterval(qrTimer);
+      st.data = null;                       // QR dibuang dari memori setelah aktif
       Api.simpanSesi(d.token, d.me, Api.expDariToken(d.token));
+      App.aktif();
       U.toast('Selamat datang, ' + d.me.nama + '.', 'ok');
       App.mulai();
       return;

@@ -14,8 +14,8 @@ css/style.css
 js/config.js      URL backend (publik, bukan rahasia)
 js/api.js         klien REST (POST text/plain, dedupe, batch, retry)
 js/app.js         state, router, sinkronisasi polling, notifikasi
-js/pages.js       9 halaman: Dashboard, Kualitas Kredit, Debitur, Risiko, WA Blast, Template, Log, Pengguna, Pengaturan
-js/auth.js        login NPP + ganti sandi + QR Microsoft Authenticator
+js/pages.js       9 halaman: Dashboard, Kualitas Kredit, Debitur, Penagihan, WA Blast, Template, Log, Pengguna, Pengaturan
+js/auth.js        login NPP + ganti sandi + QR Microsoft Authenticator (sekali pakai, 3 menit)
 js/qr.js          pembuat QR lokal (rahasia TOTP tidak dikirim ke layanan luar)
 js/xlsx.js        ekspor Excel di browser   js/charts.js  grafik SVG   js/icons.js  ikon Lucide (ISC)
 js/demo.js        backend tiruan, hanya dimuat di mode demo

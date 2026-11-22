@@ -23,7 +23,7 @@ const PERAN_MENU = {
 };
 const MENU = [
   ['dashboard', 'Dashboard', 'dashboard'], ['kualitas', 'Kualitas Kredit (Kol. 1-5)', 'pie'], ['debitur', 'Daftar Debitur', 'users'],
-  ['risiko', 'Risiko Gagal Bayar', 'alert'], ['blast', 'WA Blast', 'send'], ['template', 'Template WA', 'template'],
+  ['risiko', 'Penagihan', 'alert'], ['blast', 'WA Blast', 'send'], ['template', 'Template WA', 'template'],
   ['log', 'Log Blast', 'history'], ['pengguna', 'Pengguna & Peran', 'shield'], ['pengaturan', 'Pengaturan', 'settings']
 ];
 const KOL = {
@@ -46,7 +46,8 @@ const M = (() => {
       const o = {
         id: String(r[c.id]), nm: r[c.nm] || '', cif: r[c.cif] || '', pic: r[c.pic] || '', wa: r[c.wa] || '', wv: r[c.wv], pr: r[c.pr] || '-',
         pl: +r[c.pl] || 0, bd: +r[c.bd] || 0, jt: r[c.jt] || '', st: r[c.st], kol: +r[c.kol] || 1, sb: r[c.sb], sa: +r[c.sa] || 0, an: +r[c.an] || 0,
-        oo: r[c.oo], rm: r[c.rm] || '', kl: r[c.kl] === null || r[c.kl] === undefined ? null : +r[c.kl]
+        oo: r[c.oo], rm: r[c.rm] || '', kl: r[c.kl] === null || r[c.kl] === undefined ? null : +r[c.kl],
+        rp: c.rp === undefined ? '' : String(r[c.rp] || ''), ra: c.ra === undefined ? '' : String(r[c.ra] || '')   // v1.1 (data lama: kosong)
       };
       o.aktif = o.st === 'Aktif';
       o.dd = o.jt ? U.selisihHari(hari, o.jt) : null;
@@ -55,7 +56,7 @@ const M = (() => {
       o.risiko = o.fBlokir || o.fSaldo;
       o.kurang = o.aktif ? Math.max(0, o.an - o.sa) : 0;
       o.mv = o.aktif && o.kl ? o.kol - o.kl : 0;
-      o.q = (o.id + ' ' + o.nm + ' ' + o.cif + ' ' + o.pic + ' ' + o.pr + ' ' + o.rm).toLowerCase();
+      o.q = (o.id + ' ' + o.nm + ' ' + o.cif + ' ' + o.pic + ' ' + o.pr + ' ' + o.rm + ' ' + o.rp + ' ' + o.ra).toLowerCase();
       return o;
     });
   }
@@ -135,6 +136,7 @@ const M = (() => {
 // ============================================================================
 //  APLIKASI
 // ============================================================================
+const VERSI_APP = '1.1.0';   // versi frontend (config.js milik Anda tidak perlu diubah)
 const App = (() => {
   const { $, $$, esc, ic } = U;
   let halaman = 'dashboard';
@@ -182,7 +184,9 @@ const App = (() => {
 
   // ---------- Mulai ----------
   async function mulai() {
-    if (!Api.sesi) return Auth.tampil();
+    if (!Api.sesi) return Auth.tampil(Idle.pesan());
+    if (Idle.kedaluwarsa()) return Idle.keluar();
+    Idle.reset(); Idle.mulai();
     document.body.classList.remove('is-login');
     S.me = Api.sesi.me;
     const adaCache = muatLokal();
@@ -196,6 +200,7 @@ const App = (() => {
       return;
     }
     terapkanBoot(r.data);
+    simpanBrand();
     shell();
     render();
     simpanLokal();
@@ -226,17 +231,41 @@ const App = (() => {
   function logoSvg(sz = 34) {
     return `<svg width="${sz}" height="${sz}" viewBox="0 0 40 40" aria-hidden="true"><defs><linearGradient id="lg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#F43F7A"/><stop offset="1" stop-color="#8B5CF6"/></linearGradient></defs><rect width="40" height="40" rx="11" fill="url(#lg)"/><rect x="10" y="21" width="5" height="10" rx="2.5" fill="#fff" opacity=".75"/><rect x="17.5" y="15" width="5" height="16" rx="2.5" fill="#fff" opacity=".9"/><rect x="25" y="9" width="5" height="22" rx="2.5" fill="#fff"/></svg>`;
   }
+  // ---------- Identitas & logo (diatur Admin di Pengaturan → Logo Aplikasi) ----------
+  const BRAND_DEF = { nama: 'FinSight', sub: 'Business Banking', logo: '', ukuran: 34, teks: true };
+  const logoValid = (v) => /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(String(v || ''));
+  function brand() {
+    const st = S.setting || {};
+    if (S.me && st.NAMA_APLIKASI !== undefined) {
+      return { nama: st.NAMA_APLIKASI || BRAND_DEF.nama, sub: st.SUBJUDUL || BRAND_DEF.sub, logo: logoValid(st.LOGO_DATA) ? st.LOGO_DATA : '',
+        ukuran: Math.max(24, Math.min(80, Number(st.LOGO_UKURAN) || 34)), teks: st.LOGO_TEKS !== 'tidak' };
+    }
+    try { const b = Object.assign({}, BRAND_DEF, JSON.parse(localStorage.getItem('fs_brand') || '{}')); if (!logoValid(b.logo)) b.logo = ''; return b; } catch (e) { return Object.assign({}, BRAND_DEF); }
+  }
+  function simpanBrand(b) { try { localStorage.setItem('fs_brand', JSON.stringify(b || brand())); } catch (e) { /* penuh */ } }
+  function logoHtml(b, sz) {
+    return b && b.logo ? `<img class="logo-img" src="${esc(b.logo)}" alt="${esc(b.nama)}" style="height:${sz}px">` : logoSvg(sz);
+  }
+  function brandIsi(b) {
+    return `${logoHtml(b, b.ukuran)}${b.teks ? `<div class="brand-t"><b>${esc(b.nama)}</b><span>${esc(b.sub)}</span></div>` : ''}`;
+  }
+  /** Perbarui logo di sidebar tanpa render ulang seluruh halaman. */
+  function segarBrand() {
+    const b = brand(), el = $('#side .brand');
+    simpanBrand(b);
+    if (el) { el.className = 'brand' + (b.teks ? '' : ' no-teks'); el.style.setProperty('--logo', b.ukuran + 'px'); el.innerHTML = brandIsi(b); }
+  }
   const boleh = (p) => S.me && (PERAN_MENU[p] || []).includes(S.me.peran);
 
   function shell() {
     const app = $('#app');
-    const st = S.setting || {};
+    const st = S.setting || {}, br = brand();
     const peranLbl = { Admin: 'Admin', RM: 'RM - Relationship Manager', Manager: 'Manager' }[S.me.peran] || S.me.peran;
     app.innerHTML = `
     <div class="blob blob-a"></div><div class="blob blob-b"></div>
     <aside class="side" id="side">
       <div class="side-top">
-        <a class="brand" href="#/dashboard">${logoSvg()}<div class="brand-t"><b>${esc(st.NAMA_APLIKASI || 'FinSight')}</b><span>${esc(st.SUBJUDUL || 'Business Banking')}</span></div></a>
+        <a class="brand${br.teks ? '' : ' no-teks'}" href="#/dashboard" style="--logo:${br.ukuran}px">${brandIsi(br)}</a>
         <nav class="nav">${MENU.filter((m) => boleh(m[0])).map((m) => `<a href="#/${m[0]}" data-nav="${m[0]}" class="nav-i" title="${esc(m[1])}">${ic(m[2], 19)}<span class="nav-t">${esc(m[1])}</span>${m[0] === 'blast' ? '<span class="nav-badge">Baru</span>' : ''}${m[0] === 'risiko' ? '<span class="nav-cnt" id="navRisk"></span>' : ''}</a>`).join('')}</nav>
       </div>
       <div class="side-user">
@@ -266,7 +295,7 @@ const App = (() => {
       <main id="view" class="view" tabindex="-1"></main>
       <footer class="foot">
         <span>${esc(st.NAMA_APLIKASI || 'FinSight')} © ${new Date().getFullYear()}${st.NAMA_INSTITUSI ? ' ' + esc(st.NAMA_INSTITUSI) : ''} • Terhubung ke Google Sheets</span>
-        <span class="foot-l"><a href="#" data-g="bantuan">Bantuan</a><a href="#" data-g="privasi">Kebijakan Privasi</a><span class="muted">v${esc(window.APP_VERSION || '1.0.0')}</span></span>
+        <span class="foot-l"><a href="#" data-g="bantuan">Bantuan</a><a href="#" data-g="privasi">Kebijakan Privasi</a><span class="muted">v${esc(VERSI_APP)}</span></span>
       </footer>
     </div>`;
     updatePeriode(); updatePill(); notifikasi(); tandaiNav();
@@ -379,7 +408,7 @@ const App = (() => {
   }
   async function muatMeta() {
     const r = await Api.call('boot', { ver: S.ver });
-    if (r.success) { terapkanBoot(r.data); simpanLokal(); renderAman(); }
+    if (r.success) { terapkanBoot(r.data); simpanLokal(); segarBrand(); renderAman(); }
   }
   async function muatLog() {
     const q = S.logQ || {};
@@ -466,9 +495,66 @@ const App = (() => {
     Api.call('auth.logout', { semua: !!semua });
     Api.simpanSesi(null);
     hapusLokal();
+    Idle.hapus();
     location.hash = '';
     location.reload();
   }
+
+  // ---------- Keluar otomatis bila 5 menit tanpa aktivitas ----------
+  // Aktivitas = klik/sentuh, ketik, gulir, gerak mouse. Polling data TIDAK dihitung.
+  // Waktu aktivitas terakhir disimpan di localStorage agar berlaku lintas tab & saat tab
+  // ditutup lalu dibuka kembali (> 5 menit → langsung diminta login ulang).
+  const Idle = (() => {
+    const BATAS = 5 * 60 * 1000, PERINGATAN = 30 * 1000, KUNCI = 'fs_aktif';
+    let tAkhir = Date.now(), tSimpan = 0, timer = null, jalan = false, box = null;
+    const baca = () => Math.max(tAkhir, Number(localStorage.getItem(KUNCI)) || 0);
+    function tandai() {
+      tAkhir = Date.now();
+      if (tAkhir - tSimpan > 2000) { tSimpan = tAkhir; try { localStorage.setItem(KUNCI, String(tAkhir)); } catch (e) { /* abaikan */ } }
+      if (box) tutupPeringatan();
+    }
+    function reset() { tAkhir = Date.now(); tSimpan = 0; try { localStorage.setItem(KUNCI, String(tAkhir)); } catch (e) { /* abaikan */ } }
+    function hapus() { clearInterval(timer); jalan = false; tutupPeringatan(); localStorage.removeItem(KUNCI); }
+    const kedaluwarsa = () => { const v = Number(localStorage.getItem(KUNCI)) || 0; return !!v && Date.now() - v >= BATAS; };
+    function tutupPeringatan() { if (box) { box.remove(); box = null; } }
+    function peringatan(sisa) {
+      if (!box) {
+        box = document.createElement('div');
+        box.className = 'idle-warn'; box.setAttribute('role', 'alertdialog');
+        box.innerHTML = `${ic('clock', 20)}<div><b>Tidak ada aktivitas</b><span>Anda akan keluar otomatis dalam <em class="tnum" id="idleSisa"></em> detik demi keamanan data.</span></div><button class="btn btn-primary btn-sm" type="button">Tetap masuk</button>`;
+        box.querySelector('button').onclick = () => tandai();
+        document.body.appendChild(box);
+      }
+      const e = box.querySelector('#idleSisa'); if (e) e.textContent = Math.max(0, Math.ceil(sisa / 1000));
+    }
+    function cek() {
+      if (!Api.sesi) return hapus();
+      const diam = Date.now() - baca();
+      if (diam >= BATAS) return keluar();
+      if (diam >= BATAS - PERINGATAN) peringatan(BATAS - diam); else tutupPeringatan();
+    }
+    function keluar() {
+      hapus();
+      Api.call('auth.logout', {});
+      Api.simpanSesi(null);
+      hapusLokal();
+      try { sessionStorage.setItem('fs_idle', '1'); } catch (e) { /* abaikan */ }
+      location.hash = '';
+      location.reload();
+    }
+    function mulai() {
+      if (jalan) return;
+      jalan = true;
+      ['pointerdown', 'keydown', 'wheel', 'touchstart'].forEach((ev) => addEventListener(ev, tandai, { passive: true, capture: true }));
+      addEventListener('scroll', tandai, { passive: true, capture: true });
+      let mm = 0;
+      addEventListener('mousemove', () => { const n = Date.now(); if (n - mm > 1000) { mm = n; tandai(); } }, { passive: true });
+      document.addEventListener('visibilitychange', () => { if (!document.hidden) cek(); });
+      addEventListener('storage', (e) => { if (e.key === KUNCI && box && Date.now() - (Number(e.newValue) || 0) < BATAS - PERINGATAN) tutupPeringatan(); });
+      timer = setInterval(cek, 1000);
+    }
+    return { mulai, reset, hapus, kedaluwarsa, keluar, pesan: () => { const v = sessionStorage.getItem('fs_idle'); sessionStorage.removeItem('fs_idle'); return v ? 'Sesi diakhiri otomatis karena tidak ada aktivitas selama 5 menit. Silakan masuk kembali.' : ''; } };
+  })();
 
   // ---------- Pencarian global ----------
   function cariGlobal(q) {
@@ -496,6 +582,8 @@ const App = (() => {
         <div class="dt-tags">${UI.prod(d.pr)} ${UI.kol(d.kol)} ${UI.status(d.st)} ${d.oo ? '<span class="pill pill-grey">Opt-out WA</span>' : ''}</div></div></div>
       ${d.risiko ? `<div class="alert alert-neg">${ic('alert', 16)}<div><b>Berisiko gagal bayar</b> — ${d.fBlokir ? 'saldo blokir kosong' : ''}${d.fBlokir && d.fSaldo ? ' & ' : ''}${d.fSaldo ? 'saldo akhir < angsuran' : ''}. Kekurangan ${U.rp(d.kurang)}.</div></div>` : ''}
       <div class="dt-grid">
+        <div><span>Rek pinjaman</span><b class="tnum">${esc(d.rp || d.id)}</b></div>
+        <div><span>Rek afiliasi</span><b class="tnum">${d.ra ? esc(d.ra) : '<span class="muted">Belum diisi</span>'}</b></div>
         <div><span>Plafon</span><b class="tnum">${U.rp(d.pl)}</b></div>
         <div><span>Baki debet</span><b class="tnum">${U.rp(d.bd)}</b></div>
         <div class="span2"><span>Utilisasi plafon</span><div class="bar"><i style="width:${Math.min(100, util)}%"></i></div><small class="tnum">${U.pct(util)}</small></div>
@@ -602,6 +690,7 @@ const App = (() => {
     document.addEventListener('focusout', () => { if (S.perluRender) setTimeout(() => { if (S.perluRender) renderAman(); }, 50); });
     Api.onAuth((msg) => {
       Api.simpanSesi(null);
+      Idle.hapus();
       U.toast(msg || 'Sesi berakhir. Silakan masuk kembali.', 'warn');
       Auth.tampil();
     });
@@ -624,6 +713,7 @@ const App = (() => {
 
   function init() {
     U.initTip();
+    U.properAuto(document.body);
     pasangEvent();
     if ('serviceWorker' in navigator && location.protocol === 'https:') {
       navigator.serviceWorker.register('./sw.js').then((reg) => {
@@ -637,13 +727,13 @@ const App = (() => {
     }
     if (Api.DEMO) {
       const s = document.createElement('script');
-      s.src = './js/demo.js?v=' + (window.APP_VERSION || '1');
+      s.src = './js/demo.js?v=' + VERSI_APP;
       s.onload = () => mulai();
       document.head.appendChild(s);
     } else mulai();
   }
 
-  return { init, mulai, render, go, detail, blastKe, eksporXlsx, eksporPdf, cetak, kosong, muatData, muatLog, simpanLokal, terapkanBoot, hapusLokal, tutupPopover, get halaman() { return halaman; }, logoSvg, Sync: () => Sync };
+  return { init, mulai, render, go, detail, blastKe, eksporXlsx, eksporPdf, cetak, kosong, muatData, muatLog, simpanLokal, terapkanBoot, hapusLokal, tutupPopover, get halaman() { return halaman; }, logoSvg, logoHtml, brand, simpanBrand, segarBrand, aktif: () => Idle.reset(), Sync: () => Sync };
 })();
 
 document.addEventListener('DOMContentLoaded', App.init);
