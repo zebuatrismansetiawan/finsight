@@ -75,10 +75,13 @@ const Auth = (() => {
     </svg>`;
   }
 
+  /** v1.4: halaman login default hanya logo (lebih besar); nama & subjudul bisa ditampilkan lagi oleh Super Admin. */
   function logoLogin() {
     const b = App.brand();
-    return `${App.logoHtml(b, Math.max(36, Math.min(72, Math.round(b.ukuran * 1.2))))}${b.teks ? `<div><b>${esc(b.nama)}</b><span>${esc(b.sub)}</span></div>` : ''}`;
+    const lu = Math.max(48, Math.min(160, Number(b.lu) || 96));
+    return `${App.logoHtml(b, b.logo ? lu : Math.round(lu * 0.75))}${b.lt ? `<div><b>${esc(b.nama)}</b><span>${esc(b.sub)}</span></div>` : ''}`;
   }
+  function kelasLogo() { return 'lg-logo' + (App.brand().lt ? '' : ' solo'); }
   let brandDicek = false;
   async function cekBrand() {
     if (brandDicek) return;
@@ -87,10 +90,11 @@ const Auth = (() => {
     if (!r || !r.success) return;
     const lama = JSON.stringify(App.brand());
     const tsLama = App.brand().ts || '';
-    App.simpanBrand({ nama: r.data.nama || 'FinSight', sub: r.data.sub || 'Business Banking', logo: r.data.logo || '', ukuran: Number(r.data.ukuran) || 34, teks: r.data.teks !== false, ts: r.data.ts || '' });
+    App.simpanBrand({ nama: r.data.nama || 'FinSight', sub: r.data.sub || 'Business Banking', logo: r.data.logo || '', ukuran: Number(r.data.ukuran) || 34, teks: r.data.teks !== false, ts: r.data.ts || '',
+      lt: r.data.lt === true, lu: Number(r.data.lu) || 96 });
     if ((r.data.ts || '') !== tsLama && st.langkah === 'LOGIN') { render(); return; }      // Turnstile baru diaktifkan/dimatikan
     const el = $('#lgLogo');
-    if (el && JSON.stringify(App.brand()) !== lama) el.innerHTML = logoLogin();
+    if (el && JSON.stringify(App.brand()) !== lama) { el.className = kelasLogo(); el.innerHTML = logoLogin(); }
   }
 
   function stepper() {
@@ -200,7 +204,7 @@ const Auth = (() => {
   function render() {
     const app = $('#app');
     const isi = { LOGIN: formLogin, GANTI_SANDI: formGanti, SETUP_2FA: form2fa, OTP: formOtp }[st.langkah]();
-    app.innerHTML = `<div class="login"><div class="lg-shell">${sisi()}<section class="lg-panel"><div class="lg-card"><div class="lg-logo" id="lgLogo">${logoLogin()}</div>${isi}</div></section></div><p class="lg-foot">© ${new Date().getFullYear()} ${esc(App.brand().nama)} • Akses terbatas untuk pegawai terdaftar</p></div>`;
+    app.innerHTML = `<div class="login"><div class="lg-shell">${sisi()}<section class="lg-panel"><div class="lg-card"><div class="${kelasLogo()}" id="lgLogo">${logoLogin()}</div>${isi}</div></section></div><p class="lg-foot">© ${new Date().getFullYear()} ${esc(App.brand().nama)} • Akses terbatas untuk pegawai terdaftar</p></div>`;
     pasang();
     jalankanHitungMundur();
     cekBrand();

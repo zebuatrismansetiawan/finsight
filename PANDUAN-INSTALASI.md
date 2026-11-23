@@ -1,10 +1,58 @@
-# Panduan Instalasi FinSight v1.3.0
+# Panduan Instalasi FinSight v1.4.0
 
 Monitoring Portofolio Kredit & Penagihan — Google Apps Script (backend REST API) + frontend PWA (GitHub Pages / Vercel) + Cloudflare (opsional, disarankan)
 
 ---
 
-## ⬆️ Upgrade dari v1.2.0 ke v1.3.0 (aplikasi yang sudah berjalan)
+## ⬆️ Upgrade dari v1.3.0 ke v1.4.0 (aplikasi yang sudah berjalan)
+
+Data, akun, kata sandi, authenticator, token Fonnte, logo, URL `/exec`, **Cloudflare Worker, `GATEWAY_SECRET`, dan `js/config.js` Anda tidak berubah.** Fitur lain di luar 4 poin di bawah tidak diubah.
+
+**Yang berubah di v1.4.0**
+
+| # | Perubahan |
+|---|---|
+| 1 | **Halaman login hanya menampilkan logo** (nama aplikasi & subjudul disembunyikan) dengan logo lebih besar — bawaan 96 px, bisa diatur 48–160 px |
+| 2 | **Super Admin bisa menampilkan / menyembunyikan** nama aplikasi & subjudul di halaman login (Pengaturan → Logo Aplikasi → *Halaman login*) |
+| 3 | **Analisa → Perangkat Analisa KUR PMI**: dokumen 8 halaman sesuai format berkas *ANALISA KREDIT* (Perangkat Analisa, Struktur Fasilitas, 2 Call Memo, Check List), **import data massal** + **template Excel** (21 kolom), penanda tangan & semua isian diatur Super Admin, perhitungan **Beban Bunga, Angsuran Pokok, Total Kewajiban BNI/bulan** dengan **metode anuitas** (sama dengan rumus sheet *SIM KUR*), simulasi & tabel angsuran, cetak / simpan PDF |
+| 4 | **Import data dapat dipetakan per kolom**: Debitur Umum & Debitur KUR PMI masing-masing memilih sheet sumber, baris judul, dan kolom sumber untuk tiap data di Daftar Debitur (mis. *Entitas* ← sheet **JBA** kolom **A** "Nama Deb"). Berlaku juga untuk **Sumber detail KUR PMI** |
+
+**A. Backend (Apps Script)** — ganti **4 berkas**, berkas lain tetap
+
+1. Buka proyek Apps Script FinSight. Ganti **seluruh isi** berkas **`Kode`, `Data`, `Analisa`, `Migrasi`** dengan berkas baru dari paket.
+   (`Auth`, `Blast`, `Ekspor`, `Setup`, `Keamanan`, `appsscript.json` **tidak berubah** — baris `ADMIN_AWAL` di `Setup.gs` tidak perlu disentuh.)
+2. Simpan (Ctrl+S).
+3. *(Opsional)* Jalankan **`setupAppEnvironment`** sekali — hanya menambah 2 baris pengaturan **`LOGIN_TEKS`** & **`LOGIN_LOGO`** di sheet Pengaturan. Bila dilewati, baris itu dibuat otomatis saat Super Admin menyimpan pengaturan logo. Data, sandi & rahasia tidak disentuh.
+4. **Deploy → Kelola deployment → ✏️ Edit → Versi: Versi baru → Deploy.** Jangan membuat deployment baru (URL `/exec` yang dipakai Worker harus tetap sama).
+
+> **Pasang backend dulu, baru frontend.** Frontend v1.4 memanggil fitur baru di server (format Perangkat Analisa & pemetaan import).
+
+**B. Frontend (GitHub Pages / Vercel)**
+
+1. Ekstrak `finsight-frontend-v1.4.0.zip` → salin semua isinya ke folder repository lama → *Replace*. ZIP **tidak berisi `js/config.js`**, jadi `GAS_URL` Anda (URL Worker) tetap aman. Berkas baru: **`js/pak.js`** dan **`js/pakui.js`**.
+2. Dari terminal di folder repository:
+   ```bash
+   git add .
+   git commit -m "FinSight v1.4.0"
+   git push
+   ```
+3. Tunggu 1–2 menit (Vercel memperbarui otomatis) → buka **https://finsightbbjba.vercel.app** → **Ctrl+Shift+R**. Footer menampilkan **v1.4.0**. Di HP/PWA akan muncul "Versi baru tersedia" → muat ulang.
+
+> Selalu buka lewat alamat utama (`finsightbbjba.vercel.app`), bukan tautan deployment lama (`finsightbbjba-xxxx-….vercel.app`) — tautan lama masih memuat versi lama.
+
+**C. Setelah upgrade (Super Admin)**
+
+| Tugas | Di mana |
+|---|---|
+| Atur logo halaman login | **Pengaturan → Logo Aplikasi → Halaman login**: geser *Ukuran logo login* (disarankan 88–120 px), centang *Tampilkan nama aplikasi & subjudul* bila ingin tampil → **Simpan logo**. Pratinjau tampil langsung |
+| Periksa format Perangkat Analisa | **Analisa → Perangkat Analisa KUR PMI → Atur format** → periksa tab *Penanda tangan*, *Kantor & kredit*, *Penyelenggara*, *Kolom data*, *Kalimat* → **Simpan format** (lihat **Bagian 6c-A**) |
+| Import data analisa | **Template import (.xlsx)** → isi 1 baris per debitur → **Import data** |
+| Petakan kolom import debitur | **Pengaturan → Import Data** → **Baca spreadsheet** → atur *Debitur Umum* & *Debitur KUR PMI* → **Pindai (dry-run)** (lihat **Bagian 2-B**) |
+| Petakan kolom sumber KUR PMI | **Pengaturan → Mitra KUR PMI → Sumber detail KUR PMI → Pemetaan kolom** → **Perbarui** (lihat **Bagian 2-C**) |
+| Hak akses menu Analisa | Tetap seperti v1.3 (**Pengguna & Peran → Peran & Hak Akses Menu → Analisa**). Hanya Super Admin yang bisa *Atur format* |
+
+<details>
+<summary><b>Riwayat: upgrade dari v1.2.0 ke v1.3.0</b></summary>
 
 Data, akun, kata sandi, authenticator, token Fonnte, logo, dan URL `/exec` **tidak berubah**.
 
@@ -25,6 +73,7 @@ Data, akun, kata sandi, authenticator, token Fonnte, logo, dan URL `/exec` **tid
 1. Di `Setup.gs`, **salin dulu baris `const ADMIN_AWAL = …` milik Anda**.
 2. Ganti seluruh isi **`Kode`, `Auth`, `Data`, `Blast`, `Migrasi`, `Setup`**. Tempel kembali baris `ADMIN_AWAL` di `Setup.gs`. (`Ekspor` dan `appsscript.json` tidak berubah.)
 3. Buat **2 berkas skrip baru** (ikon **+** → *Skrip*) bernama persis **`Keamanan`** dan **`Analisa`**, lalu tempel isinya.
+   > ⚠️ **`worker.js` dan `wrangler.toml` BUKAN untuk Apps Script.** Keduanya dipasang di **Cloudflare** (Bagian 6b). Bila `worker.js` ditempel ke Apps Script, proyek tidak bisa disimpan (*SyntaxError: Unexpected token 'export'*) — hapus berkas itu dari Apps Script.
 4. Simpan → jalankan **`setupAppEnvironment`** sekali. Fungsi ini menambah sheet **`Template_Surat`** & **`Data_Analisa`**, pengaturan `AKTIVASI_JAM` & `TURNSTILE_SITEKEY`, format teks kolom rekening di `Log_Blast`, lalu melaporkan di log **CIF / Rek Afil yang kosong atau ganda**. Data, sandi & rahasia tidak disentuh.
 5. **Deploy → Kelola deployment → ✏️ Edit → Versi baru → Deploy** (URL `/exec` tetap sama).
 6. Jalankan **`cekKeamanan`** sekali → baca ringkasannya di Log eksekusi.
@@ -47,6 +96,8 @@ Data, akun, kata sandi, authenticator, token Fonnte, logo, dan URL `/exec` **tid
 > ⚠️ **Sandi awal kini kedaluwarsa.** Sandi awal (= NPP) hanya berlaku **72 jam** sejak akun dibuat / direset (atur di Pengaturan → Keamanan Sistem). Akun lama yang **belum pernah login** sejak dibuat lebih dari 72 jam lalu akan melihat pesan "Sandi awal kedaluwarsa" → Super Admin cukup klik **Reset akses** di Pengguna & Peran, lalu pengguna segera masuk. Super Admin awal yang terkunci dengan cara ini: jalankan `resetAksesAdminAwal` dari editor.
 
 > **Catatan Log Blast.** Kolom `Rek_Pinjaman` di `Log_Blast` tetap berisi nomor rekening pinjaman. Riwayat WA lama tetap tampil dan antrean lama tetap terkirim (aplikasi mencocokkan rekening lama ke kunci baru).
+
+</details>
 
 <details>
 <summary><b>Riwayat: upgrade dari v1.1.0 ke v1.2.0</b></summary>
@@ -178,13 +229,13 @@ HP / Laptop  →  Vercel / GitHub Pages (frontend PWA)  ──fetch JSON──�
 | `Data.gs` | Apps Script | Baca Sheets, cache berlapis, dataset debitur, snapshot kolektibilitas, pengaturan, peran & Mitra KUR PMI |
 | `Blast.gs` | Apps Script | Template WA, antrean WA blast (Fonnte), log |
 | `Ekspor.gs` | Apps Script | Laporan PDF (tampilan sama dengan aplikasi) ke folder Drive |
-| `Migrasi.gs` | Apps Script | Import data dari spreadsheet lama (dry-run, aman diulang) |
+| `Migrasi.gs` | Apps Script | Import data dari spreadsheet lain (dry-run, aman diulang, pemetaan kolom per data) |
 | `Setup.gs` | Apps Script | Instalasi otomatis, data contoh, fungsi darurat |
 | `Keamanan.gs` | Apps Script | Gerbang Cloudflare, Turnstile, blokir per IP, masa berlaku sandi awal, pemeriksaan keamanan (`cekKeamanan`, `matikanTurnstile`, `matikanGerbang`) |
-| `Analisa.gs` | Apps Script | Format surat Word (Drive) & data surat import massal |
-| `worker.js` (+ `wrangler.toml` opsional) | Cloudflare Workers | Gerbang API (lihat Bagian 6b) |
+| `Analisa.gs` | Apps Script | Perangkat Analisa KUR PMI (format, penanda tangan, data import massal) & format surat Word (Drive) |
+| `worker.js` (+ `wrangler.toml` opsional) | **Cloudflare Workers — bukan Apps Script** | Gerbang API (lihat Bagian 6b). Jangan ditempel ke editor Apps Script |
 | `appsscript.json` | Apps Script | Zona waktu Asia/Jakarta & setelan Web App |
-| `finsight-frontend-v1.3.0.zip` | GitHub Pages / Vercel | Isi folder ini = isi repository (index.html di root). Tidak berisi `js/config.js` — instalasi baru: buat `js/config.js` sesuai langkah 3.2 |
+| `finsight-frontend-v1.4.0.zip` | GitHub Pages / Vercel | Isi folder ini = isi repository (index.html di root). Tidak berisi `js/config.js` — instalasi baru: buat `js/config.js` sesuai langkah 3.2 |
 
 > **Mode demo.** Sebelum backend terpasang, frontend otomatis berjalan dengan data fiktif. Buka `index.html` lewat server lokal atau GitHub Pages lalu login dengan NPP `10001` (Super Admin), `20001` (RM), atau `30001` (Manager). Kata sandi pertama = NPP. Kode authenticator demo ditampilkan di layar.
 
@@ -247,7 +298,23 @@ Data debitur **diedit langsung di Google Sheets** (aplikasi bersifat monitoring)
 
 **B. Menu Import** (Super Admin → Pengaturan → Import Data): tempel URL spreadsheet lama → **Pindai (dry-run)** → **Jalankan import**. Sumber hanya dibaca, kunci `CIF` (Debitur Umum) / `Rek_Afiliasi` (KUR PMI) mencegah baris ganda, teks berawalan `=`/`+`/`-`/`@` disimpan sebagai teks (bukan rumus), nomor WA diperbaiki (angka 0 di depan yang hilang dipulihkan), dan rumus di sheet tujuan dipertahankan. Import aman diulang sebelum *go-live* untuk menangkap data terbaru (delta).
 
+**Pemetaan kolom (v1.4)** — agar data sumber yang judul kolomnya berbeda tetap tampil benar di Daftar Debitur:
+
+1. Tempel URL / ID spreadsheet sumber → **Baca spreadsheet**. Muncul daftar sheet beserta jumlah barisnya.
+2. Ada 2 kartu: **Debitur Umum** (kunci CIF) dan **Debitur KUR PMI** (kunci Rek Afil, produk otomatis *KUR PMI*). Centang yang ingin diimpor, pilih **Sheet sumber** (mis. `JBA`) dan **Baris judul** (baris tempat judul kolom berada, biasanya 1).
+3. Klik **Atur kolom** → untuk setiap data di Daftar Debitur (Entitas / Nama debitur, Kontak, No. WA, CIF, Rek Pinjaman, Rek Afil, Produk, Plafon, Baki Debet, Angsuran, Saldo Blokir, Saldo Akhir, Jatuh Tempo, Kol. OJK, Status, RM, Opt-out WA; KUR PMI juga PT Penempatan) pilih asalnya:
+   - **Otomatis (judul dikenali)** — bawaan; judul seperti Nama, CIF, OS, Plafond, No HP dikenali sendiri;
+   - **kolom sumber** — tampil sebagai huruf + judul, mis. `A · Nama Deb`. Pilihan disimpan berdasarkan **judul**, jadi tetap benar walau kolom di sumber digeser; kolom tanpa judul disimpan berdasarkan **huruf**;
+   - **Isi tetap…** — satu nilai untuk semua baris (mis. RM = `Andi`);
+   - **— Tidak diimpor —**.
+   Kolom *Contoh nilai baris pertama* membantu memastikan pilihan sudah tepat.
+4. **Simpan pemetaan** (juga tersimpan otomatis saat Pindai / Import) → **Pindai (dry-run)**. Hasil pindai menampilkan **contoh hasil pemetaan** (3 baris pertama) per jenis debitur dengan asal kolomnya → bila sesuai, **Jalankan import**.
+
+Sheet `Debitur` gaya lama (1 sheet campuran) tetap bisa dipakai: centang *Debitur Umum*, pilih sheet-nya, dan biarkan **Produk = Otomatis** — debitur KUR PMI tetap dikenali dari kolom Produk.
+
 **C. Detail KUR PMI dari spreadsheet terpisah** (Pengaturan → Mitra KUR PMI → Sumber detail KUR PMI). Isi minimal kolom `Rek Afil`, lalu `Nama`, `Nama Perusahaan`, `Jangka Waktu` (angka = bulan), `Batch`. Nama & Nama Perusahaan dari spreadsheet ini menggantikan Nama & PT_PMI di sheet Debitur untuk debitur KUR PMI; data keuangan tetap dari sheet Debitur. Perubahan terbaca ±5 menit (pemicu `warmupCache`).
+
+**Pemetaan kolom sumber KUR PMI (v1.4)**: bila judul kolom di spreadsheet KUR PMI berbeda (mis. `No Rek Afiliasi`, `Nama PMI`, `Tenor`) atau judulnya tidak di baris 1, isi **Baris judul** → buka **Pemetaan kolom** → **Baca kolom spreadsheet** → pilih asal kolom untuk *Rek Afil*, *Nama*, *Nama Perusahaan / PT Penempatan*, *Jangka Waktu*, *Batch* (Otomatis / kolom sumber / Isi tetap / Tidak diimpor) → **Hubungkan** atau **Perbarui**. Kartu sumber menampilkan kolom mana yang dipakai.
 
 > **Asumsi PRD yang perlu dikonfirmasi:** "Jatuh tempo 30 hari" dihitung **30 hari ke depan** dari hari ini (bisa diubah di Pengaturan → `JT_HARI`). Kolom `Tgl_Jatuh_Tempo` juga dipakai sebagai tanggal angsuran pada halaman Penagihan.
 
@@ -410,7 +477,44 @@ Pindahkan DNS domain ke Cloudflare (awan oranye / *Proxied*), arahkan subdomain 
 
 ---
 
-## 6c. Halaman Analisa (format surat Word & import massal)
+## 6c. Halaman Analisa
+
+Halaman Analisa punya 2 tab: **Perangkat Analisa KUR PMI** (v1.4, tab bawaan) dan **Format Word** (v1.3).
+
+### A. Perangkat Analisa KUR PMI
+
+Dokumen 8 halaman A4 sesuai berkas *ANALISA KREDIT* KUR PMI: **Perangkat Analisa Kredit** (3 halaman), **Struktur Fasilitas Kredit**, **Call Memo I** (penyelenggara), **Call Memo II** (debitur), dan **Check List** (2 halaman).
+
+1. **Template import (.xlsx)** → sheet *Data* berisi 21 kolom: Nama, Perusahaan, NIK, No HP, Tempat Penempatan Kerja, Jenis Pekerjaan, Lama Penempatan, Gaji Perbulan, Status (Menikah / Belum Menikah / Janda / Duda — pilihan daftar), Tempat Lahir, Tgl Lahir, Jenis Kelamin (L/P), Jangka Waktu, Rencana Berangkat, Hasil SLIK, Plafond Pinjaman, Alamat, Nomor PAK, Tanggal PAK, Tanggal Permohonan, Kewajiban Bank Lain. Judul **merah muda = wajib** (Nama, Perusahaan, NIK, Jangka Waktu, Plafond). Sheet *Petunjuk* menjelaskan cara mengisi tiap kolom. Ada 3 kolom opsional: Negara Penempatan, Gaji (Yen), Kurs Yen (untuk kalimat gaji di Call Memo II).
+2. Isi 1 baris = 1 debitur. Tanggal `17/11/2026` atau tanggal Excel; angka boleh `9950000` atau `9.950.000`; NIK, No HP & Nomor PAK disimpan sebagai teks (angka 0 di depan tidak hilang). **Perusahaan** dicocokkan ke profil penyelenggara (mis. "PT. Minori") untuk narasumber & kontak Call Memo I.
+3. **Import data** → pilih file .xlsx/.csv → periksa ringkasan (baris yang kolom wajibnya kosong dilewati & disebutkan) → **Tambahkan** atau **Ganti semua** (hanya mengganti data Perangkat Analisa; data Format Word tidak tersentuh). Data tersimpan di sheet `Data_Analisa`.
+4. Klik ikon 👁 pada baris → **Pratinjau dokumen** (pratinjau = hasil cetak). **Cetak / PDF** → di dialog cetak pilih **Simpan sebagai PDF**, ukuran **A4**, margin **Tidak ada/Default**, skala **100%**. Centang beberapa baris → **Cetak terpilih** (maks. 200 debitur sekali cetak). Tanpa data terpilih, pratinjau memakai data contoh.
+5. **Simulasi angsuran** = kalkulator cepat (Plafond, Jangka waktu, Bunga per tahun). **Tabel angsuran** = jadwal bulan ke-1 s.d. ke-n untuk debitur yang sedang dipratinjau (pokok awal, cicilan pokok, bunga, angsuran, saldo) — sama dengan sheet *SIM KUR*.
+
+**Perhitungan (metode anuitas, sama dengan PMT/IPMT/PPMT di *SIM KUR.xlsx*)** — *r* = suku bunga per tahun ÷ 12, *n* = jangka waktu (bulan):
+
+| Isian di dokumen | Rumus |
+|---|---|
+| Total Kewajiban BNI / bulan (angsuran) | Plafond × *r* ÷ (1 − (1 + *r*)<sup>−n</sup>) |
+| Beban Bunga / bulan\* | Plafond × *r* (bulan pertama) |
+| Angsuran Pokok / bulan\* | Angsuran − Beban Bunga (bulan pertama) |
+| % Total Kewajiban dibanding gaji | (Angsuran + Kewajiban Bank Lain) ÷ Gaji Perbulan × 100% |
+
+Contoh: Plafond Rp9.950.000, 12 bulan, bunga 6% → angsuran **Rp856.361**, beban bunga Rp49.750, angsuran pokok Rp806.611 (sama dengan berkas contoh). Kesimpulan *Layak / Tidak layak* dan centang Ya/Tidak di Check List mengikuti usia (≥ 18 tahun dari Tgl Lahir) dan rasio (≤ batas, bawaan 60%).
+
+**Atur format** (hanya Super Admin) — semua isian berikut berlaku untuk seluruh dokumen dan tersimpan di sheet `Pengaturan` (baris `ANALISA_KUR`):
+
+| Tab | Isi |
+|---|---|
+| Penanda tangan | Nama & jabatan: **Dipersiapkan oleh** (ARM/PRM), **Mengetahui** (BBM), **Keputusan Komite / Pemutus** (BM), **Check List — kolom ketiga** (COP). Sudah terisi sesuai berkas yang Anda unggah |
+| Kantor & kredit | Nama bank, kantor cabang, unit, kantor booking, kota, nomor formulir, suku bunga (% per tahun), perihal, keperluan, jenis kredit, negara penempatan, batas rasio (%), provisi & administrasi |
+| Penyelenggara | Profil per PT penyelenggara/LPK (dicocokkan dengan kolom **Perusahaan**): nama, kata kunci pencocokan, sebutan LPK, pejabat yang di-call + jabatan + telepon, narasumber verifikasi (maks. 6). **Tambah penyelenggara** untuk PT lain |
+| Kolom data | Ubah judul kolom, jenis (teks/angka/tanggal/pilihan/teks panjang), pilihan, tanda wajib; **Tambah kolom** baru (otomatis masuk template import dan bisa dipakai di kalimat sebagai `{{kunci}}`). Kolom bertanda *inti* tidak bisa dihapus |
+| Kalimat | Semua kalimat baku (keperluan, verifikasi, SLIK, OTS, kesimpulan layak/tidak layak, pencairan, Call Memo, check list). Penanda seperti `{{nama}}`, `{{plafond:rp}}`, `{{tglpak:tglpanjang}}` diganti otomatis. Kalimat yang diubah punya tombol **Kembalikan bawaan** |
+
+**Simpan format** menerapkan perubahan ke semua pengguna menu Analisa (dokumen yang dicetak berikutnya memakai format baru).
+
+### B. Format Word (v1.3)
 
 1. **Format surat** (Super Admin): buat surat di Microsoft Word seperti biasa (kop, logo, tabel, tanda tangan). Bagian yang berubah tiap surat ditulis sebagai penanda **`{{nama_field}}`**, mis. `{{nama_debitur}}`, `{{plafon:rp}}`, `{{tanggal_surat:tgl}}`. Simpan sebagai **.docx** → **Analisa → Unggah format Word**. Mulai cepat: **Pakai contoh format** (Memo Analisa Kredit) → **Unduh format** → edit di Word → **Ganti file**.
 2. **Format tambahan penanda**: `:rp` (Rp 1.500.000), `:angka` (1.500.000), `:tgl` (22 November 2026), `:tglpendek` (22/11/2026), `:terbilang` (satu juta lima ratus ribu), `:besar` (HURUF BESAR), `:kecil`, `:judul` (Huruf Awal Kapital).
@@ -448,7 +552,11 @@ Browser memeriksa versi data setiap 30 detik (Pengaturan → `POLLING_DETIK`, 15
 | Kunci CIF / Rek Afil | Gandakan 1 CIF di sheet Debitur | Baris kedua diabaikan; peringatan (nomor baris) tampil di Daftar Debitur untuk Super Admin |
 | Sumber KUR PMI | Ubah Batch di spreadsheet KUR PMI | Kolom Batch di Debitur KUR PMI ikut berubah ≤ 5 menit |
 | Turnstile / Gerbang | Aktifkan sesuai Bagian 6b; panggil URL `/exec` langsung | Login wajib verifikasi Cloudflare; panggilan langsung ditolak |
-| Analisa | Pakai contoh format → template import → import 3 baris → unduh ZIP & gabung | 3 surat Word terisi, tanpa sisa `{{…}}` |
+| Analisa (Word) | Tab Format Word → pakai contoh format → template import → import 3 baris → unduh ZIP & gabung | 3 surat Word terisi, tanpa sisa `{{…}}` |
+| Perangkat Analisa KUR PMI | Template import → isi 3 debitur → Import → Cetak terpilih | 24 halaman A4 (8 per debitur); angsuran sama dengan sheet *SIM KUR* untuk plafond, jangka waktu & bunga yang sama |
+| Atur format | Ganti nama penanda tangan → Simpan format → buka pratinjau | Nama baru tampil di Perangkat Analisa, Call Memo & Check List |
+| Halaman login | Pengaturan → Logo Aplikasi → ukuran 120 px, centang/hapus centang nama & subjudul → Simpan logo → buka halaman login | Logo & teks sesuai pengaturan |
+| Pemetaan import | Pengaturan → Import Data → pilih sheet JBA, Entitas ← kolom A → Pindai | Contoh hasil pemetaan menampilkan nama dari kolom A |
 | Lihat sandi | Klik ikon mata di setiap kolom sandi | Sandi terlihat / tersembunyi |
 | 1 perangkat | Login akun yang sama di HP lalu di laptop | HP kembali ke halaman masuk dengan pesan "perangkat lain" |
 | Ganti NPP | Super Admin ganti NPP pengguna | Pengguna masuk dengan NPP baru, sandi & authenticator lama tetap |
@@ -481,9 +589,16 @@ Browser memeriksa versi data setiap 30 detik (Pengaturan → `POLLING_DETIK`, 15
 | "Akun Anda baru saja masuk di perangkat lain" | Akun dipakai login di perangkat lain | Normal (1 akun = 1 perangkat). Bila bukan Anda, segera ganti sandi / minta Reset akses |
 | Menu tertentu hilang | Menu tidak dicentang untuk peran Anda | Minta Super Admin mengatur di Pengguna & Peran → Peran & Hak Akses Menu |
 | "Sandi awal akun ini sudah kedaluwarsa" | Akun belum aktivasi > 72 jam | Super Admin → Pengguna → **Reset akses**, lalu segera masuk |
+| Apps Script tidak bisa disimpan: *SyntaxError: Unexpected token 'export'* (berkas `Worker.gs`) | `worker.js` (kode Cloudflare) ikut ditempel ke Apps Script | Di Apps Script: ⋮ di samping `Worker.gs` → **Hapus** → Ctrl+S. `worker.js` dipasang di Cloudflare (Bagian 6b) |
 | "Akses langsung ke server ditolak" | Gerbang aktif, tetapi `GAS_URL` masih ke `/exec` atau rahasia Worker berbeda | Arahkan `GAS_URL` ke Worker / samakan `GATEWAY_SECRET`; darurat: `matikanGerbang` |
 | Kotak Turnstile tidak muncul / gagal | Hostname widget tidak cocok | Tambahkan hostname aplikasi di widget Turnstile; darurat: `matikanTurnstile` |
 | "Terlalu banyak permintaan" (429) | Batas per IP di Worker | Tunggu 1 menit; bila wajar sering terjadi, naikkan batas di `worker.js` |
+| Halaman login masih menampilkan nama & subjudul | Frontend/backend belum v1.4, atau pengaturan dicentang | Cek footer v1.4.0; Pengaturan → Logo Aplikasi → hapus centang *Tampilkan nama aplikasi & subjudul* → Simpan logo |
+| Analisa: "Aksi tidak dikenal" / format tidak termuat | Frontend v1.4 tetapi backend belum diperbarui / belum *Versi baru* | Ganti 4 berkas backend → Deploy → Kelola deployment → Edit → **Versi baru** |
+| Hasil cetak terpotong / ada halaman kosong | Skala atau margin dialog cetak diubah | Dialog cetak: ukuran **A4**, margin **Default/Tidak ada**, skala **100%**, matikan *Header & footer* |
+| Huruf di PDF sedikit berbeda dengan berkas asli | Font Calibri/Arial/Tahoma tidak terpasang (mis. di HP/Linux) | Cetak dari laptop Windows/Mac; di perangkat lain dipakai font pengganti yang ukurannya setara |
+| Import analisa: baris dilewati | Kolom wajib (Nama, Perusahaan, NIK, Jangka Waktu, Plafond) kosong | Lengkapi baris yang disebutkan di ringkasan, import ulang |
+| Pemetaan: daftar kolom sumber kosong | Spreadsheet belum dibaca atau Baris judul salah | Klik **Baca spreadsheet** / **Baca kolom spreadsheet**, cek nomor Baris judul |
 | Detail KUR PMI "belum ditemukan" | Rek Afil di sheet Debitur tidak ada di spreadsheet KUR PMI | Samakan nomor Rek Afil (0 di depan boleh hilang) |
 | Debitur hilang dari daftar | CIF / Rek Afil ganda | Lihat peringatan kuning di Daftar Debitur (nomor baris) & perbaiki di sheet |
 | Data baru tidak muncul | Pemicu belum terpasang | Pengaturan → Sinkronisasi → *Pemicu aktif* harus 4; bila kosong jalankan setup lagi |

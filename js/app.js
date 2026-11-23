@@ -140,7 +140,7 @@ const M = (() => {
 // ============================================================================
 //  APLIKASI
 // ============================================================================
-const VERSI_APP = '1.3.0';   // versi frontend (config.js milik Anda tidak perlu diubah)
+const VERSI_APP = '1.4.0';   // versi frontend (config.js milik Anda tidak perlu diubah)
 const App = (() => {
   const { $, $$, esc, ic } = U;
   let halaman = 'dashboard';
@@ -237,13 +237,14 @@ const App = (() => {
     return `<svg width="${sz}" height="${sz}" viewBox="0 0 40 40" aria-hidden="true"><defs><linearGradient id="lg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#F43F7A"/><stop offset="1" stop-color="#8B5CF6"/></linearGradient></defs><rect width="40" height="40" rx="11" fill="url(#lg)"/><rect x="10" y="21" width="5" height="10" rx="2.5" fill="#fff" opacity=".75"/><rect x="17.5" y="15" width="5" height="16" rx="2.5" fill="#fff" opacity=".9"/><rect x="25" y="9" width="5" height="22" rx="2.5" fill="#fff"/></svg>`;
   }
   // ---------- Identitas & logo (diatur Admin di Pengaturan → Logo Aplikasi) ----------
-  const BRAND_DEF = { nama: 'FinSight', sub: 'Business Banking', logo: '', ukuran: 34, teks: true };
+  const BRAND_DEF = { nama: 'FinSight', sub: 'Business Banking', logo: '', ukuran: 34, teks: true, lt: false, lu: 96 };
   const logoValid = (v) => /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(String(v || ''));
   function brand() {
     const st = S.setting || {};
     if (S.me && st.NAMA_APLIKASI !== undefined) {
       return { nama: st.NAMA_APLIKASI || BRAND_DEF.nama, sub: st.SUBJUDUL || BRAND_DEF.sub, logo: logoValid(st.LOGO_DATA) ? st.LOGO_DATA : '',
-        ukuran: Math.max(24, Math.min(80, Number(st.LOGO_UKURAN) || 34)), teks: st.LOGO_TEKS !== 'tidak', ts: st.TURNSTILE_SITEKEY || '' };
+        ukuran: Math.max(24, Math.min(80, Number(st.LOGO_UKURAN) || 34)), teks: st.LOGO_TEKS !== 'tidak', ts: st.TURNSTILE_SITEKEY || '',
+        lt: st.LOGIN_TEKS === 'ya', lu: Math.max(48, Math.min(160, Number(st.LOGIN_LOGO) || 96)) };
     }
     try { const b = Object.assign({}, BRAND_DEF, JSON.parse(localStorage.getItem('fs_brand') || '{}')); if (!logoValid(b.logo)) b.logo = ''; return b; } catch (e) { return Object.assign({}, BRAND_DEF); }
   }

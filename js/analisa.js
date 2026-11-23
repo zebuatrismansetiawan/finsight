@@ -5,7 +5,8 @@
    ========================================================================== */
 'use strict';
 
-const AN = { list: null, aver: '', ubah: false, tpl: '', file: {}, data: {}, sel: new Set(), f: { q: '', hal: 1, per: 10 }, mode: 'format', baris: '', muat: false, zoom: 0 };
+const AN = { list: null, aver: '', ubah: false, tpl: '', file: {}, data: {}, sel: new Set(), f: { q: '', hal: 1, per: 10 }, mode: 'format', baris: '', muat: false, zoom: 0,
+  jenis: 'pak' };            // v1.4: 'pak' = Perangkat Analisa KUR PMI (format bawaan), 'word' = format Word (v1.3)
 
 Pages.analisa = {
   judul: 'Analisa',
@@ -15,13 +16,23 @@ Pages.analisa = {
     const q = AN.f.q.trim().toLowerCase();
     return q ? L.filter((r) => Object.values(r.d).join(' ').toLowerCase().includes(q)) : L;
   },
+  /** v1.4: tab jenis format — Perangkat Analisa KUR PMI (bawaan) | Format Word (v1.3). */
+  tabJenis() {
+    const { ic } = U;
+    return `<div class="an-jenis" role="tablist"><button role="tab" class="${AN.jenis === 'pak' ? 'on' : ''}" data-act="jenis" data-v="pak">${ic('pdf', 16)} Perangkat Analisa KUR PMI</button><button role="tab" class="${AN.jenis === 'word' ? 'on' : ''}" data-act="jenis" data-v="word">${ic('upload', 16)} Format Word</button></div>`;
+  },
   render() {
     const { esc, ic } = U;
     const admin = S.me.peran === 'Admin';
+    if (AN.jenis === 'pak') {
+      const actions = PKU.k ? `<button class="btn btn-secondary" data-act="pkTemplate">${ic('xls', 17, 'pos')} Template import (.xlsx)</button>
+        <button class="btn btn-primary" data-act="pkImport">${ic('upload', 17)} Import data</button>` : '';
+      return UI.head({ crumb: ['Portofolio Kredit', 'Analisa'], title: 'Analisa', sub: 'Perangkat Analisa KUR PMI: import data massal, pratinjau, dan cetak dokumen sesuai format bank.', actions }) + this.tabJenis() + PAKUI.render(admin);
+    }
     const t = this.t();
     const actions = t ? `<button class="btn btn-secondary" data-act="tplImport">${ic('xls', 17, 'pos')} Template import (.xlsx)</button>
       <button class="btn btn-primary" data-act="import">${ic('upload', 17)} Import data</button>` : '';
-    let h = UI.head({ crumb: ['Portofolio Kredit', 'Analisa'], title: 'Analisa', sub: 'Format surat Word, import data massal, pratinjau, dan unduh surat siap cetak.', actions });
+    let h = UI.head({ crumb: ['Portofolio Kredit', 'Analisa'], title: 'Analisa', sub: 'Format surat Word, import data massal, pratinjau, dan unduh surat siap cetak.', actions }) + this.tabJenis();
     if (!AN.list) return h + '<div class="card pad"><span class="spin"></span> Memuat format surat…</div>';
     if (!AN.list.length) {
       return h + `<div class="card an-empty">${App.kosong('pdf', 'Belum ada format surat', admin ? 'Unggah format surat Word (.docx) berisi penanda seperti <code>{{nama_debitur}}</code>, atau mulai dari contoh Memo Analisa Kredit lalu sesuaikan di Word.' : 'Format surat belum disiapkan. Hubungi Super Admin.')}
@@ -56,6 +67,7 @@ Pages.analisa = {
   },
   async mount(root) {
     pasangAksi(root, this);
+    if (AN.jenis === 'pak') { await PAKUI.mount(); return; }
     if (!AN.list && !AN.muat) { await this.muatList(); return; }
     if (this.t()) { this.segarData(); if (!AN.data[AN.tpl]) this.muatData(); this.pratinjau(); }
     if (!AN.muat && Date.now() - (AN.ts || 0) > 60000) this.muatList();      // segarkan bila data dari pengguna lain berubah
@@ -72,14 +84,14 @@ Pages.analisa = {
       AN.aver = r.data.aver;
       if (!AN.list.find((x) => x.id === AN.tpl)) { AN.tpl = (AN.list.find((x) => x.aktif) || AN.list[0] || {}).id || ''; AN.sel.clear(); AN.baris = ''; }
     }
-    if (App.halaman === 'analisa' && (paksa || lama !== JSON.stringify(AN.list) + AN.aver)) App.render({ tetap: true });
+    if (App.halaman === 'analisa' && AN.jenis === 'word' && (paksa || lama !== JSON.stringify(AN.list) + AN.aver)) App.render({ tetap: true });
   },
   async muatData() {
     const id = AN.tpl;
     const r = await Api.call('analisa.data.list', { tpl: id });
     if (!r.success) return U.toast(r.message, 'err');
     AN.data[id] = r.data.rows;
-    if (AN.tpl === id && App.halaman === 'analisa') { this.segarData(); if (AN.mode === 'data') this.pratinjau(); }
+    if (AN.tpl === id && App.halaman === 'analisa' && AN.jenis === 'word') { this.segarData(); if (AN.mode === 'data') this.pratinjau(); }
   },
   /** Bytes format surat (cache per versi). */
   async bytes(t) {
@@ -353,4 +365,5 @@ Pages.analisa = {
     }
   }
 };
-window.addEventListener('resize', U.debounce(() => { if (App.halaman === 'analisa' && Pages.analisa._pas) Pages.analisa._pas(); }, 150));
+Object.assign(Pages.analisa.act, PAKUI.act);       // v1.4: aksi tab Perangkat Analisa KUR PMI
+window.addEventListener('resize', U.debounce(() => { if (App.halaman !== 'analisa') return; if (AN.jenis === 'pak') { if (PAKUI._pas) PAKUI._pas(); } else if (Pages.analisa._pas) Pages.analisa._pas(); }, 150));

@@ -1263,12 +1263,32 @@ Pages.pengaturan = {
       ${s.aktif ? `<div class="src-st ${s.galat ? 'bad' : 'ok'}">${ic(s.galat ? 'alertc' : 'ok', 18)}<div><b>${s.galat ? 'Tidak dapat dibaca' : esc(s.nama)}</b>
           <small>${s.galat ? esc(s.galat) : `${U.num(s.baris)} baris • kolom: ${(s.kolom || []).map(esc).join(', ')}${s.tanpaSumber ? ` • <span class="warn">${U.num(s.tanpaSumber)} debitur KUR PMI belum ditemukan</span>` : ' • semua debitur KUR PMI cocok'}`}</small></div>
           <a class="lnk-a" href="${esc(s.url)}" target="_blank" rel="noopener noreferrer">Buka ${ic('ext', 13)}</a></div>` : `<div class="src-st">${ic('info', 18)}<div><b>Belum terhubung</b><small>Detail KUR PMI saat ini dari kolom sheet Debitur (PT_PMI).</small></div></div>`}
-      <div class="form-g g2 mt">
-        <label class="fld"><span>Link spreadsheet KUR PMI</span><input id="srcUrl" placeholder="https://docs.google.com/spreadsheets/d/…/edit" value="${esc(s.aktif ? s.url : '')}" autocomplete="off"><small class="muted">Akun pemilik Apps Script harus punya akses (minimal pembaca).</small></label>
-        <label class="fld"><span>Nama sheet (opsional)</span><input id="srcSheet" placeholder="Kosong = sheet pertama" value="${esc(s.sheet || '')}" maxlength="100"><small class="muted">Kolom wajib: Rek Afil. Kolom lain: Nama, Nama Perusahaan, Jangka Waktu, Batch.</small></label>
+      <div class="form-g g3 mt src-g">
+        <label class="fld"><span>Link spreadsheet KUR PMI</span><input id="srcUrl" placeholder="https://docs.google.com/spreadsheets/d/…/edit" value="${esc(this.srcUrl !== undefined ? this.srcUrl : (s.aktif ? s.url : ''))}" autocomplete="off" data-act="srcUrlTx"><small class="muted">Akun pemilik Apps Script harus punya akses (minimal pembaca).</small></label>
+        <label class="fld"><span>Nama sheet (opsional)</span><input id="srcSheet" placeholder="Kosong = sheet pertama" value="${esc(this.srcSheet !== undefined ? this.srcSheet : (s.sheet || ''))}" maxlength="100" data-act="srcSheetTx"><small class="muted">Kolom wajib: Rek Afil. Kolom lain: Nama, Nama Perusahaan, Jangka Waktu, Batch.</small></label>
+        <label class="fld"><span>Baris judul</span><input id="srcBaris" type="number" min="1" max="50" value="${esc(this.petaSrc().baris)}" data-act="srcBaris"><small class="muted">Baris tempat judul kolom berada (biasanya 1).</small></label>
       </div>
+      ${this.petaSumberHtml()}
       <div class="card-f"><span class="muted">${ic('info', 14)} Perubahan di spreadsheet KUR PMI terbaca otomatis ±5 menit.</span><div class="row-g">${s.aktif ? `<button class="btn btn-danger-soft" data-act="srcPutus">${ic('unlink', 16)} Putuskan</button>` : ''}<button class="btn btn-primary" data-act="srcSimpan">${ic('link', 16)} ${s.aktif ? 'Perbarui' : 'Hubungkan'}</button></div></div></div>`;
   },
+  /** v1.4: pemetaan kolom sumber detail KUR PMI (draf). */
+  petaSrc() {
+    if (!this.srcPeta) { const p = (this.src && this.src.peta) || {}; this.srcPeta = { baris: p.baris || 1, kolom: Object.assign({}, p.kolom || {}) }; }
+    return this.srcPeta;
+  },
+  petaSumberHtml() {
+    const { esc, ic } = U;
+    const P = this.petaSrc(), s = this.src || {};
+    const kolom = this.srcKolom || (s.judul && s.judul.length && (s.peta || {}).baris === P.baris ? s.judul : null);
+    const L = [['ra', 'Rek Afil (kunci pencocokan)'], ['nm', 'Nama'], ['pt', 'Nama Perusahaan / PT Penempatan'], ['jw', 'Jangka Waktu'], ['bt', 'Batch']];
+    const n = Object.keys(P.kolom).filter((k) => P.kolom[k]).length;
+    return `<details class="src-peta" ${this.srcBuka ? 'open' : ''}><summary data-act="srcBuka">${ic('sliders', 15)} Pemetaan kolom${n ? ` <span class="tag">${n} dipetakan</span>` : ' <span class="muted sm">(otomatis dari judul)</span>'}</summary>
+      <div class="src-peta-b"><div class="row-g"><button class="btn btn-secondary btn-sm" data-act="srcBaca">${ic('search', 14)} Baca kolom spreadsheet</button><span class="muted sm">${kolom ? `${kolom.length} kolom terbaca dari baris judul ${esc(P.baris)}.` : 'Baca kolom agar huruf & judul kolom bisa dipilih.'}</span></div>
+      <div class="tbl-wrap"><table class="tbl sm imp-tbl"><thead><tr><th>Detail KUR PMI</th><th>Ambil dari</th><th>Contoh</th></tr></thead><tbody>
+      ${L.map((f) => `<tr><td><b>${esc(f[1])}</b></td><td class="imp-sel">${this.pilihKolom(P.kolom[f[0]], kolom, f[0], 'src')}</td><td class="muted"><small>${esc(this.contohNilai(P.kolom[f[0]], kolom) || (s.pakai && s.pakai[f[0]] && !P.kolom[f[0]] ? 'otomatis: kolom ' + s.pakai[f[0]] : ''))}</small></td></tr>`).join('')}
+      </tbody></table></div><p class="muted sm">${ic('info', 13)} Klik <b>${s.aktif ? 'Perbarui' : 'Hubungkan'}</b> untuk menerapkan pemetaan.</p></div></details>`;
+  },
+  segarSrc() { const el = document.getElementById('srcCard'); if (el) el.outerHTML = this.kartuSumber(); },
   /** v1.3: Keamanan sistem — Cloudflare (Turnstile & gerbang Worker), berbagi Drive, akun. */
   tab_keamanan() {
     const { esc, ic } = U;
@@ -1335,7 +1355,8 @@ Pages.pengaturan = {
   },
   draf() {
     const st = S.adminSet.setting;
-    if (!this.logo) this.logo = { data: st.LOGO_DATA || '', ukuran: Math.max(24, Math.min(80, Number(st.LOGO_UKURAN) || 34)), teks: st.LOGO_TEKS !== 'tidak' };
+    if (!this.logo) this.logo = { data: st.LOGO_DATA || '', ukuran: Math.max(24, Math.min(80, Number(st.LOGO_UKURAN) || 34)), teks: st.LOGO_TEKS !== 'tidak',
+      lt: st.LOGIN_TEKS === 'ya', lu: Math.max(48, Math.min(160, Number(st.LOGIN_LOGO) || 96)) };     // v1.4: tampilan halaman login
     return this.logo;
   },
   /** Daftar PT penempatan KUR PMI (dikelola Super Admin). Ganti nama → sel PT_PMI di sheet ikut diperbarui. */
@@ -1359,7 +1380,9 @@ Pages.pengaturan = {
     const { esc, ic } = U;
     const L = this.draf(), st = S.adminSet.setting;
     const b = { nama: st.NAMA_APLIKASI || 'FinSight', sub: st.SUBJUDUL || 'Business Banking', logo: L.data, ukuran: L.ukuran, teks: L.teks };
-    const ubah = L.data !== (st.LOGO_DATA || '') || String(L.ukuran) !== String(st.LOGO_UKURAN || 34) || (L.teks ? 'ya' : 'tidak') !== (st.LOGO_TEKS || 'ya');
+    const ubah = L.data !== (st.LOGO_DATA || '') || String(L.ukuran) !== String(st.LOGO_UKURAN || 34) || (L.teks ? 'ya' : 'tidak') !== (st.LOGO_TEKS || 'ya')
+      || (L.lt ? 'ya' : 'tidak') !== (st.LOGIN_TEKS || 'tidak') || String(L.lu) !== String(st.LOGIN_LOGO || 96);
+    const lp = Object.assign({}, b, { lt: L.lt, lu: L.lu });
     return `<div class="card pad-l"><h3>Logo aplikasi</h3><p class="muted">Logo tampil di sidebar dan halaman masuk untuk semua pengguna. Gunakan PNG/JPG/WEBP/SVG (maks. 5 MB) — gambar otomatis diperkecil & disimpan di sheet Pengaturan.</p>
       <div class="logo-ed">
         <div class="logo-prev"><small class="muted">Pratinjau sidebar</small><div class="brand${b.teks ? '' : ' no-teks'}" id="logoPrev" style="--logo:${b.ukuran}px">${App.logoHtml(b, b.ukuran)}${b.teks ? `<div class="brand-t"><b>${esc(b.nama)}</b><span>${esc(b.sub)}</span></div>` : ''}</div></div>
@@ -1369,6 +1392,14 @@ Pages.pengaturan = {
           <label class="chk"><input type="checkbox" data-act="logoTeks" ${L.teks ? 'checked' : ''}><span>Tampilkan nama aplikasi (${esc(b.nama)}) di samping logo</span></label>
         </div>
       </div>
+      <div class="logo-sec"><h4>${ic('lock', 15)} Halaman login</h4><p class="muted sm">Default hanya logo — nama aplikasi & subjudul sudah diwakili logo.</p>
+      <div class="logo-ed mt">
+        <div class="logo-prev"><small class="muted">Pratinjau halaman login</small><div class="logo-login-prev"><div class="lg-logo${L.lt ? '' : ' solo'}" id="logoLoginPrev">${App.logoHtml(lp, lp.logo ? L.lu : Math.round(L.lu * 0.75))}${L.lt ? `<div><b>${esc(b.nama)}</b><span>${esc(b.sub)}</span></div>` : ''}</div></div></div>
+        <div class="form-g">
+          <label class="fld"><span>Ukuran logo login: <b class="tnum" id="loginUkTx">${L.lu} px</b></span><input type="range" min="48" max="160" step="2" value="${L.lu}" data-act="loginUk" id="loginUk"><small class="muted">Tinggi logo di halaman login (48–160 piksel). Disarankan 88–120 px.</small></label>
+          <label class="chk"><input type="checkbox" data-act="loginTeks" ${L.lt ? 'checked' : ''}><span>Tampilkan nama aplikasi (${esc(b.nama)}) & subjudul (${esc(b.sub)}) di halaman login</span></label>
+        </div>
+      </div></div>
       <div class="card-f"><span class="muted">${ic('info', 14)} ${ubah ? '<b class="warn">Ada perubahan yang belum disimpan.</b>' : 'Nama & subjudul diubah di tab Umum.'}</span><div class="row-g">${st.LOGO_DATA || L.data ? `<button class="btn btn-secondary" data-act="logoBawaan">${ic('undo', 16)} Logo bawaan</button>` : ''}<button class="btn btn-primary" data-act="logoSimpan" ${ubah ? '' : 'disabled'}>${ic('check', 16)} Simpan logo</button></div></div></div>`;
   },
   /** Perkecil gambar ke ≤ 256 px lalu kompres sampai muat 1 sel Sheets (< 48.000 karakter). */
@@ -1417,17 +1448,108 @@ Pages.pengaturan = {
         <dt>Folder ekspor PDF</dt><dd>${si.folderEkspor ? `<a href="${esc(si.folderEkspor)}" target="_blank" rel="noopener">Buka di Drive ${ic('ext', 13)}</a>` : '—'}</dd>
         <dt>Pemicu aktif</dt><dd>${si.pemicu.length ? si.pemicu.map((p) => `<span class="tag">${esc(p)}</span>`).join(' ') : '<span class="neg">Belum ada — jalankan setupAppEnvironment()</span>'}</dd></dl></div>`;
   },
+  // ---------- v1.4: Import dari spreadsheet lain dengan pemetaan kolom kustom ----------
+  FIELD_IMP: {
+    umum: [['nm', 'Entitas / Nama debitur'], ['pic', 'Kontak (PIC)'], ['wa', 'No. WA / HP'], ['cif', 'CIF (kunci Debitur Umum)'], ['rp', 'Rek Pinjaman'], ['ra', 'Rek Afil'], ['pr', 'Produk'],
+      ['pl', 'Plafon'], ['bd', 'Baki Debet'], ['an', 'Angsuran'], ['sb', 'Saldo Blokir'], ['sa', 'Saldo Akhir'], ['jt', 'Jatuh Tempo'], ['kol', 'Kol. OJK'], ['st', 'Status'], ['rm', 'RM'], ['oo', 'Opt-out WA']],
+    pmi: [['nm', 'Nama debitur'], ['ra', 'Rek Afil (kunci KUR PMI)'], ['wa', 'No. WA / HP'], ['rp', 'Rek Pinjaman'], ['cif', 'CIF'], ['pt', 'PT Penempatan'], ['pl', 'Plafon'], ['bd', 'Baki Debet'], ['an', 'Angsuran'],
+      ['sb', 'Saldo Blokir'], ['sa', 'Saldo Akhir'], ['jt', 'Jatuh Tempo'], ['kol', 'Kol. OJK'], ['st', 'Status'], ['rm', 'RM'], ['oo', 'Opt-out WA']]
+  },
+  impState() {
+    if (!this.imp) this.imp = { src: '', info: null, muat: false, buka: '', profil: [{ jenis: 'umum', aktif: true, sheet: 'Debitur', baris: 1, kolom: {} }, { jenis: 'pmi', aktif: false, sheet: '', baris: 1, kolom: {} }],
+      lain: { Pengguna: { on: false, nama: 'Pengguna' }, Template_WA: { on: false, nama: 'Template_WA' } } };
+    return this.imp;
+  },
+  async muatPeta() {
+    const I = this.impState();
+    I.muat = true;
+    const r = await Api.call('import.peta', {});
+    I.muat = false; I.dimuat = true;
+    const ketik = document.getElementById('impSrc');               // jangan timpa yang sedang diketik pengguna
+    if (ketik && ketik.value.trim()) I.src = ketik.value.trim();
+    if (r.success) {
+      if (r.data.sumber && !I.src) I.src = r.data.sumber;
+      (r.data.profil || []).forEach((p) => { const i = p.jenis === 'pmi' ? 1 : 0; I.profil[i] = Object.assign(I.profil[i], p, { kolom: Object.assign({}, p.kolom || {}) }); });
+      if (r.data.sheets) Object.keys(I.lain).forEach((k) => { if (r.data.sheets[k]) { I.lain[k].on = true; I.lain[k].nama = r.data.sheets[k]; } });
+    }
+    if (App.halaman === 'pengaturan' && (S.f.set || {}).tab === 'impor') App.render({ tetap: true });
+  },
+  /** Kolom sheet sumber pada baris judul tertentu → [{kol:'A', h:'Nama Deb', contoh}] */
+  kolomSumber(sheet, baris) {
+    const I = this.impState();
+    const sh = I.info && I.info.sheets.find((x) => x.nama === sheet);
+    if (!sh) return null;
+    const hdr = sh.atas[baris - 1] || [], isi = sh.atas[baris] || [];
+    const n = Math.max(hdr.length, isi.length, Math.min(sh.kolom, 60));
+    const huruf = (i) => { let t = ''; i++; while (i > 0) { const m = (i - 1) % 26; t = String.fromCharCode(65 + m) + t; i = Math.floor((i - 1) / 26); } return t; };
+    return Array.from({ length: n }, (x, i) => ({ kol: huruf(i), h: String(hdr[i] || '').trim(), contoh: String(isi[i] === undefined ? '' : isi[i]) }));
+  },
+  pilihKolom(spek, kolom, nama, act) {
+    act = act || 'imp';
+    const { esc } = U;
+    const s = spek || '';
+    const tetap = s.indexOf('tetap:') === 0;
+    let opsi = `<option value="" ${!s ? 'selected' : ''}>Otomatis (judul dikenali)</option><option value="skip" ${s === 'skip' ? 'selected' : ''}>— Tidak diimpor —</option><option value="tetap" ${tetap ? 'selected' : ''}>Isi tetap…</option>`;
+    let ada = !s || s === 'skip' || tetap;
+    if (kolom) {
+      opsi += '<optgroup label="Kolom di sheet sumber">' + kolom.map((c) => {
+        const v = c.h ? 'hdr:' + c.h : 'kol:' + c.kol;
+        const pilih = s === v || s === 'kol:' + c.kol;
+        if (pilih) ada = true;
+        return `<option value="${esc(pilih ? s : v)}" ${pilih ? 'selected' : ''}>${esc(c.kol + (c.h ? ' · ' + c.h : ' (tanpa judul)'))}</option>`;
+      }).join('') + '</optgroup>';
+    }
+    if (!ada) opsi += `<option value="${esc(s)}" selected>${esc(s.indexOf('hdr:') === 0 ? 'Judul: ' + s.slice(4) : 'Kolom ' + s.slice(4))}</option>`;
+    return `<select class="sel" data-act="${act}Spek" data-k="${esc(nama)}">${opsi}</select>${tetap ? `<input class="inp imp-tetap" data-act="${act}Tetap" data-k="${esc(nama)}" value="${esc(s.slice(6))}" maxlength="100" placeholder="Nilai untuk semua baris">` : ''}`;
+  },
+  contohNilai(spek, kolom) {
+    if (!kolom || !spek) return '';
+    if (spek.indexOf('tetap:') === 0) return spek.slice(6);
+    const c = spek.indexOf('kol:') === 0 ? kolom.find((x) => x.kol === spek.slice(4)) : spek.indexOf('hdr:') === 0 ? kolom.find((x) => x.h.toLowerCase().replace(/[^a-z0-9]/g, '') === spek.slice(4).toLowerCase().replace(/[^a-z0-9]/g, '')) : null;
+    return c ? c.contoh : '';
+  },
+  kartuProfil(p, i) {
+    const { esc, ic } = U;
+    const I = this.impState();
+    const L = this.FIELD_IMP[p.jenis];
+    const kolom = this.kolomSumber(p.sheet, p.baris);
+    const nPeta = Object.keys(p.kolom).filter((k) => p.kolom[k]).length;
+    const sheetSel = I.info ? `<select class="sel" data-act="impSheet" data-i="${i}">${p.sheet && !I.info.sheets.some((x) => x.nama === p.sheet) ? `<option selected>${esc(p.sheet)}</option>` : ''}${I.info.sheets.map((x) => `<option ${x.nama === p.sheet ? 'selected' : ''}>${esc(x.nama)}</option>`).join('')}</select>` : `<input class="inp" data-act="impSheetTx" data-i="${i}" value="${esc(p.sheet)}" placeholder="Nama sheet, mis. JBA">`;
+    const buka = I.buka === p.jenis;
+    return `<div class="imp-prof ${p.aktif ? 'on' : ''}"><div class="imp-prof-h">
+        <label class="chk"><input type="checkbox" data-act="impAktif" data-i="${i}" ${p.aktif ? 'checked' : ''}><span><b>${p.jenis === 'pmi' ? 'Debitur KUR PMI' : 'Debitur Umum'}</b><small class="muted d-b">${p.jenis === 'pmi' ? 'Kunci Rek Afil • produk otomatis KUR PMI' : 'Kunci CIF • sheet campuran? biarkan Produk = Otomatis'}</small></span></label>
+        <div class="imp-prof-f"><label class="fld sm"><span>Sheet sumber</span>${sheetSel}</label><label class="fld sm w-baris"><span>Baris judul</span><input class="inp" type="number" min="1" max="50" data-act="impBaris" data-i="${i}" value="${esc(p.baris)}"></label>
+          <button class="btn btn-secondary btn-sm" data-act="impBuka" data-v="${p.jenis}">${ic('sliders', 15)} Atur kolom${nPeta ? ` <span class="tag">${nPeta}</span>` : ''}</button></div></div>
+      ${buka ? `<div class="imp-peta">${!kolom ? `<p class="muted sm">${ic('info', 13)} Klik <b>Baca spreadsheet</b> di atas agar daftar kolom sumber (huruf & judul) bisa dipilih.</p>` : `<p class="muted sm">${ic('info', 13)} Kolom sumber dibaca dari baris judul ${esc(p.baris)} sheet <b>${esc(p.sheet)}</b>. "Otomatis" = judul dikenali (mis. Nama, CIF, OS, Plafond, No HP).</p>`}
+        <div class="tbl-wrap"><table class="tbl sm imp-tbl"><thead><tr><th>Data di Daftar Debitur</th><th>Ambil dari</th><th>Contoh nilai baris pertama</th></tr></thead><tbody>
+        ${p.jenis === 'pmi' ? `<tr><td><b>Produk</b></td><td><span class="pill pill-grey">KUR PMI (otomatis)</span></td><td></td></tr>` : ''}
+        ${L.map((f) => `<tr><td><b>${esc(f[1])}</b></td><td class="imp-sel" data-i="${i}">${this.pilihKolom(p.kolom[f[0]], kolom, i + '.' + f[0])}</td><td class="muted"><small>${esc(this.contohNilai(p.kolom[f[0]], kolom) || '')}</small></td></tr>`).join('')}
+        </tbody></table></div></div>` : ''}</div>`;
+  },
   tab_impor() {
     const { esc, ic } = U;
+    const I = this.impState();
+    if (!I.dimuat && !I.muat) setTimeout(() => this.muatPeta(), 0);
     const r = this.hasil;
-    return `<div class="card pad-l"><h3>Import data dari spreadsheet lain</h3><p class="muted">Sumber <b>hanya dibaca</b>. Kolom dicocokkan berdasarkan <b>nama header</b> (mis. “OS”, “Plafond”, “No HP” dikenali). Aman diulang — tidak membuat baris ganda. Jalankan <b>Pindai</b> dulu.</p>
-      <div class="form-g"><label class="fld"><span>URL atau ID spreadsheet sumber</span><input id="impSrc" placeholder="https://docs.google.com/spreadsheets/d/…" value="${esc(this.src || '')}"></label>
-      <div class="imp-g">${[['Debitur', 'Debitur'], ['Pengguna', 'Pengguna'], ['Template_WA', 'Template_WA']].map((x) => `<label class="imp"><input type="checkbox" data-imp="${x[0]}" ${x[0] === 'Debitur' ? 'checked' : ''}><span><b>${x[0].replace('_', ' ')}</b><small>Nama sheet di sumber</small><input data-impn="${x[0]}" value="${x[1]}"></span></label>`).join('')}</div>
-      <label class="chk"><input type="checkbox" id="impTimpa"><span>Timpa data yang sudah ada (default: hanya menambah yang baru). Rumus di sheet tujuan tetap dipertahankan.</span></label></div>
-      <div class="card-f"><span class="muted">${ic('shield', 14)} Kredensial pengguna tidak pernah diimpor.</span><div class="row-g"><button class="btn btn-secondary" data-act="pindai">${ic('search', 16)} Pindai (dry-run)</button><button class="btn btn-primary" data-act="impor">${ic('upload', 16)} Jalankan import</button></div></div></div>
+    return `<div class="card pad-l"><h3>Import data dari spreadsheet lain</h3><p class="muted">Sumber <b>hanya dibaca</b>. Tiap data bisa dipetakan ke kolom sumber (huruf kolom atau judul, mis. <b>Entitas</b> ← kolom A "Nama Deb" di sheet JBA) agar tampil sesuai format Daftar Debitur. Aman diulang — tidak membuat baris ganda. Jalankan <b>Pindai</b> dulu.</p>
+      <div class="form-g"><div class="imp-src"><label class="fld grow"><span>URL atau ID spreadsheet sumber</span><input id="impSrc" placeholder="https://docs.google.com/spreadsheets/d/…" value="${esc(I.src || '')}" data-act="impSrcTx"></label>
+        <button class="btn btn-secondary" data-act="impBaca">${ic('search', 16)} Baca spreadsheet</button></div>
+        ${I.info ? `<div class="src-st ok">${ic('ok', 18)}<div><b>${esc(I.info.nama)}</b><small>${U.num(I.info.sheets.length)} sheet: ${I.info.sheets.map((x) => esc(x.nama) + ' (' + U.num(Math.max(0, x.baris - 1)) + ' baris)').join(', ')}</small></div></div>` : ''}
+        ${I.profil.map((p, i) => this.kartuProfil(p, i)).join('')}
+        <div class="imp-g">${Object.keys(I.lain).map((k) => `<label class="imp"><input type="checkbox" data-act="impLain" data-k="${k}" ${I.lain[k].on ? 'checked' : ''}><span><b>${k.replace('_', ' ')}</b><small>Nama sheet di sumber</small><input data-act="impLainNama" data-impn="${k}" data-k="${k}" value="${esc(I.lain[k].nama)}"></span></label>`).join('')}</div>
+        <label class="chk"><input type="checkbox" id="impTimpa"><span>Timpa data yang sudah ada (default: hanya menambah yang baru). Rumus di sheet tujuan tetap dipertahankan.</span></label></div>
+      <div class="card-f"><span class="muted">${ic('shield', 14)} Kredensial pengguna tidak pernah diimpor. Pemetaan tersimpan otomatis.</span><div class="row-g"><button class="btn btn-ghost" data-act="impSimpanPeta">${ic('check', 16)} Simpan pemetaan</button><button class="btn btn-secondary" data-act="pindai">${ic('search', 16)} Pindai (dry-run)</button><button class="btn btn-primary" data-act="impor">${ic('upload', 16)} Jalankan import</button></div></div></div>
       ${r ? `<div class="card pad-l"><h3>${r.dryRun ? 'Hasil pindai' : 'Hasil import'} — ${esc(r.sumber.nama)}</h3><table class="tbl sm"><thead><tr><th>Data</th><th class="num">Di sumber</th><th class="num">Ditambah</th><th class="num">Diperbarui</th><th class="num">Dilewati</th></tr></thead><tbody>
-        ${Object.keys(r.laporan).map((k) => `<tr><td><b>${esc(k)}</b></td><td class="num">${U.num(r.laporan[k].sumber)}</td><td class="num pos">${U.num(r.laporan[k].ditambah)}</td><td class="num info">${U.num(r.laporan[k].diperbarui)}</td><td class="num muted">${U.num(r.laporan[k].dilewati)}</td></tr>`).join('')}</tbody></table>
+        ${Object.keys(r.laporan).map((k) => `<tr><td><b>${esc(k.replace('_', ' '))}</b></td><td class="num">${U.num(r.laporan[k].sumber)}</td><td class="num pos">${U.num(r.laporan[k].ditambah)}</td><td class="num info">${U.num(r.laporan[k].diperbarui)}</td><td class="num muted">${U.num(r.laporan[k].dilewati)}</td></tr>`).join('')}</tbody></table>
+        ${Object.keys(r.laporan).filter((k) => r.laporan[k].contoh && r.laporan[k].contoh.length).map((k) => { const L = r.laporan[k], nm = {}; (this.FIELD_IMP[k === 'Debitur KUR PMI' ? 'pmi' : 'umum'].concat([['pr', 'Produk'], ['pt', 'PT Penempatan']])).forEach((f) => { nm[f[0]] = nm[f[0]] || f[1]; }); const fs = L.kolom.map((c) => c.f);
+          return `<h4 class="imp-h4">${esc(k)} — contoh hasil pemetaan</h4><div class="tbl-wrap"><table class="tbl sm"><thead><tr>${L.kolom.map((c) => `<th>${esc(nm[c.f] || c.f)}<small class="muted d-b">${esc(c.sumber)}</small></th>`).join('')}</tr></thead><tbody>${L.contoh.map((o) => `<tr>${fs.map((f) => `<td>${esc(o[f] || '')}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`; }).join('')}
         ${r.peringatan.length ? `<ul class="warn-l">${r.peringatan.map((p) => `<li>${ic('alertc', 14)} ${esc(p)}</li>`).join('')}</ul>` : ''}</div>` : ''}`;
+  },
+  impPayload() {
+    const I = this.impState();
+    const sheets = {};
+    Object.keys(I.lain).forEach((k) => { if (I.lain[k].on && I.lain[k].nama.trim()) sheets[k] = I.lain[k].nama.trim(); });
+    return { sumber: (document.getElementById('impSrc') || {}).value ? document.getElementById('impSrc').value.trim() : I.src, sheets, profil: I.profil.map((p) => ({ jenis: p.jenis, aktif: !!p.aktif, sheet: p.sheet, baris: p.baris, kolom: p.kolom })) };
   },
   kumpul() {
     const o = {};
@@ -1435,15 +1557,14 @@ Pages.pengaturan = {
     return o;
   },
   async impor(dryRun, el) {
-    const src = document.getElementById('impSrc').value.trim();
-    if (!src) return U.toast('Isi URL/ID spreadsheet sumber.', 'warn');
-    const sheets = {};
-    document.querySelectorAll('[data-imp]').forEach((c) => { if (c.checked) sheets[c.dataset.imp] = document.querySelector(`[data-impn="${c.dataset.imp}"]`).value.trim(); });
-    if (!Object.keys(sheets).length) return U.toast('Pilih minimal satu jenis data.', 'warn');
+    const d = this.impPayload();
+    if (!d.sumber) return U.toast('Isi URL/ID spreadsheet sumber.', 'warn');
+    const aktif = d.profil.filter((p) => p.aktif && p.sheet);
+    if (!aktif.length && !Object.keys(d.sheets).length) return U.toast('Pilih minimal satu jenis data.', 'warn');
     if (!dryRun && !await U.konfirmasi({ title: 'Jalankan import?', body: 'Data akan ditulis ke spreadsheet database FinSight. Disarankan sudah menjalankan Pindai.', ok: 'Jalankan' })) return;
-    this.src = src;
+    this.impState().src = d.sumber;
     el.disabled = true; const l = el.innerHTML; el.innerHTML = '<span class="spin"></span> Memproses…';
-    const r = await Api.call('import.run', { sumber: src, sheets, dryRun, timpa: document.getElementById('impTimpa').checked }, { timeout: 300000 });
+    const r = await Api.call('import.run', { sumber: d.sumber, sheets: d.sheets, profil: d.profil, dryRun, timpa: document.getElementById('impTimpa').checked }, { timeout: 300000 });
     el.disabled = false; el.innerHTML = l;
     if (!r.success) return U.toast(r.message, 'err', 6000);
     this.hasil = r.data; U.toast(r.message, 'ok');
@@ -1487,10 +1608,19 @@ Pages.pengaturan = {
     },
     logoTeks: (el) => { Pages.pengaturan.draf().teks = el.checked; App.render({ tetap: true }); },
     logoBawaan: (el) => { const L = Pages.pengaturan.draf(); L.data = ''; L.ukuran = 34; L.teks = true; App.render({ tetap: true }); },
+    loginTeks: (el) => { Pages.pengaturan.draf().lt = el.checked; App.render({ tetap: true }); },
+    loginUk: (el) => {
+      const L = Pages.pengaturan.draf(); L.lu = Math.max(48, Math.min(160, +el.value || 96));
+      const p = document.getElementById('logoLoginPrev'), t = document.getElementById('loginUkTx');
+      if (p) { const g = p.querySelector('img,svg'); if (g) { const h = L.data ? L.lu : Math.round(L.lu * 0.75); g.style.height = h + 'px'; if (g.tagName.toLowerCase() === 'svg') { g.setAttribute('width', h); g.setAttribute('height', h); } } }
+      if (t) t.textContent = L.lu + ' px';
+      clearTimeout(Pages.pengaturan._tLogo);
+      Pages.pengaturan._tLogo = setTimeout(() => { if (App.halaman === 'pengaturan') App.render({ tetap: true }); }, 500);
+    },
     logoSimpan: async (el) => {
       const L = Pages.pengaturan.draf();
       el.disabled = true; const lbl = el.innerHTML; el.innerHTML = '<span class="spin"></span> Menyimpan…';
-      const r = await Api.call('setting.simpan', { setting: { LOGO_DATA: L.data, LOGO_UKURAN: String(L.ukuran), LOGO_TEKS: L.teks ? 'ya' : 'tidak' } });
+      const r = await Api.call('setting.simpan', { setting: { LOGO_DATA: L.data, LOGO_UKURAN: String(L.ukuran), LOGO_TEKS: L.teks ? 'ya' : 'tidak', LOGIN_TEKS: L.lt ? 'ya' : 'tidak', LOGIN_LOGO: String(L.lu) } });
       el.disabled = false; el.innerHTML = lbl;
       if (!r.success) return U.toast(r.message, 'err');
       S.adminSet.setting = r.data.setting; S.setting = Object.assign(S.setting, r.data.setting);
@@ -1560,23 +1690,90 @@ Pages.pengaturan = {
       U.toast(r.message, r.success ? 'ok' : 'err');
     },
     pindai: (el) => Pages.pengaturan.impor(true, el),
+    // ----- v1.4: pemetaan kolom import
+    impSrcTx: (el) => { Pages.pengaturan.impState().src = el.value; },
+    impBaca: async (el) => {
+      const P = Pages.pengaturan, I = P.impState(), src = document.getElementById('impSrc').value.trim();
+      if (!src) return U.toast('Isi URL/ID spreadsheet sumber.', 'warn');
+      I.src = src; el.disabled = true; const l = el.innerHTML; el.innerHTML = '<span class="spin"></span> Membaca…';
+      const r = await Api.call('import.info', { sumber: src }, { timeout: 120000 });
+      el.disabled = false; el.innerHTML = l;
+      if (!r.success) return U.toast(r.message, 'err', 6000);
+      I.info = r.data;
+      I.profil.forEach((p) => { if (!p.sheet || !r.data.sheets.some((x) => x.nama === p.sheet)) { const cocok = r.data.sheets.find((x) => p.jenis === 'pmi' ? /pmi/i.test(x.nama) : !/pmi/i.test(x.nama)); if (!p.sheet || cocok) p.sheet = (cocok || r.data.sheets[0] || {}).nama || p.sheet; } });
+      if (!I.buka) I.buka = I.profil.find((p) => p.aktif) ? I.profil.find((p) => p.aktif).jenis : 'umum';
+      U.toast(`Terbaca ${r.data.sheets.length} sheet. Pilih kolom untuk tiap data.`, 'ok');
+      App.render({ tetap: true });
+    },
+    impAktif: (el) => { Pages.pengaturan.impState().profil[+el.dataset.i].aktif = el.checked; App.render({ tetap: true }); },
+    impSheet: (el) => { Pages.pengaturan.impState().profil[+el.dataset.i].sheet = el.value; App.render({ tetap: true }); },
+    impSheetTx: (el) => { Pages.pengaturan.impState().profil[+el.dataset.i].sheet = el.value.trim(); },
+    impBaris: (el) => { const p = Pages.pengaturan.impState().profil[+el.dataset.i]; p.baris = Math.max(1, Math.min(50, Math.round(+el.value) || 1)); clearTimeout(Pages.pengaturan._tB); Pages.pengaturan._tB = setTimeout(() => App.render({ tetap: true }), 400); },
+    impBuka: (el) => { const I = Pages.pengaturan.impState(); I.buka = I.buka === el.dataset.v ? '' : el.dataset.v; App.render({ tetap: true }); },
+    impSpek: (el) => {
+      const [i, f] = el.dataset.k.split('.'), p = Pages.pengaturan.impState().profil[+i];
+      if (el.value === 'tetap') p.kolom[f] = 'tetap:' + (p.kolom[f] && p.kolom[f].indexOf('tetap:') === 0 ? p.kolom[f].slice(6) : '');
+      else if (el.value) p.kolom[f] = el.value; else delete p.kolom[f];
+      App.render({ tetap: true });
+      if (el.value === 'tetap') setTimeout(() => { const x = document.querySelector(`[data-act="impTetap"][data-k="${el.dataset.k}"]`); if (x) x.focus(); }, 30);
+    },
+    impTetap: (el) => { const [i, f] = el.dataset.k.split('.'); Pages.pengaturan.impState().profil[+i].kolom[f] = 'tetap:' + el.value; },
+    impLain: (el) => { Pages.pengaturan.impState().lain[el.dataset.k].on = el.checked; },
+    impLainNama: (el) => { Pages.pengaturan.impState().lain[el.dataset.k].nama = el.value; },
+    impSimpanPeta: async (el) => {
+      const d = Pages.pengaturan.impPayload();
+      if (!d.sumber) return U.toast('Isi URL/ID spreadsheet sumber.', 'warn');
+      el.disabled = true;
+      const r = await Api.call('import.peta.simpan', d, { timeout: 60000 });
+      el.disabled = false;
+      U.toast(r.message, r.success ? 'ok' : 'err');
+    },
     impor: (el) => Pages.pengaturan.impor(false, el),
     // ----- v1.3: sumber KUR PMI
     srcSimpan: async (el) => {
       const url = document.getElementById('srcUrl').value.trim(), sheet = document.getElementById('srcSheet').value.trim();
       if (!url) return U.toast('Tempel link spreadsheet KUR PMI.', 'warn');
       el.disabled = true; const lbl = el.innerHTML; el.innerHTML = '<span class="spin"></span> Membaca…';
-      const r = await Api.call('pmi.sumber.simpan', { url, sheet }, { timeout: 90000 });
+      const r = await Api.call('pmi.sumber.simpan', { url, sheet, peta: Pages.pengaturan.petaSrc() }, { timeout: 90000 });
+      if (r.success) { Pages.pengaturan.srcPeta = null; Pages.pengaturan.srcKolom = null; Pages.pengaturan.srcUrl = undefined; Pages.pengaturan.srcSheet = undefined; }
       el.disabled = false; el.innerHTML = lbl;
       if (!r.success) return U.toast(r.message, 'err', 7000);
       U.toast(r.message, 'ok', 5000);
       await App.muatData(false);
       await Pages.pengaturan.muatSumber();
     },
+    srcUrlTx: (el) => { Pages.pengaturan.srcUrl = el.value; },
+    srcSheetTx: (el) => { Pages.pengaturan.srcSheet = el.value; Pages.pengaturan.srcKolom = null; },
+    srcBaris: (el) => { Pages.pengaturan.petaSrc().baris = Math.max(1, Math.min(50, Math.round(+el.value) || 1)); Pages.pengaturan.srcKolom = null; },
+    srcBuka: (el, e) => { Pages.pengaturan.srcBuka = !el.parentElement.open; },
+    srcBaca: async (el) => {
+      const P = Pages.pengaturan, url = document.getElementById('srcUrl').value.trim(), sheet = document.getElementById('srcSheet').value.trim();
+      if (!url) return U.toast('Tempel link spreadsheet KUR PMI.', 'warn');
+      P.srcUrl = url; P.srcSheet = sheet;
+      el.disabled = true; const l = el.innerHTML; el.innerHTML = '<span class="spin"></span> Membaca…';
+      const r = await Api.call('import.info', { sumber: url }, { timeout: 90000 });
+      el.disabled = false; el.innerHTML = l;
+      if (!r.success) return U.toast(r.message, 'err', 6000);
+      const sh = sheet ? r.data.sheets.find((x) => x.nama === sheet) : r.data.sheets[0];
+      if (!sh) return U.toast('Sheet "' + sheet + '" tidak ada di spreadsheet itu.', 'err');
+      P.imp = P.imp || null;
+      const b = P.petaSrc().baris, hdr = sh.atas[b - 1] || [], isi = sh.atas[b] || [];
+      const huruf = (i) => { let t = ''; i++; while (i > 0) { const m = (i - 1) % 26; t = String.fromCharCode(65 + m) + t; i = Math.floor((i - 1) / 26); } return t; };
+      P.srcKolom = Array.from({ length: Math.max(hdr.length, isi.length) }, (x, i) => ({ kol: huruf(i), h: String(hdr[i] || '').trim(), contoh: String(isi[i] === undefined ? '' : isi[i]) }));
+      P.srcBuka = true; P.segarSrc();
+    },
+    srcSpek: (el) => {
+      const P = Pages.pengaturan, k = el.dataset.k, M = P.petaSrc().kolom;
+      if (el.value === 'tetap') M[k] = 'tetap:' + (M[k] && M[k].indexOf('tetap:') === 0 ? M[k].slice(6) : '');
+      else if (el.value) M[k] = el.value; else delete M[k];
+      P.srcBuka = true; P.segarSrc();
+    },
+    srcTetap: (el) => { Pages.pengaturan.petaSrc().kolom[el.dataset.k] = 'tetap:' + el.value; },
     srcPutus: async () => {
       if (!(await U.konfirmasi({ title: 'Putuskan spreadsheet KUR PMI?', body: 'Detail KUR PMI kembali diambil dari sheet Debitur. Spreadsheet KUR PMI tidak diubah.', ok: 'Putuskan' }))) return;
       const r = await Api.call('pmi.sumber.hapus', {});
       if (!r.success) return U.toast(r.message, 'err');
+      Pages.pengaturan.srcPeta = null; Pages.pengaturan.srcKolom = null;
       U.toast(r.message, 'ok'); await App.muatData(false); await Pages.pengaturan.muatSumber();
     },
     // ----- v1.3: keamanan sistem
