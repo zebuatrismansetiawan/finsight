@@ -85,7 +85,12 @@ const UI = (() => {
     if (!items.length) return '';
     return `<div class="fchips"><span class="muted">Filter:</span>${items.map((x) => `<span class="fchip">${esc(x[0])}<button data-act="unf" data-k="${x[1]}" aria-label="Hapus filter">${ic('x', 12)}</button></span>`).join('')}<button class="btn-link sm" data-act="reset">Reset</button></div>`;
   }
-  return { prod, kol, status, jtInfo, logStatus, delta, kpi, head, pager, th, urut, halaman, uang, prodSelect, bisaKirim, snapBanner, chipsFilter, warnaProd, normPt, daftarPt, grupPt, namaPt };
+  /** v1.5: baris kecil di bawah nama — No HP tersamar (kosong bila belum ada, tanpa tulisan "tidak valid"), PIC, opt-out. */
+  function kontak(d) {
+    const x = [d.wa ? `${ic('phone', 11, 'pos')} <span class="tnum">${esc(d.wa)}</span>` : '', d.pic ? esc(d.pic) : '', d.oo ? '<span class="neg">opt-out</span>' : ''].filter(Boolean);
+    return x.length ? `<small class="muted">${x.join(' • ')}</small>` : '';
+  }
+  return { prod, kol, status, jtInfo, logStatus, delta, kpi, head, pager, th, urut, halaman, uang, prodSelect, bisaKirim, snapBanner, chipsFilter, warnaProd, normPt, daftarPt, grupPt, namaPt, kontak };
 })();
 
 /** Delegasi event per halaman: data-act → handler di Pages[x].act */
@@ -114,8 +119,60 @@ const Pages = {};
 // ============================================================================
 //  DASHBOARD
 // ============================================================================
+// v1.5: salam sesuai waktu + kata motivasi harian (bergilir tiap hari, netral & humanis)
+const MOTIVASI = [
+  'Semoga hari ini berjalan dengan lancar dan sesuai harapan.',
+  'Langkah kecil yang konsisten hari ini membawa hasil besar esok hari.',
+  'Kerja yang teliti hari ini adalah ketenangan untuk esok.',
+  'Terima kasih atas dedikasi Anda, semoga semua urusan hari ini dimudahkan.',
+  'Fokus pada hal yang bisa dikendalikan, selesaikan satu per satu dengan tenang.',
+  'Komunikasi yang baik dengan debitur adalah awal penagihan yang berhasil.',
+  'Semoga hari ini penuh semangat, sehat, dan membawa hasil yang membanggakan.',
+  'Setiap debitur yang terbantu hari ini membuat portofolio semakin sehat.',
+  'Jangan lupa beristirahat sejenak, pikiran yang segar membuat kerja lebih jernih.',
+  'Kerja sama tim yang baik membuat target terasa lebih ringan.',
+  'Mulailah dari prioritas utama, sisanya akan mengikuti.',
+  'Ketelitian kecil hari ini mencegah masalah besar di kemudian hari.',
+  'Semoga setiap tindak lanjut hari ini membuahkan kabar baik.',
+  'Tetap tenang, teliti, dan ramah dalam melayani.',
+  'Hari baru, kesempatan baru untuk memberikan yang terbaik.',
+  'Hasil terbaik lahir dari persiapan yang matang dan niat yang baik.',
+  'Terus belajar dan berkembang, sedikit demi sedikit setiap hari.',
+  'Semoga pekerjaan hari ini selesai tepat waktu dan membawa kepuasan.',
+  'Sikap positif hari ini akan menular ke rekan kerja dan nasabah.',
+  'Portofolio yang sehat dimulai dari perhatian pada hal-hal kecil.',
+  'Hargai setiap kemajuan, sekecil apa pun, semuanya berarti.',
+  'Kesabaran dan ketekunan adalah kunci penagihan yang berhasil.',
+  'Semoga hari ini Anda diberi kemudahan dalam setiap keputusan.',
+  'Kerjakan dengan sepenuh hati, hasilnya akan berbicara sendiri.',
+  'Pelayanan yang tulus selalu diingat oleh nasabah.',
+  'Satu tindak lanjut yang tepat waktu lebih berharga dari banyak rencana.',
+  'Jaga semangat dan kesehatan, Anda bagian penting dari tim ini.',
+  'Semoga target hari ini tercapai dan pulang dengan hati yang lega.',
+  'Data yang rapi membantu keputusan yang tepat.',
+  'Hadapi tantangan hari ini dengan kepala dingin dan hati yang hangat.',
+  'Terima kasih sudah bekerja keras, semoga hari ini menyenangkan.'
+];
+function salamWaktu(jam) {
+  if (jam >= 4 && jam < 11) return ['Pagi', 'sun'];
+  if (jam >= 11 && jam < 15) return ['Siang', 'cloudsun'];
+  if (jam >= 15 && jam < 18) return ['Sore', 'sunset'];
+  return ['Malam', 'moon'];
+}
+function motivasiHariIni(t) {
+  const d = t || new Date();
+  const hari = Math.floor(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) / 864e5);
+  return MOTIVASI[((hari % MOTIVASI.length) + MOTIVASI.length) % MOTIVASI.length];
+}
+
 Pages.dashboard = {
   judul: 'Dashboard',
+  salam() {
+    const { esc, ic } = U;
+    const w = salamWaktu(new Date().getHours());
+    return `<div class="salam"><span class="salam-ic">${ic(w[1], 20)}</span><div class="salam-t"><b>Selamat ${w[0]} Bpk/Ibu <span class="salam-n no-proper">${esc(String(S.me.nama || '').toUpperCase())}</span></b>
+      <div class="salam-m">${esc(motivasiHariIni())}</div></div></div>`;
+  },
   render() {
     const { esc, ic } = U;
     const f = S.f.dash || (S.f.dash = { pr: 'ALL', mode: 'rp' });
@@ -127,7 +184,7 @@ Pages.dashboard = {
     const actions = `
       <label class="sel-wrap">${ic('layers', 16)}<select class="sel plain" data-act="pr"><option value="ALL">Semua Produk (${S.produk.length})</option>${S.produk.map((x) => `<option value="${esc(x.kode)}" ${f.pr === x.kode ? 'selected' : ''}>${esc(x.nama)}</option>`).join('')}</select></label>
       ${UI.bisaKirim() ? `<a class="btn btn-primary" href="#/blast">${ic('send', 17)} Kirim WA Blast</a>` : ''}`;
-    const pre = `<div class="ph-tags"><span class="tag">Portofolio ${esc(p.slice(0, 4))}</span><span class="live-t"><i></i>${live ? 'Terhubung — hampir real-time' : 'Snapshot ' + U.periodeLabel(p)}</span></div>`;
+    const pre = this.salam() + `<div class="ph-tags"><span class="tag">Portofolio ${esc(p.slice(0, 4))}</span><span class="live-t"><i></i>${live ? 'Terhubung — hampir real-time' : 'Snapshot ' + U.periodeLabel(p)}</span></div>`;
     let h = UI.head({ pre, title: 'Dashboard', sub: `Ringkasan kondisi portofolio kredit & performa ${S.produk.length} produk per ${live ? U.tgl(S.hariIni, true) : 'akhir ' + U.periodeLabel(p, true)}`, actions });
     h += UI.snapBanner();
     if (!A) return h + App.kosong('calendar', 'Belum ada snapshot untuk periode ini', 'Snapshot dibuat otomatis setiap malam oleh pemicu harian.');
@@ -168,10 +225,10 @@ Pages.dashboard = {
       </div></section>`;
 
     // --- pita produk
-    h += `<section class="ribbon">${pp.map((x) => {
+    h += `<section class="ribbon" style="--n:${pp.length}">${pp.map((x) => {
       const bp = B && B.pp ? B.pp[x.kode] : null;
       const icn = { BWU: 'store', CCC: 'card', KUR: 'building', 'KUR PMI': 'plane', KPP: 'factory' }[x.kode] || 'layers';
-      return `<button class="card rb" data-act="prod" data-v="${esc(x.kode)}" style="--c:${x.warna}"><span class="rb-ic">${ic(icn, 21)}</span><span class="rb-t"><span class="rb-h"><b>${esc(x.kode)}</b>${bp ? UI.delta(M.delta(x.baki, bp.baki)) : ''}</span><b class="tnum">${U.rpS(x.baki)}</b><small>${U.num(x.n)} debitur</small></span></button>`;
+      return `<button class="card rb" data-act="prod" data-v="${esc(x.kode)}" style="--c:${x.warna}" title="${esc(x.nama)} — ${esc(U.rp(x.baki))}"><span class="rb-ic">${ic(icn, 18)}</span><span class="rb-t"><span class="rb-h"><b>${esc(x.kode)}</b>${bp ? UI.delta(M.delta(x.baki, bp.baki)) : ''}</span><b class="rb-v tnum">${U.rpS(x.baki)}</b><small class="tnum">${U.num(x.n)} debitur</small></span></button>`;
     }).join('')}</section>`;
 
     // --- prioritas tindakan
@@ -192,7 +249,13 @@ Pages.dashboard = {
   act: {
     pr: (el) => { S.f.dash.pr = el.value; App.render({ tetap: true }); },
     mode: (el) => { S.f.dash.mode = el.dataset.v; App.render({ tetap: true }); },
-    prod: (el) => { S.f.deb = Object.assign(S.f.deb || {}, { pr: el.dataset.v, hal: 1 }); App.go('debitur'); },
+    prod: (el) => {     // v1.5: buka daftar debitur produk itu di segmennya (KUR PMI → halaman PT penempatan)
+      const k = el.dataset.v;
+      if (k === KODE_PMI) return App.go('debitur-pmi');
+      const seg = SEG.milikku().find((x) => SEG.produk(x).includes(k));
+      if (seg) { location.hash = '#/debitur?seg=' + seg + '&pr=' + encodeURIComponent(k); return; }
+      S.f.deb = Object.assign(S.f.deb || {}, { pr: k, hal: 1 }); location.hash = '#/debitur';
+    },
     blastRisk: () => App.blastKe(M.risiko(S.f.dash.pr).map((d) => d.id), 'Dashboard — debitur berisiko')
   }
 };
@@ -327,22 +390,37 @@ Pages.kualitas = {
 // ============================================================================
 //  DAFTAR DEBITUR
 // ============================================================================
-// v1.2: dua sub-page — "Debitur Umum" (#/debitur, semua produk kecuali KUR PMI) dan
-//       "Debitur KUR PMI" (#/debitur-pmi, dikelompokkan per PT penempatan yang diatur Super Admin).
+// v1.5: Daftar Debitur bertingkat — #/debitur (semua), #/debitur?seg=SME|SBP, #/debitur?seg=..&pr=PRODUK,
+//       dan #/debitur-pmi (SBP › KUR PMI, dikelompokkan per PT penempatan). Segmen mengikuti peran.
 const KODE_PMI = 'KUR PMI';
 const PD = () => (App.halaman === 'debitur-pmi' ? Pages['debitur-pmi'] : Pages.debitur);
 Pages.debitur = {
   judul: 'Daftar Debitur',
   mode: 'umum', kunciF: 'deb',
-  f() { return S.f[this.kunciF] = Object.assign({ q: '', pr: '', pt: '', bt: '', st: 'Aktif', kol: '', jt: '', dari: '', sampai: '', sort: 'jt', dir: 1, hal: 1, per: 10 }, S.f[this.kunciF] || {}); },
-  dasar() { return this.mode === 'pmi' ? S.D.filter((d) => d.pr === KODE_PMI) : S.D.filter((d) => d.pr !== KODE_PMI); },
+  f() { return S.f[this.kunciF] = Object.assign({ q: '', pr: '', pt: '', bt: '', un: '', st: 'Aktif', kol: '', jt: '', dari: '', sampai: '', sort: 'jt', dir: 1, hal: 1, per: 10 }, S.f[this.kunciF] || {}); },
+  /** Segmen & produk dari rute (#/debitur?seg=SME&pr=CCC). */
+  rute() {
+    if (this.mode === 'pmi') return { seg: 'SBP', pr: KODE_PMI };
+    const p = App.param();
+    const seg = SEG.milikku().includes(p.seg) ? p.seg : '';
+    return { seg, pr: seg && p.pr && SEG.produk(seg).includes(p.pr) ? p.pr : '' };
+  },
+  dasar() {
+    if (this.mode === 'pmi') return S.D.filter((d) => d.pr === KODE_PMI);
+    const r = this.rute();
+    let L = S.D;
+    if (r.seg) L = L.filter((d) => SEG.masuk(d, r.seg));
+    if (r.pr) L = L.filter((d) => d.pr === r.pr);
+    return L;
+  },
   petaPt() { const m = {}; UI.daftarPt().forEach((n, i) => { m[UI.normPt(n)] = i; }); return m; },
   data(f) {
     let L = this.dasar();
     const q = (f.q || '').trim().toLowerCase(), h = S.hariIni;
     if (this.mode === 'pmi' && f.pt) { const pt = this.petaPt(); L = L.filter((d) => UI.grupPt(d, pt) === f.pt); }
     if (this.mode === 'pmi' && f.bt) L = L.filter((d) => (f.bt === '__kosong' ? !d.bt : d.bt === f.bt));
-    if (f.pr && this.mode !== 'pmi') L = L.filter((d) => d.pr === f.pr);
+    if (f.pr && this.mode !== 'pmi' && !this.rute().pr) L = L.filter((d) => d.pr === f.pr);
+    if (f.un) L = L.filter((d) => (f.un === '__kosong' ? !d.un : d.un === f.un));
     if (f.st) L = L.filter((d) => d.st === f.st);
     if (f.kol) L = L.filter((d) => (f.kol === 'npl' ? d.kol >= 3 : d.kol === +f.kol));
     if (f.jt === 'lewat') L = L.filter((d) => d.aktif && d.dd !== null && d.dd < 0);
@@ -356,7 +434,8 @@ Pages.debitur = {
     const jt = { lewat: 'Lewat jatuh tempo', 7: 'JT ≤ 7 hari', 30: 'JT ≤ 30 hari', bulan: 'JT bulan ini', rentang: `JT ${f.dari ? U.tgl(f.dari) : '…'} – ${f.sampai ? U.tgl(f.sampai) : '…'}` }[f.jt];
     const out = [];
     if (f.q) out.push(['Cari: “' + f.q + '”', 'q']);
-    if (f.pr && this.mode !== 'pmi') out.push(['Produk: ' + f.pr, 'pr']);
+    if (f.pr && this.mode !== 'pmi' && !this.rute().pr) out.push(['Produk: ' + f.pr, 'pr']);
+    if (f.un) out.push(['Unit: ' + (f.un === '__kosong' ? 'belum diisi' : SEG.namaUnit(f.un)), 'un']);
     if (f.pt && this.mode === 'pmi') out.push(['PT: ' + this.namaGrup(f.pt), 'pt']);
     if (f.bt && this.mode === 'pmi') out.push(['Batch: ' + (f.bt === '__kosong' ? 'belum ada' : f.bt), 'bt']);
     if (f.st) out.push(['Status: ' + f.st, 'st']);
@@ -370,12 +449,32 @@ Pages.debitur = {
     const k = String(g).slice(2);
     return UI.daftarPt().find((n) => UI.normPt(n) === k) || k;
   },
+  /** v1.5: navigasi segmen (SME / SBP) & produk di dalam halaman — penting di tablet/HP. */
   subNav() {
-    const { ic } = U;
-    const nU = S.D.filter((d) => d.pr !== KODE_PMI).length, nP = S.D.length - nU;
-    return `<nav class="subnav" aria-label="Sub halaman Daftar Debitur">
-      <a href="#/debitur" class="${this.mode === 'umum' ? 'on' : ''}">${ic('users', 16)}<span>Debitur Umum</span><em>${U.num(nU)}</em></a>
-      <a href="#/debitur-pmi" class="${this.mode === 'pmi' ? 'on' : ''}">${ic('plane', 16)}<span>Debitur KUR PMI</span><em>${U.num(nP)}</em></a></nav>`;
+    const { esc, ic } = U;
+    const r = this.rute(), segs = SEG.milikku();
+    const n = (seg, pr) => S.D.filter((d) => (!seg || SEG.masuk(d, seg)) && (!pr || d.pr === pr)).length;
+    const seg = r.seg || (segs.length === 1 ? segs[0] : '');
+    let h = `<nav class="subnav segnav" aria-label="Segmen debitur">${segs.length > 1 ? `<a href="#/debitur" class="${!r.seg ? 'on' : ''}">${ic('users', 16)}<span>Semua</span><em>${U.num(S.D.length)}</em></a>` : ''}
+      ${segs.map((g) => `<a href="#/debitur?seg=${g}" class="${r.seg === g && !r.pr ? 'on' : r.seg === g ? 'in' : ''}">${ic(g === 'SME' ? 'building' : 'store', 16)}<span>${esc(SEG.NAMA[g])}</span><em>${U.num(n(g))}</em></a>`).join('')}</nav>`;
+    if (seg) {
+      h += `<nav class="prodnav" aria-label="Produk ${esc(seg)}">${SEG.produk(seg).map((p) => {
+        const on = r.pr === p, href = p === KODE_PMI ? '#/debitur-pmi' : `#/debitur?seg=${seg}&pr=${encodeURIComponent(p)}`;
+        return `<a href="${href}" class="${on ? 'on' : ''}" style="--c:${UI.warnaProd(p)}"><i></i>${esc(p)}<em>${U.num(n(seg, p))}</em></a>`;
+      }).join('')}</nav>`;
+    }
+    return `<div class="segwrap">${h}</div>`;
+  },
+  /** v1.5: filter Unit (daftar kode – nama kantor diatur Super Admin di Pengaturan → Akses Data). */
+  pilihUnit(f) {
+    const { esc } = U;
+    const base = this.dasar(), n = {}; let kosong = 0;
+    base.forEach((d) => { if (d.un) n[d.un] = (n[d.un] || 0) + 1; else kosong++; });
+    const daftar = SEG.units(), dikenal = new Set(daftar.map((u) => u.k || u.n));
+    const lain = Object.keys(n).filter((k) => !dikenal.has(k)).sort();
+    if (!Object.keys(n).length && !daftar.length) return `<select class="sel" data-act="un" disabled><option>Unit (belum ada data)</option></select>`;
+    return `<select class="sel" data-act="un" aria-label="Filter unit"><option value="">Semua Unit</option>${daftar.map((u) => { const k = u.k || u.n; return `<option value="${esc(k)}" ${f.un === k ? 'selected' : ''}>${esc((u.k ? u.k + ' - ' : '') + u.n)} (${U.num(n[k] || 0)})</option>`; }).join('')}
+      ${lain.map((k) => `<option value="${esc(k)}" ${f.un === k ? 'selected' : ''}>${esc(k)} (${U.num(n[k])})</option>`).join('')}${kosong && Object.keys(n).length ? `<option value="__kosong" ${f.un === '__kosong' ? 'selected' : ''}>Unit belum diisi (${U.num(kosong)})</option>` : ''}</select>`;
   },
   chipsPt(f) {
     const { esc, ic } = U;
@@ -390,19 +489,24 @@ Pages.debitur = {
   },
   render() {
     const { esc, ic } = U;
-    const f = this.f(), pmi = this.mode === 'pmi';
+    const f = this.f(), pmi = this.mode === 'pmi', r = this.rute();
+    const kunciRute = this.mode + '|' + r.seg + '|' + r.pr;
+    if (this._rute !== kunciRute) { if (this._rute !== undefined) { f.hal = 1; if (r.pr || r.seg) f.pr = ''; } this._rute = kunciRute; }
+    const judul = pmi ? 'Debitur KUR PMI' : r.pr ? 'Debitur ' + r.pr : r.seg ? 'Debitur ' + SEG.NAMA[r.seg] : 'Daftar Debitur';
     const actions = `<button class="btn btn-secondary" data-act="xlsx">${ic('xls', 17, 'pos')} Unduh Excel (.xlsx)</button>
       <button class="btn btn-secondary" data-act="pdf">${ic('pdf', 17, 'neg')} Unduh PDF Laporan</button>
       <button class="btn btn-primary" data-act="sync">${ic('refresh', 17)} Sinkronkan Google Sheets</button>`;
-    let h = UI.head({ crumb: ['Portofolio Kredit', 'Daftar Debitur', pmi ? 'Debitur KUR PMI' : 'Debitur Umum'], title: pmi ? 'Debitur KUR PMI' : 'Daftar Debitur',
-      sub: pmi ? 'Debitur KUR Pekerja Migran Indonesia, dikelompokkan per PT penempatan.' : 'Pencarian, pemfilteran komprehensif, dan ekspor data debitur portofolio (selain KUR PMI).', actions });
+    const crumb = ['Portofolio Kredit', 'Daftar Debitur'].concat(pmi ? ['SBP', 'KUR PMI'] : r.seg ? [SEG.NAMA[r.seg]].concat(r.pr ? [r.pr] : []) : []);
+    let h = UI.head({ crumb, title: judul,
+      sub: pmi ? 'Debitur KUR Pekerja Migran Indonesia, dikelompokkan per PT penempatan.' : r.seg ? `Segmen ${esc(SEG.NAMA[r.seg])}${r.pr ? ' — produk ' + esc(r.pr) : ' — produk ' + SEG.produk(r.seg).map(esc).join(', ')}. Pencarian, filter, dan ekspor data debitur.` : 'Pencarian, pemfilteran komprehensif, dan ekspor data debitur portofolio.', actions });
     h += this.subNav();
     h += this.bannerKunci();
     if (pmi) h += this.infoSumber() + this.chipsPt(f);
     h += `<div class="card fbar col">
       <div class="fgrid${pmi ? ' pmi' : ''}">
         <div class="inp-ic f4">${ic('search', 16)}<input type="search" id="debQ" data-act="q" placeholder="Cari nama, rek, CIF, kontak, no. HP…  (tekan /)" value="${esc(f.q)}"></div>
-        ${pmi ? this.pilihBatch(f) : UI.prodSelect(f.pr, 'pr', 'Semua Produk', [KODE_PMI])}
+        ${pmi ? this.pilihBatch(f) : r.pr ? `<select class="sel" disabled><option>Produk: ${esc(r.pr)}</option></select>` : this.pilihProduk(f, r)}
+        ${this.pilihUnit(f)}
         <select class="sel" data-act="st"><option value="">Semua Status</option><option value="Aktif" ${f.st === 'Aktif' ? 'selected' : ''}>Status: Aktif</option><option value="Lunas" ${f.st === 'Lunas' ? 'selected' : ''}>Status: Lunas</option></select>
         <select class="sel" data-act="kol"><option value="">Semua Kol (1–5)</option>${[1, 2, 3, 4, 5].map((k) => `<option value="${k}" ${String(f.kol) === String(k) ? 'selected' : ''}>Kol. ${k} (${KOL[k].n})</option>`).join('')}<option value="npl" ${f.kol === 'npl' ? 'selected' : ''}>Kol. 3–5 (NPL)</option></select>
         <select class="sel" data-act="jt"><option value="">Semua jatuh tempo</option><option value="lewat" ${f.jt === 'lewat' ? 'selected' : ''}>Lewat jatuh tempo</option><option value="7" ${f.jt === '7' ? 'selected' : ''}>≤ 7 hari ke depan</option><option value="30" ${f.jt === '30' ? 'selected' : ''}>≤ 30 hari ke depan</option><option value="bulan" ${f.jt === 'bulan' ? 'selected' : ''}>Bulan ini</option><option value="rentang" ${f.jt === 'rentang' ? 'selected' : ''}>Rentang tanggal…</option></select>
@@ -441,20 +545,25 @@ Pages.debitur = {
           ${L.length > rows.length ? `<button class="btn-link sm" data-act="selAll">Pilih semua ${U.num(L.length)} hasil filter</button>` : ''}
           ${S.sel.deb.size ? `<button class="btn-link sm" data-act="selNone">Batal pilih</button>` : ''}` : `<span class="muted">${ic('eye', 14)} Mode lihat saja</span>`}
           <span class="sp"></span>
-          ${S.setting.NAMA_CABANG ? `<span class="muted hide-m">Unit: <b class="tx">${esc(S.setting.NAMA_CABANG)}</b></span>` : ''}
+          ${f.un || S.setting.NAMA_CABANG ? `<span class="muted hide-m">${ic('mappin', 13)} Unit: <b class="tx">${esc(f.un ? (f.un === '__kosong' ? 'belum diisi' : SEG.namaUnit(f.un)) : S.setting.NAMA_CABANG)}</b></span>` : ''}
           ${kirim ? `<button class="btn btn-sm btn-secondary" data-act="blastSel" ${S.sel.deb.size ? '' : 'disabled'}>${ic('send', 14)} Blast terpilih (${U.num(S.sel.deb.size)})</button>` : ''}
           <button class="btn btn-sm btn-secondary" data-act="cetak">${ic('print', 14)} Cetak</button></div>
         ${L.length ? `<div class="tbl-wrap"><table class="tbl tbl-deb"><thead><tr>${kirim ? '<th class="c w1"><span class="sr">Pilih</span></th>' : ''}
-          ${UI.th('Entitas / Kontak', 'nm', f, 'stick-h')}${UI.th('Rek Pinjaman', 'rp', f)}${UI.th('Rek Afil', 'ra', f)}${pmi ? UI.th('PT Penempatan', 'pt', f) + UI.th('Batch', 'bt', f) + UI.th('Jangka Waktu', 'jw', f) : UI.th('Produk', 'pr', f, 'c')}${UI.th('Plafon', 'pl', f, 'num')}${UI.th('Baki Debet', 'bd', f, 'num')}${UI.th('Angsuran', 'an', f, 'num')}${UI.th('Saldo Blokir', 'sb', f, 'num')}${UI.th('Saldo Akhir', 'sa', f, 'num')}${UI.th('Jatuh Tempo', 'jt', f)}${UI.th('Kol. OJK', 'kol', f, 'c')}${UI.th('Status', 'st', f, 'c')}<th class="c">Aksi</th></tr></thead><tbody>
+          ${UI.th('Nama Debitur', 'nm', f, 'stick-h')}${UI.th('Rek Pinjaman', 'rp', f)}${UI.th('Rek Afil', 'ra', f)}${pmi ? UI.th('PT Penempatan', 'pt', f) + UI.th('Batch', 'bt', f) + UI.th('Jangka Waktu', 'jw', f) : UI.th('Produk', 'pr', f, 'c')}${UI.th('Plafon', 'pl', f, 'num')}${UI.th('Baki Debet', 'bd', f, 'num')}${UI.th('Angsuran', 'an', f, 'num')}${UI.th('Saldo Blokir', 'sb', f, 'num')}${UI.th('Saldo Akhir', 'sa', f, 'num')}${UI.th('Jatuh Tempo', 'jt', f)}${UI.th('Kol', 'kol', f, 'c')}${UI.th('Status', 'st', f, 'c')}<th class="c">Aksi</th></tr></thead><tbody>
           ${rows.map((d) => `<tr class="${d.aktif ? '' : 'row-off'} ${S.sel.deb.has(d.id) ? 'row-sel' : ''}">${kirim ? `<td class="c"><input type="checkbox" data-act="sel" data-id="${esc(d.id)}" ${S.sel.deb.has(d.id) ? 'checked' : ''} aria-label="Pilih ${esc(d.nm)}"></td>` : ''}
-            <td class="stick"><div class="ent"><span class="avatar xs" style="--c:${UI.warnaProd(d.pr)}">${esc(U.inisial(d.nm))}</span><div><button class="lnk" data-detail="${esc(d.id)}"><b>${esc(d.nm)}</b></button><small class="muted">${ic('phone', 11, d.wv ? 'pos' : 'neg')} ${esc(d.wa || 'tidak valid')}${d.pic ? ' • ' + esc(d.pic) : ''}${d.oo ? ' • <span class="neg">opt-out</span>' : ''}</small></div></div></td>
+            <td class="stick"><div class="ent"><span class="avatar xs" style="--c:${UI.warnaProd(d.pr)}">${esc(U.inisial(d.nm))}</span><div><button class="lnk" data-detail="${esc(d.id)}"><b>${esc(d.nm)}</b></button>${UI.kontak(d)}</div></div></td>
             <td class="rek tnum">${d.rek ? esc(d.rek) : '<span class="muted">—</span>'}</td><td class="rek tnum">${esc(d.ra)}</td>
-            ${pmi ? `<td class="pt-cell"${d.pt && UI.namaPt(d.pt) !== d.pt ? ` title="Tertulis di data: ${esc(d.pt)}"` : ''}>${d.pt ? esc(UI.namaPt(d.pt)) : '<span class="muted">Belum diisi</span>'}</td><td class="nw">${d.bt ? esc(d.bt) : '<span class="muted">—</span>'}</td><td class="nw">${d.jw ? esc(d.jw) : '<span class="muted">—</span>'}</td>` : `<td class="c">${UI.prod(d.pr)}</td>`}<td class="num muted">${U.rpS(d.pl)}</td><td class="num b ${d.kol === 5 ? 'neg' : ''}">${U.rpS(d.bd)}</td><td class="num">${U.rpS(d.an)}</td>
-            <td class="num ${d.fBlokir ? 'neg b' : ''}">${d.sb === null || d.sb === undefined ? (d.aktif ? '<span class="neg">Kosong</span>' : '') : U.rpS(d.sb)}</td><td class="num ${d.fSaldo ? 'neg b' : ''}">${U.rpS(d.sa)}</td>
+            ${pmi ? `<td class="pt-cell"${d.pt && UI.namaPt(d.pt) !== d.pt ? ` title="Tertulis di data: ${esc(d.pt)}"` : ''}>${d.pt ? esc(UI.namaPt(d.pt)) : '<span class="muted">Belum diisi</span>'}</td><td class="nw">${d.bt ? esc(d.bt) : '<span class="muted">—</span>'}</td><td class="nw">${d.jw ? esc(d.jw) : '<span class="muted">—</span>'}</td>` : `<td class="c">${UI.prod(d.pr)}</td>`}<td class="num muted">${U.rpJ(d.pl)}</td><td class="num b ${d.kol === 5 ? 'neg' : ''}">${U.rpJ(d.bd)}</td><td class="num">${U.rpJ(d.an)}</td>
+            <td class="num ${d.fBlokir ? 'neg b' : ''}">${d.sb === null || d.sb === undefined ? (d.aktif ? '<span class="neg">Kosong</span>' : '') : U.rpJ(d.sb)}</td><td class="num ${d.fSaldo ? 'neg b' : ''}">${U.rpJ(d.sa)}</td>
             <td><b class="dt">${U.tgl2(d.jt)}</b>${UI.jtInfo(d)}</td><td class="c">${d.aktif ? UI.kol(d.kol, true) : ''}</td><td class="c">${UI.status(d.st)}</td>
             <td class="c"><div class="acts">${kirim && d.aktif ? `<button class="btn-icon sm pos" data-wa="${esc(d.id)}" title="Kirim WA" ${d.wv && !d.oo ? '' : 'disabled'}>${ic('chat', 15)}</button>` : ''}<button class="btn-icon sm" data-detail="${esc(d.id)}" title="Detail">${ic('eye', 15)}</button></div></td></tr>`).join('')}
           </tbody></table></div>${UI.pager(L.length, f.hal, f.per)}` : App.kosong('search', 'Tidak ada debitur yang cocok', 'Ubah kata kunci atau reset filter.')}
       </div>`;
+  },
+  pilihProduk(f, r) {
+    const { esc } = U;
+    const L = r.seg ? SEG.produk(r.seg) : S.produk.map((p) => p.kode);
+    return `<select class="sel" data-act="pr"><option value="">${r.seg ? 'Semua Produk ' + esc(SEG.NAMA[r.seg]) : 'Semua Produk'}</option>${L.map((k) => `<option value="${esc(k)}" ${f.pr === k ? 'selected' : ''}>${esc(k)}</option>`).join('')}</select>`;
   },
   /** v1.3: daftar batch KUR PMI (dari spreadsheet KUR PMI) untuk filter. */
   pilihBatch(f) {
@@ -468,7 +577,12 @@ Pages.debitur = {
   /** v1.3: keterangan sumber detail KUR PMI (spreadsheet terpisah). */
   infoSumber() {
     const { esc, ic } = U;
-    const sp = S.ds && S.ds.sumberPmi, admin = S.me.peran === 'Admin';
+    const pt = S.ds && S.ds.sumberPt, adm = S.me.peran === 'Admin';
+    if (pt) {           // v1.5: sumber per PT (sheet per PT mitra)
+      const sembunyi = S.ds.kunci && S.ds.kunci.pmiDisembunyikan, galat = pt.pt.filter((x) => x.galat && !x.mati);
+      return `<div class="card src-bar">${ic('link', 16, 'pos')}<span>Data KUR PMI dari <b>${esc(pt.nama || 'spreadsheet KUR PMI')}</b> — sheet per PT: ${pt.pt.filter((x) => !x.mati).map((x) => `${esc(x.nama)} <b class="tnum">${U.num(x.n)}</b>`).join(' • ')}${adm && sembunyi ? ` • <span class="warn">${U.num(sembunyi)} debitur KUR PMI di base data tidak ada di sheet PT (disembunyikan)</span>` : ''}${adm && galat.length ? ` • <span class="neg">${galat.map((x) => esc(x.nama)).join(', ')}: periksa pemetaan</span>` : ''}</span>${adm ? `<a href="#" class="lnk-a" data-act="aturSumber">${ic('settings', 14)} Atur</a>` : ''}</div>`;
+    }
+    const sp = S.ds && S.ds.sumberPmi, admin = adm;
     const nP = S.D.filter((d) => d.pr === KODE_PMI).length, nS = S.D.filter((d) => d.pr === KODE_PMI && d.sx).length;
     if (!sp) return admin ? `<div class="alert alert-info">${ic('link', 16)}<div>Detail KUR PMI (Nama, Nama Perusahaan, Jangka Waktu, Batch) masih dari sheet Debitur. <a href="#" data-act="aturSumber">Hubungkan spreadsheet KUR PMI</a> agar diambil otomatis lewat Rek Afil.</div></div>` : '';
     return `<div class="card src-bar">${ic('link', 16, 'pos')}<span>Detail KUR PMI dari <b>${esc(sp.nama)}</b> — cocok lewat Rek Afil: <b class="tnum">${U.num(nS)}</b> dari ${U.num(nP)} debitur${nP - nS ? ` • <span class="warn">${U.num(nP - nS)} belum ditemukan</span>` : ''}</span>${admin ? `<a href="#" class="lnk-a" data-act="aturSumber">${ic('settings', 14)} Atur</a>` : ''}</div>`;
@@ -478,11 +592,11 @@ Pages.debitur = {
     const { esc, ic } = U;
     const k = S.ds && S.ds.kunci;
     if (!k || S.me.peran !== 'Admin' || (!k.nDup && !k.nTanpa)) return '';
-    const dup = k.dup.slice(0, 4).map((x) => `baris ${x.baris} (${esc(x.kunci === 'CIF' ? 'CIF' : 'Rek Afil')} ${esc(x.nilai)} sama dengan baris ${x.sama})`).join('; ');
+    const dup = k.dup.slice(0, 4).map((x) => `baris ${x.baris} (${esc(x.kunci)} ${esc(x.nilai)} sama dengan baris ${x.sama})`).join('; ');
     const tanpa = k.tanpa.slice(0, 4).map((x) => `baris ${x.baris}${x.nama ? ' “' + esc(x.nama) + '”' : ''}`).join(', ');
     return `<div class="alert alert-warn kunci-bar">${ic('alertc', 16)}<div><b>Periksa kunci data di sheet Debitur.</b>
-      ${k.nDup ? `<br>${U.num(k.nDup)} baris diabaikan karena kunci ganda (1 CIF / 1 Rek Afil = 1 debitur): ${dup}${k.nDup > 4 ? ', …' : ''}.` : ''}
-      ${k.nTanpa ? `<br>${U.num(k.nTanpa)} debitur belum punya kunci (CIF untuk Debitur Umum, Rek_Afiliasi untuk KUR PMI) — sementara memakai Rek Pinjaman: ${tanpa}${k.nTanpa > 4 ? ', …' : ''}.` : ''}</div></div>`;
+      ${k.nDup ? `<br>${U.num(k.nDup)} baris diabaikan karena rekening ganda (1 Rek Pinjaman = 1 debitur; CIF sama dengan rekening berbeda tetap tampil): ${dup}${k.nDup > 4 ? ', …' : ''}.` : ''}
+      ${k.nTanpa ? `<br>${U.num(k.nTanpa)} baris tanpa Rek Pinjaman / Rek Afil / CIF tidak ditampilkan: ${tanpa}${k.nTanpa > 4 ? ', …' : ''}.` : ''}</div></div>`;
   },
   /** Spesifikasi laporan = format tabel di aplikasi (dipakai Excel, PDF & Cetak). */
   laporan() {
@@ -490,7 +604,7 @@ Pages.debitur = {
     const filt = this.labelFilter(f).map((x) => x[0]).join('; ') || 'Semua debitur';
     const akt = L.filter((d) => d.aktif);
     return {
-      judul: pmi ? 'Debitur KUR PMI' : 'Daftar Debitur', sub: pmi ? (f.pt ? this.namaGrup(f.pt) : 'Semua PT penempatan') : 'Debitur Umum', satuan: 'debitur',
+      judul: pmi ? 'Debitur KUR PMI' : 'Daftar Debitur', sub: pmi ? (f.pt ? this.namaGrup(f.pt) : 'Semua PT penempatan') : (this.rute().seg ? 'Segmen ' + SEG.NAMA[this.rute().seg] + (this.rute().pr ? ' — ' + this.rute().pr : '') : 'Semua debitur'), satuan: 'debitur',
       filter: filt, data: L, kolom: Laporan.kolomDebitur({ pt: pmi }),
       ringkasan: [['Jumlah debitur', U.num(L.length)], ['Total plafon', U.rpS(L.reduce((s, d) => s + d.pl, 0))], ['Total baki debet', U.rpS(L.reduce((s, d) => s + d.bd, 0))],
         ['Berisiko', U.num(akt.filter((d) => d.risiko).length)], ['NPL (Kol. 3–5)', U.num(akt.filter((d) => d.kol >= 3).length)]]
@@ -514,6 +628,7 @@ Pages.debitur = {
     unf: (el) => { const f = PD().f(); f[el.dataset.k] = ''; f.hal = 1; App.render({ tetap: true }); },
     reset: () => { S.f[PD().kunciF] = { st: '' }; App.render({ tetap: true }); },
     pt: (el) => { const f = PD().f(); f.pt = el.dataset.v; f.hal = 1; App.render({ tetap: true }); },
+    un: (el) => { const f = PD().f(); f.un = el.value; f.hal = 1; App.render({ tetap: true }); },
     bt: (el) => { const f = PD().f(); f.bt = el.value; f.hal = 1; PD().segar(); },
     aturSumber: (el, e) => { if (e) e.preventDefault(); S.f.set = Object.assign(S.f.set || {}, { tab: 'pmi' }); App.go('pengaturan'); },
     kelolaPt: (el, e) => { if (e) e.preventDefault(); S.f.set = Object.assign(S.f.set || {}, { tab: 'pmi' }); App.go('pengaturan'); },
@@ -581,8 +696,8 @@ Pages.risiko = {
         <div class="rk-f"><span>Jatuh tempo ≤ 3 hari</span><b class="tnum">${U.num(nJt)} rekening</b></div></div></section>`;
     h += `<div class="card fbar"><div class="tabs">${[['all', 'Semua risiko', all.length], ['blokir', 'Saldo blokir kosong', nBlk], ['saldo', 'Saldo < angsuran', nSal], ['jt', 'Jatuh tempo ≤ 3 hari', nJt]].map((t) => `<button class="tab ${f.tab === t[0] ? 'on' : ''}" data-act="tab" data-v="${t[0]}">${t[1]} <em>${U.num(t[2])}</em></button>`).join('')}</div>
       <div class="row-g"><div class="inp-ic sm">${ic('search', 15)}<input type="search" data-act="q" placeholder="Cari debitur…" value="${esc(f.q)}"></div>${UI.prodSelect(f.pr, 'pr')}
-      <label class="sel-wrap">${ic('filter', 15)}<select class="sel plain" data-act="sort"><option value="kurang" ${f.sort === 'kurang' ? 'selected' : ''}>Urutkan: defisit terbesar</option><option value="jt" ${f.sort === 'jt' ? 'selected' : ''}>Urutkan: jatuh tempo terdekat</option><option value="kol" ${f.sort === 'kol' ? 'selected' : ''}>Urutkan: kolektibilitas tertinggi</option><option value="baki" ${f.sort === 'baki' ? 'selected' : ''}>Urutkan: baki terbesar</option></select></label>
-      <button class="btn btn-secondary btn-sm" data-act="xlsx">${ic('download', 15)} Ekspor XLSX</button></div></div>
+      <label class="sel-wrap">${ic('filter', 15)}<select class="sel plain" data-act="sort"><option value="kurang" ${f.sort === 'kurang' ? 'selected' : ''}>Urutkan: defisit terbesar</option><option value="jt" ${f.sort === 'jt' ? 'selected' : ''}>Urutkan: jatuh tempo terdekat</option><option value="kol" ${f.sort === 'kol' ? 'selected' : ''}>Urutkan: kol tertinggi</option><option value="baki" ${f.sort === 'baki' ? 'selected' : ''}>Urutkan: baki terbesar</option></select></label>
+      <div class="dl-g" role="group" aria-label="Unduh data penagihan"><button class="btn btn-secondary btn-sm" data-act="xlsx" title="Unduh Excel (.xlsx)">${ic('xls', 15, 'pos')} Excel</button><button class="btn btn-secondary btn-sm" data-act="pdf" title="Unduh PDF">${ic('pdf', 15, 'neg')} PDF</button><button class="btn btn-secondary btn-sm" data-act="cetak" title="Cetak">${ic('print', 15)} Cetak</button></div></div></div>
       <section class="card tbl-card" id="riskArea"></section>`;
     h += `<section class="grid g12 gap-b">
       <div class="card c8 pad-l"><div class="card-h"><h3>${ic('list', 19, 'pink')} Prosedur Penagihan Preventif via WA</h3></div>
@@ -611,15 +726,45 @@ Pages.risiko = {
     if (!area) return;
     const allSel = rows.length && rows.every((d) => sel.has(d.id));
     area.innerHTML = `<div class="card-h pad"><div class="row-g"><span class="kpi-ic sm soft" style="--c:#7C3AED">${ic('layers', 17)}</span><div><h3>Daftar Debitur Berisiko Tinggi</h3><p>Sinkron dengan Google Sheets • diperbarui ${S.lastSync ? U.jam(S.lastSync) : '—'}</p></div></div><span class="muted">Menampilkan ${rows.length} dari ${U.num(L.length)} debitur</span></div>
-      ${L.length ? `<div class="tbl-wrap"><table class="tbl"><thead><tr>${kirim ? `<th class="c w1"><input type="checkbox" data-act="selPage" ${allSel ? 'checked' : ''} aria-label="Pilih semua di halaman"></th>` : ''}<th class="c">#</th><th class="stick-h">Debitur & Kontak</th><th>Produk</th><th>Kolektibilitas</th><th class="num">Saldo Akhir</th><th class="num">Angsuran</th><th class="num">Kekurangan Saldo</th><th>Jatuh Tempo</th><th>Indikator Risiko</th>${kirim ? '<th class="c">Aksi Cepat</th>' : '<th class="c">Detail</th>'}</tr></thead><tbody>
-      ${rows.map((d, i) => `<tr class="${sel.has(d.id) ? 'row-sel' : ''}">${kirim ? `<td class="c"><input type="checkbox" data-act="sel" data-id="${esc(d.id)}" ${sel.has(d.id) ? 'checked' : ''} aria-label="Pilih ${esc(d.nm)}"></td>` : ''}<td class="c muted">${(f.hal - 1) * f.per + i + 1}</td>
-        <td class="stick"><button class="lnk" data-detail="${esc(d.id)}"><b>${esc(d.nm)}</b></button><small class="muted">Rek ${esc(d.rek)} • <span class="tnum">${esc(d.wa || 'nomor tidak valid')}</span>${d.oo ? ' • <span class="neg">opt-out</span>' : ''}</small></td>
-        <td>${UI.prod(d.pr)}</td><td>${UI.kol(d.kol, true)}</td>${UI.uang(d.sa, 'muted')}${UI.uang(d.an, 'b')}<td class="num"><span class="short">-Rp ${U.num(d.kurang)}</span></td>
-        <td><b class="dt ${d.dd !== null && d.dd <= 3 ? 'neg' : ''}">${U.tgl(d.jt)}</b><small class="muted">${d.dd === null ? '' : d.dd < 0 ? 'Lewat ' + -d.dd + ' hari' : d.dd === 0 ? 'Jatuh tempo hari ini' : 'H-' + d.dd + ' jatuh tempo'}</small></td>
+      ${L.length ? `<div class="tbl-wrap"><table class="tbl tbl-tagih"><thead><tr>${kirim ? `<th class="c w1"><input type="checkbox" data-act="selPage" ${allSel ? 'checked' : ''} aria-label="Pilih semua di halaman"></th>` : ''}<th class="stick-h">Nama Debitur</th><th>Rek Pinjaman</th><th>Rek Afil</th><th class="c">Produk</th><th class="c">Kol</th><th>Tgl Booking</th><th>Jatuh Tempo</th><th class="num">Plafon</th><th class="num">Baki Debet</th><th class="num">Angsuran</th><th class="num">Saldo Akhir</th><th class="num">Kekurangan Saldo</th><th>Indikator Risiko</th><th class="c">${kirim ? 'Aksi Cepat' : 'Detail'}</th></tr></thead><tbody>
+      ${rows.map((d) => `<tr class="${sel.has(d.id) ? 'row-sel' : ''}">${kirim ? `<td class="c"><input type="checkbox" data-act="sel" data-id="${esc(d.id)}" ${sel.has(d.id) ? 'checked' : ''} aria-label="Pilih ${esc(d.nm)}"></td>` : ''}
+        <td class="stick"><div class="ent"><span class="avatar xs" style="--c:${UI.warnaProd(d.pr)}">${esc(U.inisial(d.nm))}</span><div><button class="lnk" data-detail="${esc(d.id)}"><b>${esc(d.nm)}</b></button>${UI.kontak(d)}</div></div></td>
+        <td class="rek tnum">${d.rek ? esc(d.rek) : '<span class="muted">—</span>'}</td><td class="rek tnum">${d.ra ? esc(d.ra) : '<span class="muted">—</span>'}</td>
+        <td class="c">${UI.prod(d.pr)}</td><td class="c">${UI.kol(d.kol, true)}</td>
+        <td class="nw">${d.tb ? `<span class="dt">${U.tgl2(d.tb)}</span>` : '<span class="muted">—</span>'}</td>
+        <td><b class="dt ${d.dd !== null && d.dd <= 3 ? 'neg' : ''}">${U.tgl2(d.jt)}</b><small class="muted">${d.dd === null ? '' : d.dd < 0 ? 'Lewat ' + -d.dd + ' hari' : d.dd === 0 ? 'Jatuh tempo hari ini' : 'H-' + d.dd + ' jatuh tempo'}</small></td>
+        <td class="num muted">${U.rpJ(d.pl)}</td><td class="num b">${U.rpJ(d.bd)}</td><td class="num">${U.rpJ(d.an)}</td><td class="num muted">${U.rpJ(d.sa)}</td>
+        <td class="num"><span class="short">-${U.rpJ(d.kurang)}</span></td>
         <td><div class="ind">${d.fBlokir ? `<span class="pill pill-neg">${ic('alert', 12)} Saldo blokir kosong</span>` : ''}${d.fSaldo ? `<span class="pill pill-warn">${ic('wallet', 12)} Saldo &lt; angsuran</span>` : ''}</div></td>
-        <td class="c">${kirim ? `<button class="btn btn-sm btn-secondary" data-wa="${esc(d.id)}" ${d.wv && !d.oo ? '' : 'disabled title="Nomor tidak valid / opt-out"'}>${ic('send', 14, 'pink')} Kirim WA</button>` : `<button class="btn-icon sm" data-detail="${esc(d.id)}">${ic('eye', 15)}</button>`}</td></tr>`).join('')}
+        <td class="c">${kirim ? `<button class="btn btn-sm btn-secondary" data-wa="${esc(d.id)}" ${d.wv && !d.oo ? '' : `disabled title="${d.oo ? 'Debitur opt-out WA' : 'No HP belum ada — tambahkan di Detail Debitur'}"`}>${ic('send', 14, 'pink')} Kirim WA</button>` : `<button class="btn-icon sm" data-detail="${esc(d.id)}" title="Detail">${ic('eye', 15)}</button>`}</td></tr>`).join('')}
       </tbody></table></div>${UI.pager(L.length, f.hal, f.per)}` : App.kosong('ok', 'Tidak ada debitur berisiko', 'Semua debitur pada filter ini memiliki saldo cukup untuk angsuran.')}`;
     this.floatbar();
+  },
+  /** v1.5: laporan Penagihan (Excel / PDF / Cetak) — urutan kolom sama dengan tabel, semua peran. */
+  laporan() {
+    const f = this.f(), L = this.data(f);
+    const nB = L.filter((d) => d.fBlokir).length, nS = L.filter((d) => d.fSaldo).length;
+    const kontak = (d) => [d.wa, d.oo ? 'opt-out' : ''].filter(Boolean).join(' • ');
+    return {
+      judul: 'Laporan Penagihan', sub: 'Debitur berisiko gagal bayar', satuan: 'debitur', data: L, orientasi: 'landscape', tema: 'tagih',
+      filter: { all: 'Semua risiko', blokir: 'Saldo blokir kosong', saldo: 'Saldo < angsuran', jt: 'Jatuh tempo ≤ 3 hari' }[f.tab] + (f.pr ? '; Produk ' + f.pr : '') + (f.q ? '; Cari “' + f.q + '”' : ''),
+      ringkasan: [['Debitur berisiko', U.num(L.length)], ['Total kekurangan saldo', U.rpJ(L.reduce((a, d) => a + d.kurang, 0))], ['Baki debet terdampak', U.rpJ(L.reduce((a, d) => a + d.bd, 0))],
+        ['Saldo blokir kosong', U.num(nB)], ['Saldo < angsuran', U.num(nS)]],
+      kolom: [{ h: 'No', t: 'no' }, { h: 'Nama Debitur', t: 'ent', x: (d) => d.nm + (kontak(d) ? '\n' + kontak(d) : ''), p: (d) => ({ v: d.nm, l2: kontak(d) }) },
+        { h: 'Rek Pinjaman', t: 'rek', x: (d) => d.rek || '' }, { h: 'Rek Afil', t: 'rek', x: (d) => d.ra || '' }, { h: 'Produk', t: 'prod', x: (d) => d.pr },
+        { h: 'Kol', t: 'kol', x: (d) => d.kol }, { h: 'Tgl Booking', t: 'tgl', x: (d) => d.tb }, { h: 'Jatuh Tempo', t: 'tgl', x: (d) => d.jt, p: (d) => ({ v: d.jt ? U.tgl2(d.jt) : '', l2: Laporan.jtTeks(d) }) },
+        { h: 'Plafon', t: 'rp', sum: true, x: (d) => d.pl }, { h: 'Baki Debet', t: 'rp', sum: true, x: (d) => d.bd, p: (d) => ({ v: U.rpJ(d.bd), c: 'b' }) },
+        { h: 'Angsuran', t: 'rp', sum: true, x: (d) => d.an }, { h: 'Saldo Akhir', t: 'rp', sum: true, x: (d) => d.sa },
+        { h: 'Kekurangan Saldo', t: 'rp', sum: true, x: (d) => ({ v: d.kurang, c: 'neg' }), p: (d) => ({ v: '-' + U.rpJ(d.kurang), c: 'neg' }) },
+        { h: 'Indikator Risiko', t: 'risk', w: 26, x: (d) => [d.fBlokir ? 'Saldo blokir kosong' : '', d.fSaldo ? 'Saldo < angsuran' : ''].filter(Boolean).join(' & ') }]
+    };
+  },
+  ekspor(jenis, btn) {
+    const sp = this.laporan();
+    if (!sp.data.length) return U.toast('Tidak ada data untuk diekspor.', 'warn');
+    if (jenis === 'xlsx') return Laporan.xlsx(sp);
+    if (jenis === 'cetak') return Laporan.cetak(sp);
+    return Laporan.pdf(sp, btn);
   },
   floatbar() {
     const { ic } = U;
@@ -652,21 +797,9 @@ Pages.risiko = {
     tpl: (el) => { Pages.risiko.f().tpl = el.value; },
     pakaiTpl: (el) => { Pages.risiko.f().tpl = el.dataset.v; if (S.sel.risk.size) Pages.risiko.floatbar(); else U.toast('Pilih debitur terlebih dahulu.', 'info'); },
     lanjut: () => { if (!S.sel.risk.size) return; App.blastKe(Array.from(S.sel.risk), 'Penagihan', Pages.risiko.f().tpl); },
-    xlsx: () => {
-      const f = Pages.risiko.f(), L = Pages.risiko.data(f);
-      if (!L.length) return U.toast('Tidak ada data untuk diekspor.', 'warn');
-      const kontak = (d) => [d.wa || 'WA tidak valid', d.oo ? 'opt-out' : ''].filter(Boolean).join(' • ');
-      Laporan.xlsx({
-        judul: 'Penagihan', sub: 'Debitur berisiko', satuan: 'debitur', data: L,
-        filter: { all: 'Semua risiko', blokir: 'Saldo blokir kosong', saldo: 'Saldo < angsuran', jt: 'Jatuh tempo ≤ 3 hari' }[f.tab] + (f.pr ? '; Produk ' + f.pr : '') + (f.q ? '; Cari “' + f.q + '”' : ''),
-        ringkasan: [['Debitur berisiko', U.num(L.length)], ['Total kekurangan saldo', U.rpS(L.reduce((a, d) => a + d.kurang, 0))], ['Baki debet terdampak', U.rpS(L.reduce((a, d) => a + d.bd, 0))]],
-        kolom: [{ h: 'No', t: 'no' }, { h: 'Debitur & Kontak', t: 'ent', x: (d) => d.nm + '\n' + kontak(d) }, { h: 'Rek Pinjaman', t: 'rek', x: (d) => d.rek }, { h: 'Produk', t: 'prod', x: (d) => d.pr },
-          { h: 'Kol. OJK', t: 'kol', x: (d) => d.kol }, { h: 'Saldo Blokir', t: 'rp', sum: true, x: (d) => (d.sb === null || d.sb === undefined ? { v: 'Kosong', c: 'neg' } : d.sb) },
-          { h: 'Saldo Akhir', t: 'rp', sum: true, x: (d) => d.sa }, { h: 'Angsuran', t: 'rp', sum: true, x: (d) => d.an }, { h: 'Kekurangan Saldo', t: 'rp', sum: true, x: (d) => ({ v: d.kurang, c: 'neg' }) },
-          { h: 'Jatuh Tempo', t: 'tgl', x: (d) => d.jt }, { h: 'Indikasi Risiko', w: 34, x: (d) => [d.fBlokir ? 'Saldo blokir kosong' : '', d.fSaldo ? 'Saldo < angsuran' : ''].filter(Boolean).join(' & ') },
-          { h: 'Baki Debet', t: 'rp', sum: true, x: (d) => d.bd }]
-      });
-    }
+    xlsx: () => Pages.risiko.ekspor('xlsx'),
+    pdf: (el) => Pages.risiko.ekspor('pdf', el),
+    cetak: () => Pages.risiko.ekspor('cetak')
   }
 };
 
@@ -1222,7 +1355,7 @@ Pages.pengaturan = {
     const f = S.f.set || (S.f.set = { tab: 'profil' });
     if (!f.tab) f.tab = 'profil';
     if (!admin) f.tab = 'profil';
-    const tabs = [['profil', 'Profil & Keamanan', 'user']].concat(admin ? [['umum', 'Umum', 'settings'], ['logo', 'Logo Aplikasi', 'image'], ['pmi', 'Mitra KUR PMI', 'plane'], ['keamanan', 'Keamanan Sistem', 'shieldalert'], ['gateway', 'Gateway WA', 'send'], ['sinkron', 'Sinkronisasi & Data', 'cloud'], ['impor', 'Import Data', 'upload']] : []);
+    const tabs = [['profil', 'Profil & Keamanan', 'user']].concat(admin ? [['umum', 'Umum', 'settings'], ['logo', 'Logo Aplikasi', 'image'], ['pmi', 'Mitra KUR PMI', 'plane'], ['akses', 'Akses Data', 'key'], ['keamanan', 'Keamanan Sistem', 'shieldalert'], ['gateway', 'Gateway WA', 'send'], ['sinkron', 'Sinkronisasi & Data', 'cloud'], ['impor', 'Import Data', 'upload']] : []);
     let h = UI.head({ crumb: ['Administrasi', 'Pengaturan'], title: 'Pengaturan', sub: admin ? 'Profil, keamanan akun, konfigurasi aplikasi, gateway WA, dan migrasi data.' : 'Profil dan keamanan akun Anda.' });
     h += `<div class="set-wrap"><nav class="set-nav">${tabs.map((t) => `<button class="${f.tab === t[0] ? 'on' : ''}" data-act="tab" data-v="${t[0]}">${ic(t[2], 17)}<span>${t[1]}</span></button>`).join('')}</nav><div class="set-body">`;
     if (admin && f.tab !== 'profil' && !S.adminSet) h += '<div class="card pad"><span class="spin"></span> Memuat pengaturan…</div>';
@@ -1233,7 +1366,8 @@ Pages.pengaturan = {
     pasangAksi(root, this);
     if (S.me.peran === 'Admin' && !S.adminSet) await this.muat();
     const tab = (S.f.set || {}).tab;
-    if (S.me.peran === 'Admin' && S.adminSet && tab === 'pmi' && !this.src && !this._srcMuat) this.muatSumber();
+    if (S.me.peran === 'Admin' && S.adminSet && tab === 'pmi' && !this.ptInfo && !this._ptMuat) this.muatPt();          // v1.5: sumber per PT
+    if (S.me.peran === 'Admin' && S.adminSet && tab === 'pmi' && this.ptInfo && !this.ptInfo.aktif && !this.src && !this._srcMuat) this.muatSumber();
     if (S.me.peran === 'Admin' && S.adminSet && tab === 'keamanan' && !this.kam && !this._kamMuat) this.muatKeamanan();
   },
   async muatSumber() {
@@ -1245,6 +1379,8 @@ Pages.pengaturan = {
     const el = document.getElementById('srcCard');
     if (el) el.outerHTML = this.kartuSumber();
     else if (App.halaman === 'pengaturan' && (S.f.set || {}).tab === 'pmi') App.render({ tetap: true });
+    const alt = document.querySelector('.src-alt');
+    if (alt && this.src && this.src.aktif) alt.open = true;
   },
   async muatKeamanan() {
     this._kamMuat = true;
@@ -1367,14 +1503,14 @@ Pages.pengaturan = {
     const tersimpan = JSON.stringify(UI.daftarPt()), ubah = JSON.stringify(L.map((x) => x.nama.trim()).filter(Boolean)) !== tersimpan;
     const terdaftar = {}; L.forEach((x) => { terdaftar[UI.normPt(x.lama || x.nama)] = 1; terdaftar[UI.normPt(x.nama)] = 1; });
     const lain = S.D.filter((d) => d.pr === 'KUR PMI' && d.pt && !terdaftar[UI.normPt(d.pt)]).reduce((o, d) => { o[d.pt] = (o[d.pt] || 0) + 1; return o; }, {});
-    return `<div class="card pad-l"><h3>Mitra KUR PMI (PT penempatan)</h3><p class="muted">Debitur produk <b>KUR PMI</b> dikelompokkan per PT pada halaman <b>Daftar Debitur → Debitur KUR PMI</b>. PT tiap debitur diambil dari kolom <code>PT_PMI</code> di sheet Debitur (huruf besar/kecil & awalan "PT" diabaikan).</p>
+    return `<div class="card pad-l"><h3>Mitra KUR PMI (PT penempatan)</h3><p class="muted">Debitur produk <b>KUR PMI</b> dikelompokkan per PT pada halaman <b>Daftar Debitur → SBP → KUR PMI</b>. Atur sheet & kolom tiap PT di kartu <b>Sumber data KUR PMI per PT</b> di bawah (tanpa sumber per PT, PT diambil dari kolom <code>PT_PMI</code> sheet Debitur).</p>
       <div class="pmi-list">${L.map((x, i) => `<div class="pmi-row"><span class="pmi-no">${i + 1}</span><input class="inp" maxlength="60" value="${esc(x.nama)}" data-act="pmiNama" data-i="${i}" aria-label="Nama PT ${i + 1}">
         <span class="pmi-n tnum" title="Debitur dengan PT ini">${U.num(n[UI.normPt(x.lama || x.nama)] || 0)} debitur</span>
         <button class="btn-icon sm" data-act="pmiNaik" data-i="${i}" ${i ? '' : 'disabled'} title="Naikkan">${ic('up', 15)}</button>
         <button class="btn-icon sm" data-act="pmiHapus" data-i="${i}" title="Hapus">${ic('trash', 15)}</button></div>`).join('')}</div>
       <button class="btn btn-secondary btn-sm mt" data-act="pmiTambah">${ic('plus', 15)} Tambah PT</button>
       ${Object.keys(lain).length ? `<div class="alert alert-warn mt">${ic('info', 16)}<div>Nilai <code>PT_PMI</code> yang belum terdaftar: ${Object.keys(lain).map((k) => `<b>${esc(k)}</b> (${lain[k]})`).join(', ')}. Tambahkan ke daftar atau perbaiki di sheet.</div></div>` : ''}
-      <div class="card-f"><span class="muted">${ic('info', 14)} ${ubah ? '<b class="warn">Ada perubahan yang belum disimpan.</b>' : 'Mengganti nama PT juga memperbarui kolom PT_PMI debitur terkait di sheet.'}</span><div class="row-g">${ubah ? `<button class="btn btn-ghost" data-act="pmiBatal">Batal</button>` : ''}<button class="btn btn-primary" data-act="pmiSimpan" ${ubah ? '' : 'disabled'}>${ic('check', 16)} Simpan daftar PT</button></div></div></div>` + this.kartuSumber();
+      <div class="card-f"><span class="muted">${ic('info', 14)} ${ubah ? '<b class="warn">Ada perubahan yang belum disimpan.</b>' : 'Mengganti nama PT juga memperbarui kolom PT_PMI debitur terkait di sheet.'}</span><div class="row-g">${ubah ? `<button class="btn btn-ghost" data-act="pmiBatal">Batal</button>` : ''}<button class="btn btn-primary" data-act="pmiSimpan" ${ubah ? '' : 'disabled'}>${ic('check', 16)} Simpan daftar PT</button></div></div></div>` + this.kartuPt() + (this.ptInfo && this.ptInfo.aktif ? '' : `<details class="src-alt" ${(this.ptInfo && this.ptInfo.lama) || (this.src && this.src.aktif) || this.altBuka ? 'open' : ''}><summary data-act="altBuka">${ic('link', 15)} Alternatif: satu spreadsheet untuk semua PT (cara lama v1.3)</summary>${this.kartuSumber()}</details>`);
   },
   tab_logo() {
     const { esc, ic } = U;
@@ -1450,10 +1586,11 @@ Pages.pengaturan = {
   },
   // ---------- v1.4: Import dari spreadsheet lain dengan pemetaan kolom kustom ----------
   FIELD_IMP: {
-    umum: [['nm', 'Entitas / Nama debitur'], ['pic', 'Kontak (PIC)'], ['wa', 'No. WA / HP'], ['cif', 'CIF (kunci Debitur Umum)'], ['rp', 'Rek Pinjaman'], ['ra', 'Rek Afil'], ['pr', 'Produk'],
-      ['pl', 'Plafon'], ['bd', 'Baki Debet'], ['an', 'Angsuran'], ['sb', 'Saldo Blokir'], ['sa', 'Saldo Akhir'], ['jt', 'Jatuh Tempo'], ['kol', 'Kol. OJK'], ['st', 'Status'], ['rm', 'RM'], ['oo', 'Opt-out WA']],
-    pmi: [['nm', 'Nama debitur'], ['ra', 'Rek Afil (kunci KUR PMI)'], ['wa', 'No. WA / HP'], ['rp', 'Rek Pinjaman'], ['cif', 'CIF'], ['pt', 'PT Penempatan'], ['pl', 'Plafon'], ['bd', 'Baki Debet'], ['an', 'Angsuran'],
-      ['sb', 'Saldo Blokir'], ['sa', 'Saldo Akhir'], ['jt', 'Jatuh Tempo'], ['kol', 'Kol. OJK'], ['st', 'Status'], ['rm', 'RM'], ['oo', 'Opt-out WA']]
+    umum: [['nm', 'Nama Debitur'], ['pic', 'Kontak (PIC)'], ['wa', 'No. WA / HP'], ['cif', 'CIF'], ['rp', 'Rek Pinjaman (kunci)'], ['ra', 'Rek Afil'], ['pr', 'Produk'],
+      ['pl', 'Plafon'], ['bd', 'Baki Debet'], ['an', 'Angsuran'], ['sb', 'Saldo Blokir'], ['sa', 'Saldo Akhir'], ['jt', 'Jatuh Tempo'], ['tb', 'Tgl Booking'], ['kol', 'Kol'], ['st', 'Status'],
+      ['un', 'Unit (kode kantor)'], ['rm', 'RM'], ['np', 'NPP RM'], ['sg', 'Segmen (SME / SBP)'], ['oo', 'Opt-out WA']],
+    pmi: [['nm', 'Nama Debitur'], ['rp', 'Rek Pinjaman (kunci)'], ['ra', 'Rek Afil'], ['wa', 'No. WA / HP'], ['cif', 'CIF'], ['pt', 'PT Penempatan'], ['pl', 'Plafon'], ['bd', 'Baki Debet'], ['an', 'Angsuran'],
+      ['sb', 'Saldo Blokir'], ['sa', 'Saldo Akhir'], ['jt', 'Jatuh Tempo'], ['tb', 'Tgl Booking'], ['kol', 'Kol'], ['st', 'Status'], ['un', 'Unit (kode kantor)'], ['rm', 'RM'], ['np', 'NPP RM'], ['oo', 'Opt-out WA']]
   },
   impState() {
     if (!this.imp) this.imp = { src: '', info: null, muat: false, buka: '', profil: [{ jenis: 'umum', aktif: true, sheet: 'Debitur', baris: 1, kolom: {} }, { jenis: 'pmi', aktif: false, sheet: '', baris: 1, kolom: {} }],
@@ -1484,12 +1621,13 @@ Pages.pengaturan = {
     const huruf = (i) => { let t = ''; i++; while (i > 0) { const m = (i - 1) % 26; t = String.fromCharCode(65 + m) + t; i = Math.floor((i - 1) / 26); } return t; };
     return Array.from({ length: n }, (x, i) => ({ kol: huruf(i), h: String(hdr[i] || '').trim(), contoh: String(isi[i] === undefined ? '' : isi[i]) }));
   },
-  pilihKolom(spek, kolom, nama, act) {
+  pilihKolom(spek, kolom, nama, act, lbl) {
     act = act || 'imp';
+    lbl = lbl || {};
     const { esc } = U;
     const s = spek || '';
     const tetap = s.indexOf('tetap:') === 0;
-    let opsi = `<option value="" ${!s ? 'selected' : ''}>Otomatis (judul dikenali)</option><option value="skip" ${s === 'skip' ? 'selected' : ''}>— Tidak diimpor —</option><option value="tetap" ${tetap ? 'selected' : ''}>Isi tetap…</option>`;
+    let opsi = `<option value="" ${!s ? 'selected' : ''}>${esc(lbl.auto || 'Otomatis (judul dikenali)')}</option><option value="skip" ${s === 'skip' ? 'selected' : ''}>${esc(lbl.skip || '— Tidak diimpor —')}</option><option value="tetap" ${tetap ? 'selected' : ''}>Isi tetap…</option>`;
     let ada = !s || s === 'skip' || tetap;
     if (kolom) {
       opsi += '<optgroup label="Kolom di sheet sumber">' + kolom.map((c) => {
@@ -1517,7 +1655,7 @@ Pages.pengaturan = {
     const sheetSel = I.info ? `<select class="sel" data-act="impSheet" data-i="${i}">${p.sheet && !I.info.sheets.some((x) => x.nama === p.sheet) ? `<option selected>${esc(p.sheet)}</option>` : ''}${I.info.sheets.map((x) => `<option ${x.nama === p.sheet ? 'selected' : ''}>${esc(x.nama)}</option>`).join('')}</select>` : `<input class="inp" data-act="impSheetTx" data-i="${i}" value="${esc(p.sheet)}" placeholder="Nama sheet, mis. JBA">`;
     const buka = I.buka === p.jenis;
     return `<div class="imp-prof ${p.aktif ? 'on' : ''}"><div class="imp-prof-h">
-        <label class="chk"><input type="checkbox" data-act="impAktif" data-i="${i}" ${p.aktif ? 'checked' : ''}><span><b>${p.jenis === 'pmi' ? 'Debitur KUR PMI' : 'Debitur Umum'}</b><small class="muted d-b">${p.jenis === 'pmi' ? 'Kunci Rek Afil • produk otomatis KUR PMI' : 'Kunci CIF • sheet campuran? biarkan Produk = Otomatis'}</small></span></label>
+        <label class="chk"><input type="checkbox" data-act="impAktif" data-i="${i}" ${p.aktif ? 'checked' : ''}><span><b>${p.jenis === 'pmi' ? 'Debitur KUR PMI' : 'Debitur Umum'}</b><small class="muted d-b">${p.jenis === 'pmi' ? 'Kunci Rek Pinjaman • produk otomatis KUR PMI • KUR PMI juga dikenali dari sheet per PT (Mitra KUR PMI)' : 'Kunci Rek Pinjaman (CIF sama + rekening beda tetap diimpor) • sheet campuran? biarkan Produk = Otomatis'}</small></span></label>
         <div class="imp-prof-f"><label class="fld sm"><span>Sheet sumber</span>${sheetSel}</label><label class="fld sm w-baris"><span>Baris judul</span><input class="inp" type="number" min="1" max="50" data-act="impBaris" data-i="${i}" value="${esc(p.baris)}"></label>
           <button class="btn btn-secondary btn-sm" data-act="impBuka" data-v="${p.jenis}">${ic('sliders', 15)} Atur kolom${nPeta ? ` <span class="tag">${nPeta}</span>` : ''}</button></div></div>
       ${buka ? `<div class="imp-peta">${!kolom ? `<p class="muted sm">${ic('info', 13)} Klik <b>Baca spreadsheet</b> di atas agar daftar kolom sumber (huruf & judul) bisa dipilih.</p>` : `<p class="muted sm">${ic('info', 13)} Kolom sumber dibaca dari baris judul ${esc(p.baris)} sheet <b>${esc(p.sheet)}</b>. "Otomatis" = judul dikenali (mis. Nama, CIF, OS, Plafond, No HP).</p>`}
@@ -1542,7 +1680,8 @@ Pages.pengaturan = {
       ${r ? `<div class="card pad-l"><h3>${r.dryRun ? 'Hasil pindai' : 'Hasil import'} — ${esc(r.sumber.nama)}</h3><table class="tbl sm"><thead><tr><th>Data</th><th class="num">Di sumber</th><th class="num">Ditambah</th><th class="num">Diperbarui</th><th class="num">Dilewati</th></tr></thead><tbody>
         ${Object.keys(r.laporan).map((k) => `<tr><td><b>${esc(k.replace('_', ' '))}</b></td><td class="num">${U.num(r.laporan[k].sumber)}</td><td class="num pos">${U.num(r.laporan[k].ditambah)}</td><td class="num info">${U.num(r.laporan[k].diperbarui)}</td><td class="num muted">${U.num(r.laporan[k].dilewati)}</td></tr>`).join('')}</tbody></table>
         ${Object.keys(r.laporan).filter((k) => r.laporan[k].contoh && r.laporan[k].contoh.length).map((k) => { const L = r.laporan[k], nm = {}; (this.FIELD_IMP[k === 'Debitur KUR PMI' ? 'pmi' : 'umum'].concat([['pr', 'Produk'], ['pt', 'PT Penempatan']])).forEach((f) => { nm[f[0]] = nm[f[0]] || f[1]; }); const fs = L.kolom.map((c) => c.f);
-          return `<h4 class="imp-h4">${esc(k)} — contoh hasil pemetaan</h4><div class="tbl-wrap"><table class="tbl sm"><thead><tr>${L.kolom.map((c) => `<th>${esc(nm[c.f] || c.f)}<small class="muted d-b">${esc(c.sumber)}</small></th>`).join('')}</tr></thead><tbody>${L.contoh.map((o) => `<tr>${fs.map((f) => `<td>${esc(o[f] || '')}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`; }).join('')}
+          return `<h4 class="imp-h4">${esc(k)} — contoh hasil pemetaan</h4><div class="tbl-wrap"><table class="tbl sm"><thead><tr>${L.kolom.map((c) => `<th>${esc(nm[c.f] || c.f)}<small class="muted d-b">${esc(c.sumber)}</small></th>`).join('')}</tr></thead><tbody>${L.contoh.map((o) => `<tr>${fs.map((f) => `<td>${esc(o[f] || '')}</td>`).join('')}</tr>`).join('')}</tbody></table></div>` +
+            (L.multi && L.multi.length ? `<h4 class="imp-h4">${esc(k)} — CIF sama dengan Rek Pinjaman berbeda <span class="tag pos">${U.num(L.nMulti)} CIF • semua rekening diimpor</span></h4><div class="tbl-wrap"><table class="tbl sm"><thead><tr><th>CIF</th><th>Nama Debitur</th><th>Rek Pinjaman</th></tr></thead><tbody>${L.multi.map((m) => `<tr><td class="tnum">${esc(m.cif)}</td><td>${esc(m.nama)}</td><td class="tnum">${m.rek.map(esc).join('<br>')}</td></tr>`).join('')}</tbody></table></div>${L.nMulti > L.multi.length ? `<p class="muted sm">Menampilkan ${L.multi.length} dari ${U.num(L.nMulti)} CIF.</p>` : ''}` : ''); }).join('')}
         ${r.peringatan.length ? `<ul class="warn-l">${r.peringatan.map((p) => `<li>${ic('alertc', 14)} ${esc(p)}</li>`).join('')}</ul>` : ''}</div>` : ''}`;
   },
   impPayload() {
@@ -1588,8 +1727,8 @@ Pages.pengaturan = {
       const r = await Api.call('pmi.simpan', { daftar: L });
       if (!r.success) { el.disabled = false; return U.toast(r.message, 'err', 6000); }
       S.setting = Object.assign(S.setting, r.data.setting || {}); if (S.adminSet) S.adminSet.setting = Object.assign(S.adminSet.setting || {}, r.data.setting || {});
-      Pages.pengaturan.pmi = null;
-      if (r.data.diganti) await App.muatData(false);
+      Pages.pengaturan.pmi = null; Pages.pengaturan.ptInfo = null;      // v1.5: muat ulang sumber per PT (nama PT bisa berubah)
+      await App.muatData(false); App.segarNav();
       App.simpanLokal(); U.toast(r.message, 'ok', 5000); App.render({ tetap: true });
     },
     logoFile: async (el) => {
@@ -1746,6 +1885,7 @@ Pages.pengaturan = {
     srcSheetTx: (el) => { Pages.pengaturan.srcSheet = el.value; Pages.pengaturan.srcKolom = null; },
     srcBaris: (el) => { Pages.pengaturan.petaSrc().baris = Math.max(1, Math.min(50, Math.round(+el.value) || 1)); Pages.pengaturan.srcKolom = null; },
     srcBuka: (el, e) => { Pages.pengaturan.srcBuka = !el.parentElement.open; },
+    altBuka: (el) => { Pages.pengaturan.altBuka = !el.parentElement.open; },
     srcBaca: async (el) => {
       const P = Pages.pengaturan, url = document.getElementById('srcUrl').value.trim(), sheet = document.getElementById('srcSheet').value.trim();
       if (!url) return U.toast('Tempel link spreadsheet KUR PMI.', 'warn');

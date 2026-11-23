@@ -30,7 +30,8 @@ const Laporan = (() => {
     pct:    { a: 'r', w: 10 },
     tgl:    { a: 'l', w: 14 },
     kol:    { a: 'c', w: 10 },
-    status: { a: 'c', w: 10 }
+    status: { a: 'c', w: 10 },
+    risk:   { a: 'l', w: 24 }
   };
   const tipe = (k) => Object.assign({}, TIPE[k.t] || TIPE.teks, k);
 
@@ -39,7 +40,7 @@ const Laporan = (() => {
     if (k.t === 'no') return { v: U.num(i + 1) };
     const p = k.p ? k.p(d, i) : (k.x ? k.x(d, i) : '');
     const o = p && typeof p === 'object' && !Array.isArray(p) ? p : { v: p };
-    if (k.t === 'rp' && typeof o.v === 'number') o.v = U.rpS(o.v);
+    if (k.t === 'rp' && typeof o.v === 'number') o.v = U.rpJ(o.v);         // v1.5: Juta / M, 2 desimal dipotong
     if (k.t === 'num' && typeof o.v === 'number') o.v = U.num(o.v);
     if (k.t === 'pct' && typeof o.v === 'number') o.v = U.pct(o.v * 100);
     if (k.t === 'tgl' && /^\d{4}-\d{2}-\d{2}/.test(o.v || '')) o.v = U.tgl2(o.v);
@@ -50,6 +51,7 @@ const Laporan = (() => {
     if (k.t === 'prod' && v) { const c = UI.warnaProd(v); v = `<span class="chip" style="color:${c};background:${rgba(c, 0.13)}">${esc(v)}</span>`; }
     else if (k.t === 'kol' && v) { const n = +String(v).replace(/\D/g, '') || 1, w = KOLW[n] || KOLW[1]; v = `<span class="chip" style="color:#${w[0]};background:#${w[1]}">Kol. ${n}</span>`; }
     else if (k.t === 'status' && v) { const w = STW[v] || ['475569', 'F1F5F9']; v = `<span class="chip" style="color:#${w[0]};background:#${w[1]}">${esc(v)}</span>`; }
+    else if (k.t === 'risk' && v) v = String(v).split(' & ').map((x) => `<span class="chip ${/blokir/i.test(x) ? 'r-neg' : 'r-warn'}">${esc(x)}</span>`).join(' ');
     else v = esc(v);
     const l2 = o.l2 ? `<div class="l2">${esc(o.l2)}</div>` : '';
     return (k.t === 'ent' ? `<b>${v}</b>` : v) + l2;
@@ -102,6 +104,9 @@ table{border-collapse:collapse}
 .data .neg{color:#BE123C;font-weight:bold}.data .pos{color:#15803D}.data .warn{color:#B45309}.data .b{font-weight:bold}.data .mut{color:#94A3B8}
 .data tfoot td{background:#F8F7FC;font-weight:bold;border-top:1.6px solid #CBD5E1;border-bottom:0;padding:6px 5px}
 .chip{display:inline-block;padding:1px 6px;border-radius:7px;font-weight:bold;font-size:6.6pt;white-space:nowrap}
+.chip.r-neg{color:#BE123C;background:#FFE4E6}.chip.r-warn{color:#B45309;background:#FEF3C7;margin-top:1px}
+.tagih .garis{background:#E11D48;border-right-color:#DB2777}.tagih .kop .lbl{color:#E11D48}.tagih .ring td{background:#FFF1F2;border-color:#FECDD3}.tagih .ring .kl{color:#9F1239}
+.tagih .data th{background:#FFF1F2;color:#881337;border-bottom-color:#E11D48}.tagih .ring td:nth-child(2) .kv{color:#BE123C}
 .ft{margin-top:10px;font-size:6.6pt;color:#94A3B8;border-top:1px solid #EEEDF5;padding-top:5px}
 .ft b{color:#64748B}`;
 
@@ -121,12 +126,12 @@ table{border-collapse:collapse}
     if (kol.some((k) => k.sum)) {
       const iLbl = kol.findIndex((k) => !k.sum && k.t !== 'no');
       tf = '<tfoot><tr>' + kol.map((k, i) => {
-        if (k.sum) { const t = spec.data.reduce((s, d, j) => { const v = k.x(d, j); return s + (Number(v && typeof v === 'object' ? v.v : v) || 0); }, 0); return `<td class="a-r">${esc(k.t === 'rp' ? U.rpS(t) : U.num(t))}</td>`; }
+        if (k.sum) { const t = spec.data.reduce((s, d, j) => { const v = k.x(d, j); return s + (Number(v && typeof v === 'object' ? v.v : v) || 0); }, 0); return `<td class="a-r">${esc(k.t === 'rp' ? U.rpJ(t) : U.num(t))}</td>`; }
         return i === iLbl ? `<td>Total (${U.num(spec.data.length)} ${esc(spec.satuan || 'baris')})</td>` : '<td></td>';
       }).join('') + '</tr></tfoot>';
     }
     const ring = (spec.ringkasan || []).slice(0, 6);
-    return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${esc(spec.judul)}</title><style>${CSS.replace('__ORI__', lanskap ? 'landscape' : 'portrait')}</style></head><body>
+    return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${esc(spec.judul)}</title><style>${CSS.replace('__ORI__', lanskap ? 'landscape' : 'portrait')}</style></head><body${spec.tema ? ` class="${esc(spec.tema)}"` : ''}>
 <table class="kop"><tr>${logo ? `<td class="kl"><img class="logo" src="${logo}" alt=""></td>` : ''}<td class="kn"><div class="app">${esc(b.nama)}</div><div class="ins">${esc(ins || 'Monitoring Portofolio Kredit & Penagihan')}</div></td>
 <td class="kr"><div class="lbl">LAPORAN</div><div class="jdl">${esc(spec.judul)}</div>${spec.sub ? `<div class="sub">${esc(spec.sub)}</div>` : ''}</td></tr></table>
 <div class="garis"></div>
@@ -200,23 +205,23 @@ ${ring.length ? `<table class="ring"><tr>${ring.map((r) => `<td><div class="kl">
 
   /** Kolom standar debitur (sama dengan tabel Daftar Debitur di aplikasi). */
   function kolomDebitur(opsi = {}) {
-    const kontak = (d) => [d.wa || 'WA tidak valid', d.pic].filter(Boolean).join(' • ');
+    const kontak = (d) => [d.wa, d.pic].filter(Boolean).join(' • ');
     const k = [
       { h: 'No', t: 'no' },
-      { h: 'Entitas / Kontak', t: 'ent', x: (d) => d.nm + '\n' + kontak(d), p: (d) => ({ v: d.nm, l2: kontak(d) }) },
+      { h: 'Nama Debitur', t: 'ent', x: (d) => d.nm + '\n' + kontak(d), p: (d) => ({ v: d.nm, l2: kontak(d) }) },
       { h: 'Rek Pinjaman', t: 'rek', x: (d) => d.rek || '' },
       { h: 'Rek Afil', t: 'rek', x: (d) => d.ra || '' },
       opsi.pt ? { h: 'PT Penempatan', t: 'teks', w: 20, x: (d) => (d.pt ? UI.namaPt(d.pt) : 'Belum diisi'), p: (d) => (d.pt ? UI.namaPt(d.pt) : { v: 'Belum diisi', c: 'mut' }) } : { h: 'Produk', t: 'prod', x: (d) => d.pr },
       opsi.pt ? { h: 'Batch', t: 'teks', w: 11, x: (d) => d.bt || '' } : null,
       opsi.pt ? { h: 'Jangka Waktu', t: 'teks', w: 12, x: (d) => d.jw || '' } : null,
       { h: 'Plafon', t: 'rp', sum: true, x: (d) => d.pl },
-      { h: 'Baki Debet', t: 'rp', sum: true, x: (d) => d.bd, p: (d) => ({ v: U.rpS(d.bd), c: 'b' + (d.kol === 5 ? ' neg' : '') }) },
+      { h: 'Baki Debet', t: 'rp', sum: true, x: (d) => d.bd, p: (d) => ({ v: U.rpJ(d.bd), c: 'b' + (d.kol === 5 ? ' neg' : '') }) },
       { h: 'Angsuran', t: 'rp', sum: true, x: (d) => d.an },
       { h: 'Saldo Blokir', t: 'rp', sum: true, x: (d) => (d.sb === null || d.sb === undefined ? (d.aktif ? { v: 'Kosong', c: 'neg' } : '') : (d.fBlokir ? { v: d.sb, c: 'neg' } : d.sb)),
-        p: (d) => (d.sb === null || d.sb === undefined ? (d.aktif ? { v: 'Kosong', c: 'neg' } : '') : { v: U.rpS(d.sb), c: d.fBlokir ? 'neg' : '' }) },
-      { h: 'Saldo Akhir', t: 'rp', sum: true, x: (d) => (d.fSaldo ? { v: d.sa, c: 'neg' } : d.sa), p: (d) => ({ v: U.rpS(d.sa), c: d.fSaldo ? 'neg' : '' }) },
+        p: (d) => (d.sb === null || d.sb === undefined ? (d.aktif ? { v: 'Kosong', c: 'neg' } : '') : { v: U.rpJ(d.sb), c: d.fBlokir ? 'neg' : '' }) },
+      { h: 'Saldo Akhir', t: 'rp', sum: true, x: (d) => (d.fSaldo ? { v: d.sa, c: 'neg' } : d.sa), p: (d) => ({ v: U.rpJ(d.sa), c: d.fSaldo ? 'neg' : '' }) },
       { h: 'Jatuh Tempo', t: 'tgl', x: (d) => d.jt, p: (d) => ({ v: d.jt ? U.tgl2(d.jt) : '', l2: jtTeks(d) }) },
-      { h: 'Kol. OJK', t: 'kol', x: (d) => (d.aktif ? d.kol : '') },
+      { h: 'Kol', t: 'kol', x: (d) => (d.aktif ? d.kol : '') },
       { h: 'Status', t: 'status', x: (d) => d.st }
     ].filter(Boolean);
     return k;

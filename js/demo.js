@@ -17,16 +17,20 @@ window.DemoAPI = (() => {
   const geser = (p, n) => { let y = +p.slice(0, 4), m = +p.slice(5, 7) - 1 + n; y += Math.floor(m / 12); m = ((m % 12) + 12) % 12; return y + '-' + pad(m + 1); };
 
   const PRODUK = [
+    { kode: 'BCM', nama: 'BCM', urut: 0, warna: '#0EA5E9' },
     { kode: 'BWU', nama: 'BWU (Bisnis Wirausaha)', urut: 1, warna: '#8B5CF6' }, { kode: 'CCC', nama: 'CCC (Cash Collateral)', urut: 2, warna: '#F43F7A' },
     { kode: 'KUR', nama: 'KUR (Kredit Usaha Rakyat)', urut: 3, warna: '#3B82F6' }, { kode: 'KUR PMI', nama: 'KUR PMI', urut: 4, warna: '#F97316' },
     { kode: 'KPP', nama: 'KPP (Kredit Pemilikan)', urut: 5, warna: '#14B8A6' }];
-  const N_AKTIF = { BWU: 1120, CCC: 864, KUR: 790, 'KUR PMI': 436, KPP: 272 };
-  const RANGE = { BWU: [1e8, 2e9], CCC: [1e8, 3e9], KUR: [2.5e7, 5e8], 'KUR PMI': [1e7, 1e8], KPP: [2e8, 2.5e9] };
+  const N_AKTIF = { BCM: 96, BWU: 1120, CCC: 864, KUR: 790, 'KUR PMI': 436, KPP: 272 };
+  const RANGE = { BCM: [1.5e9, 2.5e10], BWU: [1e8, 2e9], CCC: [1e8, 3e9], KUR: [2.5e7, 5e8], 'KUR PMI': [1e7, 1e8], KPP: [2e8, 2.5e9] };
   const PRE = ['PT', 'CV', 'UD', 'Koperasi', 'Toko', 'Kelompok Tani'];
   const ORANG = ['Agung Nugroho', 'Dewi Sartika', 'Budi Hermawan', 'Rina Wulandari', 'Hendra Saputra', 'Sri Lestari', 'Andi Pratama', 'Yuliana Putri', 'Rudi Hartono', 'Maya Anggraini', 'Fajar Ramadhan', 'Nur Aini'];
   const KATA = ['Nusantara', 'Mandiri', 'Agro', 'Berkah', 'Surya', 'Logistik', 'Makmur', 'Sentosa', 'Teknik', 'Padi', 'Subur', 'Samudera', 'Karya', 'Bahari', 'Mega', 'Tirta', 'Kencana', 'Jaya', 'Abadi', 'Konstruksi', 'Sejahtera', 'Cahaya', 'Bintang', 'Timur', 'Prima', 'Graha', 'Perkasa', 'Lestari', 'Niaga', 'Sinar'];
   const PIC = ['Herman', 'Ibu Lestari', 'Bambang', 'Mandiri', 'Sukirno', 'Faisal', 'Irwan', 'Ridwan', 'Hendra', 'Yanto', 'Wati', 'Joko'];
   const RM = ['Siti Rahmawati', 'Dani Irawan', 'Budi Santoso', 'Andi Kurnia', 'Hendra Wijaya'];
+  const NPP_RM = { 'Siti Rahmawati': '20001', 'Dani Irawan': '20002', 'Budi Santoso': '20003', 'Andi Kurnia': '20004', 'Hendra Wijaya': '40001' };
+  const UNIT_DEMO = ['31100', '31100', '31100', '31102', '31105', '31107', '31160', '31162', '31106', '31161', 'KC Grandwisata', '31165', '31101', '31103', '31104', '31108', '31166'];
+  const SEG_DEMO = { BCM: 'SME', BWU: 'SBP', KUR: 'SBP', 'KUR PMI': 'SBP', KPP: 'SBP' };
   const kolAcak = () => { const r = rnd(); return r < 0.844 ? 1 : r < 0.934 ? 2 : r < 0.968 ? 3 : r < 0.989 ? 4 : 5; };
   const bulat = (n, k = 1e5) => Math.round(n / k) * k;
 
@@ -59,16 +63,24 @@ window.DemoAPI = (() => {
       let kl = lunas ? null : kol;
       if (!lunas && rnd() < 0.015) kl = Math.min(5, Math.max(1, kol + (rnd() < 0.68 ? -1 : 1)));
       const rp = '10' + String(no).padStart(8, '0'), ra = '0' + (2 + (no % 6)) + String((no * 7919) % 100000000).padStart(8, '0');
+      const rmNm = pilih(RM);
+      const sg = SEG_DEMO[p.kode] || (rnd() < 0.55 ? 'SME' : rnd() < 0.8 ? 'SBP' : '');                 // v1.5: CCC bisa SME / SBP / belum diketahui
+      const un = pilih(UNIT_DEMO);
+      const tb = iso(new Date(Date.now() - ri(60, 1500) * 86400000));
       const pt = p.kode === 'KUR PMI' ? (rnd() < 0.03 ? '' : PT_DEMO[no % PT_DEMO.length]) : '';
       const cif = String(1000000 + no * 3);
       // v1.3: kunci debitur (id) = CIF (Debitur Umum) / Rek Afil (KUR PMI)
       const id = p.kode === 'KUR PMI' ? ra : cif;
-      rows.push([id, nm, cif, pilih(PIC), wa, wv ? 1 : 0, p.kode, pl, bd, jt, lunas ? 'Lunas' : 'Aktif', kol, sb, sa, an, rnd() < 0.02 ? 1 : 0, pilih(RM), kl, rp, ra, pt, '', '', '', 0]);
+      rows.push([id, nm, cif, pilih(PIC), wa, wv ? 1 : 0, p.kode, pl, bd, jt, lunas ? 'Lunas' : 'Aktif', kol, sb, sa, an, rnd() < 0.02 ? 1 : 0, rmNm, kl, rp, ra, pt, '', '', '', 0,
+        tb, un === 'KC Grandwisata' ? '31163' : un, NPP_RM[rmNm] || '', sg, 0]);
       if (p.kode === 'KUR PMI') EXT.set(ra, { jw: pilih(['12 bulan', '24 bulan', '36 bulan', '48 bulan']), bt: 'Batch ' + ri(1, 18), ada: rnd() < 0.93 });
     }
   });
   rows.sort((a, b) => (a[0] < b[0] ? 1 : -1));
-  const COLS = ['id', 'nm', 'cif', 'pic', 'wa', 'wv', 'pr', 'pl', 'bd', 'jt', 'st', 'kol', 'sb', 'sa', 'an', 'oo', 'rm', 'kl', 'rp', 'ra', 'pt', 'il', 'jw', 'bt', 'sx'];
+  const COLS = ['id', 'nm', 'cif', 'pic', 'wa', 'wv', 'pr', 'pl', 'bd', 'jt', 'st', 'kol', 'sb', 'sa', 'an', 'oo', 'rm', 'kl', 'rp', 'ra', 'pt', 'il', 'jw', 'bt', 'sx', 'tb', 'un', 'np', 'sg', 'hm'];
+  // v1.5: 1 CIF dengan 2 rekening pinjaman (demo)
+  (() => { const a = rows.find((r) => r[6] === 'CCC' && r[10] === 'Aktif'); if (!a) return; const b = a.slice(); b[0] = a[2] + '-10' + String(no + 7).padStart(8, '0'); b[18] = '10' + String(no + 7).padStart(8, '0'); b[7] = Math.round(a[7] / 2); b[8] = Math.round(a[8] / 2); rows.push(b); })();
+  let sumberPt = null;                                         // v1.5: sumber KUR PMI per PT (simulasi)
   let ver = String(Date.now()), lver = '1', sver = '1.1.1';
   function terapkanSumber() {
     let tanpa = 0;
@@ -79,8 +91,29 @@ window.DemoAPI = (() => {
     });
     return tanpa;
   }
-  const ds = () => { const t = terapkanSumber(); return { cols: COLS, rows, n: rows.length, dibangun: Date.now(), periode: PERIODE, adaBaseline: true, ver,
-    kunci: { dup: [], nDup: 0, tanpa: [], nTanpa: 0, pmiTanpaSumber: t }, sumberPmi: sumberPmi ? { nama: sumberPmi.nama, n: sumberPmi.n } : null }; };
+  const ds = () => { const t = terapkanSumber();
+    // Sama dengan server: bila sumber per PT aktif, debitur KUR PMI yang tidak ada di sheet PT mana pun disembunyikan.
+    const ptAktif = sumberPt ? Object.keys(sumberPt).filter((n) => sumberPt[n] && sumberPt[n].aktif !== false) : null;
+    const vis = ptAktif ? rows.filter((r) => r[6] !== 'KUR PMI' || ptAktif.includes(r[20])) : rows;
+    return { cols: COLS, rows: vis, n: vis.length, dibangun: Date.now(), periode: PERIODE, adaBaseline: true, ver,
+    kunci: { dup: [], nDup: 0, tanpa: [], nTanpa: 0, pmiTanpaSumber: t, pmiDisembunyikan: rows.length - vis.length, multi: 1 }, sumberPmi: sumberPmi ? { nama: sumberPmi.nama, n: sumberPmi.n } : null,
+    kolom: { tb: true, un: true, np: true, sg: true }, sumberPt: sumberPt ? { nama: 'Database KUR PMI (demo)', galat: '', pt: Object.keys(sumberPt).map((n) => ({ nama: n, n: rows.filter((r) => r[6] === 'KUR PMI' && r[20] === n).length, galat: '' })) } : null }; };
+  // ---------- v1.5: cakupan data per peran (sama dengan server) ----------
+  const SEG_BAWAAN = { SME: ['BCM', 'CCC'], SBP: ['BWU', 'CCC', 'KUR', 'KPP', 'KUR PMI'] };
+  const UNIT_BAWAAN = [['31100', 'KCU Jababeka'], ['31102', 'KC Cikarang'], ['31105', 'KC Mutiara Gading'], ['31107', 'KC Tambun'], ['31160', 'KC RE Martadinata'], ['31162', 'KC Cibitung'], ['31106', 'KC Cikarang Baru'], ['31161', 'KC MM2100'], ['31163', 'KC Grandwisata'], ['31165', 'KC Wisma Asri'], ['31101', 'KC Bulak Kapal'], ['31103', 'KC Lippo Cikarang'], ['31104', 'KC Kalimas'], ['31108', 'KC Cikarang Central City'], ['31166', 'KC Delta Mas']].map((x) => ({ k: x[0], n: x[1] }));
+  const aksesD = () => { let a = null; try { a = JSON.parse(setting.AKSES_DATA || 'null'); } catch (e) { a = null; } a = a || {}; return { unit: a.unit || UNIT_BAWAAN, kol: a.kol || {}, seg: a.seg || SEG_BAWAAN, peran: a.peran || {} }; };
+  const peranDef = (n) => { const l = String(n || '').toLowerCase(); if (/(^|[^a-z])(prm|arm)([^a-z]|$)/.test(l) || /program relationship/.test(l)) return { s: 'SBP', n: 0 }; if (l === 'rm' || /^rm([^a-z]|$)/.test(l) || /relationship manager/.test(l)) return { s: 'SME', n: 1 }; return { s: '', n: 0 }; };
+  const aturPeran = (p) => (p === 'Admin' ? { s: '', n: 0 } : aksesD().peran[p] || peranDef(p));
+  const cakupan = (u) => { const p = aturPeran(u.peran); return { s: p.s || '', npp: p.n ? u.npp : '' }; };
+  const sufiks = (sc) => (sc.s || sc.npp ? '|' + sc.s + '|' + sc.npp : '');
+  const dsUntuk = (u) => {
+    const D = ds(), sc = cakupan(u);
+    if (!sc.s && !sc.npp) return D;
+    const a = aksesD();
+    const r = D.rows.filter((x) => (!sc.s || (x[28] ? x[28] === sc.s : (a.seg[sc.s] || []).includes(x[6]))) && (!sc.npp || x[27] === sc.npp));
+    return Object.assign({}, D, { rows: r, n: r.length, ver: ver + sufiks(sc), kunci: null, cakupan: { s: sc.s, npp: sc.npp, nppAktif: !!sc.npp, nppBelum: false } });
+  };
+  const verU = (u) => ver + sufiks(cakupan(u));
   const byId = () => { const m = {}; rows.forEach((r) => { m[r[0]] = r; }); return m; };
   const rpKeId = () => { const m = {}; rows.forEach((r) => { if (r[18]) m[r[18]] = r[0]; }); return m; };
 
@@ -118,7 +151,9 @@ window.DemoAPI = (() => {
   setting.TURNSTILE_SITEKEY = ''; setting.AKTIVASI_JAM = '72';
   KET.PERAN_AKSES = 'Menu yang boleh dibuka tiap peran'; KET.PMI_PT = 'Daftar PT penempatan debitur KUR PMI';
   KET.TURNSTILE_SITEKEY = 'Site key Cloudflare Turnstile (publik)'; KET.AKTIVASI_JAM = 'Masa berlaku sandi awal (jam)';
-  const KHUSUS = ['PERAN_AKSES', 'PMI_PT', 'TURNSTILE_SITEKEY', 'AKTIVASI_JAM'];
+  const KHUSUS = ['PERAN_AKSES', 'PMI_PT', 'TURNSTILE_SITEKEY', 'AKTIVASI_JAM', 'AKSES_DATA'];
+  setting.AKSES_DATA = '';
+  let pakDoc = null;
   let tsSecret = '';
   // v1.3 — Analisa (format surat & data) disimpan di memori tab ini
   let impSumber = '', impPeta = [];
@@ -214,7 +249,8 @@ window.DemoAPI = (() => {
     'pmi.sumber.simpan': 'A', 'pmi.sumber.hapus': 'A', 'pmi.sumber.info': 'A', 'keamanan.status': 'A', 'keamanan.simpan': 'A',
     'analisa.template.list': ['analisa'], 'analisa.template.ambil': ['analisa'], 'analisa.template.simpan': 'A', 'analisa.template.hapus': 'A',
     'analisa.data.list': ['analisa'], 'analisa.data.impor': ['analisa'], 'analisa.data.hapus': ['analisa'], 'analisa.catat': ['analisa'],
-    'analisa.pak.konfig': ['analisa'], 'analisa.pak.simpan': 'A', 'import.info': 'A', 'import.peta': 'A', 'import.peta.simpan': 'A'
+    'analisa.pak.konfig': ['analisa'], 'analisa.pak.simpan': 'A', 'import.info': 'A', 'import.peta': 'A', 'import.peta.simpan': 'A',
+    'analisa.pak.docs': 'A', 'akses.info': 'A', 'akses.simpan': 'A', 'pmi.pt.info': 'A', 'pmi.pt.baca': 'A', 'pmi.pt.simpan': 'A', 'pmi.pt.hapus': 'A'
   };
   const boleh = (u, a) => { const r = ROLES[a]; if (!r || u.peran === 'Admin') return true; if (r === 'A') return false; const m = menuPeran(u.peran); return r.some((x) => m.includes(x)); };
 
@@ -274,7 +310,7 @@ window.DemoAPI = (() => {
     if (!u) return gagalSesi();
     if (!boleh(u, a)) return fail('Anda tidak memiliki hak akses untuk fitur ini.', 'FORBIDDEN');
     switch (a) {
-      case 'boot': return ok(Object.assign({ me: me(u), akses: menuPeran(u.peran), setting, produk: PRODUK, ver, lver, server: Date.now(), periode: PERIODE, hariIni: HARI, snap, gw: gw(u) }, d.ver === ver ? { notModified: true } : { ds: ds() }, boleh(u, 'blast.kirim') ? { tpl: tpl.filter((t) => t.aktif) } : {}));
+      case 'boot': return ok(Object.assign({ me: me(u), akses: menuPeran(u.peran), setting, produk: PRODUK, ver: verU(u), lver, server: Date.now(), periode: PERIODE, hariIni: HARI, snap: cakupan(u).npp ? [] : snap, gw: gw(u), cakupan: cakupan(u) }, d.ver === verU(u) ? { notModified: true } : { ds: dsUntuk(u) }, boleh(u, 'blast.kirim') ? { tpl: tpl.filter((t) => t.aktif) } : {}));
       case 'sync.ping': {
         if (Date.now() - mutasiAkhir > 120000) {    // simulasi perubahan di Google Sheets tiap ±2 menit
           mutasiAkhir = Date.now();
@@ -282,9 +318,59 @@ window.DemoAPI = (() => {
           r[13] = r[13] < r[14] ? r[14] * 2 : Math.round(r[13] * 0.9); r[12] = r[14];
           ver = String(Date.now());
         }
-        return ok({ ver, lver, sver, t: Date.now() });
+        return ok({ ver: verU(u), lver, sver, t: Date.now() });
       }
-      case 'data.debitur': return ok(d.ver === ver ? { ver, notModified: true } : { ver, ds: ds(), produk: PRODUK });
+      case 'data.debitur': return ok(d.ver === verU(u) ? { ver: verU(u), notModified: true } : { ver: verU(u), ds: dsUntuk(u), produk: PRODUK });
+      // ----- v1.5
+      case 'debitur.hp': {
+        const r = rows.find((x) => x[0] === String(d.id || ''));
+        if (!r || !dsUntuk(u).rows.includes(r)) return fail('Debitur tidak ditemukan.', 'VALIDATION');
+        const w = String(d.hp || '').replace(/\D/g, '').replace(/^62/, '0').replace(/^8/, '08');
+        if (!/^08\d{7,12}$/.test(w)) return fail('Nomor HP tidak valid. Contoh: 081234567890.', 'VALIDATION');
+        r[4] = w.slice(0, 4) + '-****-' + w.slice(-4); r[5] = 1; r[29] = 1; ver = String(Date.now());
+        return ok({ ver: verU(u), wa: r[4] }, 'Nomor HP debitur disimpan.');
+      }
+      case 'akses.info': {
+        const D = ds(), n = { np: 0, un: 0, sg: 0, SME: 0, SBP: 0, tanpaSeg: 0 }, perUnit = {};
+        D.rows.forEach((r) => { if (r[27]) n.np++; if (r[26]) { n.un++; perUnit[r[26]] = (perUnit[r[26]] || 0) + 1; } if (r[28] === 'SME') n.SME++; else if (r[28] === 'SBP') n.SBP++; else n.tanpaSeg++; });
+        const peran = {}; Object.keys(peranAkses()).forEach((p) => { peran[p] = aturPeran(p); });
+        return ok({ akses: aksesD(), header: ['Rek_Pinjaman', 'Nama', 'No_WA', 'Produk', 'PT_PMI', 'CIF', 'RM', 'Tgl_Booking', 'Unit', 'NPP_RM', 'Segmen'], kolom: { tb: true, un: true, np: true, sg: true }, hitung: n, perUnit, total: D.rows.length, peran, bawaan: { unit: UNIT_BAWAAN, seg: SEG_BAWAAN } });
+      }
+      case 'akses.simpan': {
+        const a = d.akses || {};
+        setting.AKSES_DATA = JSON.stringify({ unit: (a.unit || []).filter((x) => x.k || x.n), kol: a.kol || {}, seg: a.seg || SEG_BAWAAN, peran: a.peran || {} });
+        ver = String(Date.now()); sver = String(Date.now());
+        return ok({ akses: aksesD(), ver, setting }, 'Pengaturan akses data disimpan. Berlaku langsung untuk semua pengguna.');
+      }
+      case 'pmi.pt.info': {
+        const daftar = JSON.parse(setting.PMI_PT || '[]');
+        const judul = [['A', 'No', '1'], ['B', 'Nama Deb', 'Siti Contoh'], ['C', 'No Rek Afiliasi', '0533001122'], ['D', 'Angkatan', 'Batch 9'], ['E', 'Tenor', '36']].map((x) => ({ kol: x[0], h: x[1], contoh: x[2] }));
+        if (!sumberPt) return ok({ aktif: false, daftar, lama: !!sumberPmi });
+        return ok({ aktif: true, url: 'https://docs.google.com/spreadsheets/d/demo/edit', nama: 'Database KUR PMI (demo)', galat: '', sheets: daftar.concat(['Fuji Co., Ltd.']), disembunyikan: 0, lama: false,
+          pt: daftar.map((n) => { const c = sumberPt[n] || { aktif: true, sheet: n, baris: 5, kunci: 'auto', kolom: {} }; return Object.assign({ nama: n, tersimpan: !!sumberPt[n], n: rows.filter((r) => r[6] === 'KUR PMI' && r[20] === n).length, cocok: rows.filter((r) => r[6] === 'KUR PMI' && r[20] === n).length, baru: 0, galat: '', judul, pakai: { nm: 'B · Nama Deb', ra: 'C · No Rek Afiliasi', bt: 'D · Angkatan', jw: 'E · Tenor' } }, c); }) });
+      }
+      case 'pmi.pt.baca': {
+        if (!String(d.url || '').trim()) return fail('Tempel link spreadsheet KUR PMI yang valid.', 'VALIDATION');
+        const daftar = JSON.parse(setting.PMI_PT || '[]');
+        const out = { nama: 'Database KUR PMI (demo)', sheets: daftar.concat(['Fuji Co., Ltd.']) };
+        if (d.sheet) { const b = Math.max(1, +d.baris || 1); out.baris = b; out.n = 40; out.judul = b === 5 ? [['A', 'No', '1'], ['B', 'Nama Deb', 'Siti Contoh'], ['C', 'No Rek Afiliasi', '0533001122'], ['D', 'Angkatan', 'Batch 9'], ['E', 'Tenor', '36']].map((x) => ({ kol: x[0], h: x[1], contoh: x[2] })) : [{ kol: 'A', h: 'DATA DEBITUR KUR PMI', contoh: '' }]; }
+        return ok(out);
+      }
+      case 'pmi.pt.simpan': {
+        const daftar = JSON.parse(setting.PMI_PT || '[]');
+        sumberPt = {}; Object.keys(d.pt || {}).forEach((n) => { if (daftar.includes(n)) sumberPt[n] = d.pt[n]; });
+        rows.forEach((r) => { if (r[6] === 'KUR PMI') { const n = daftar.find((x) => x.toLowerCase().replace(/[^a-z]/g, '') === String(r[20]).toLowerCase().replace(/^pt\.?\s*/, 'pt').replace(/[^a-z]/g, '')); if (n) { r[20] = n; r[24] = 1; } } });
+        ver = String(Date.now());
+        return ok({ ver, ringkas: Object.keys(sumberPt).map((n) => n + ': ' + rows.filter((r) => r[20] === n).length), peringatan: [] }, 'Sumber KUR PMI per PT disimpan.');
+      }
+      case 'pmi.pt.hapus': sumberPt = null; ver = String(Date.now()); return ok({ ver }, 'Sumber KUR PMI per PT diputus. Debitur KUR PMI kembali dari sheet Debitur.');
+      case 'analisa.pak.docs': {
+        if (d.aksi === 'info') return ok(pakDoc || { ada: false });
+        if (d.aksi === 'buat') { pakDoc = { ada: true, url: 'https://docs.google.com/document/d/demo/edit', docx: 'https://docs.google.com/document/d/demo/export?format=docx', diubah: Date.now(), sinkron: Date.now(), perlu: false }; return ok(pakDoc, d.ulang ? 'Isi dokumen diperbarui dari format aplikasi.' : 'Dokumen Google Docs dibuat (demo — tautan contoh).'); }
+        if (d.aksi === 'sinkron') { if (!pakDoc) return fail('Belum ada dokumen Google Docs. Klik "Edit di Word" dulu.'); pakDoc.sinkron = Date.now(); return ok(Object.assign({}, pakDoc, { konfig: pakK, berubah: 0, aver }), 'Tidak ada perubahan di dokumen.'); }
+        if (d.aksi === 'putus') { pakDoc = null; return ok({ ada: false }, 'Tautan dokumen dilepas.'); }
+        return fail('Aksi tidak dikenal.', 'VALIDATION');
+      }
       case 'data.snapshot': return ok({ snap, periode: PERIODE });
       case 'cache.refresh': return ok({ ver, berubah: false }, 'Data sudah paling baru.');
       case 'snapshot.jalankan': return ok({ r: { ok: true, periode: PERIODE }, snap }, 'Snapshot periode ' + PERIODE + ' diperbarui.');
@@ -425,7 +511,7 @@ window.DemoAPI = (() => {
         setCred(c);
         return ok(null, d.mode === 'buka' ? 'Kunci akun dibuka.' : d.mode === '2fa' ? 'Authenticator direset. QR baru tampil saat login berikutnya.' : 'Akses direset. Login dengan sandi = NPP.');
       }
-      case 'setting.get': return ok({ setting, keterangan: KET, rahasia: { FONNTE_TOKEN: token }, sistem: { versi: '1.4.0 (demo)', dataVer: ver, spreadsheetUrl: 'https://docs.google.com/spreadsheets/', folderEkspor: '', pemicu: ['onChangeData', 'prosesAntrian', 'warmupCache', 'snapshotHarian'] } });
+      case 'setting.get': return ok({ setting, keterangan: KET, rahasia: { FONNTE_TOKEN: token }, sistem: { versi: '1.5.0 (demo)', dataVer: ver, spreadsheetUrl: 'https://docs.google.com/spreadsheets/', folderEkspor: '', pemicu: ['onChangeData', 'prosesAntrian', 'warmupCache', 'snapshotHarian'] } });
       case 'setting.simpan': {
         const inp = d.setting || {};
         if (inp.LOGO_DATA && (String(inp.LOGO_DATA).length > 48000 || !/^data:image\/(png|jpeg|webp);base64,/.test(inp.LOGO_DATA))) return fail('Logo tidak valid atau terlalu besar. Gunakan PNG/JPG/WEBP — aplikasi otomatis memperkecilnya.', 'VALIDATION');
@@ -504,7 +590,7 @@ window.DemoAPI = (() => {
         return ok({ dihapus: n }, 'Format surat "' + nm + '" dihapus' + (n ? ' beserta ' + n + ' data suratnya.' : '.'));
       }
       case 'analisa.data.list': { if (!tplDemo(d.tpl)) return fail('Format surat tidak ditemukan.'); return ok({ aver, tpl: d.tpl, rows: dataSurat[d.tpl] || [] }); }
-      case 'analisa.pak.konfig': return ok({ konfig: pakK, bolehUbah: u.peran === 'Admin', aver, id: 'PAK-KUR' });
+      case 'analisa.pak.konfig': return ok({ konfig: pakK, bolehUbah: u.peran === 'Admin', aver, id: 'PAK-KUR', doc: u.peran === 'Admin' ? pakDoc : null });
       case 'analisa.pak.simpan': {
         const k = d.konfig && typeof d.konfig === 'object' ? JSON.parse(JSON.stringify(d.konfig)) : null;
         if (!k) return fail('Format tidak valid.', 'VALIDATION');
@@ -552,7 +638,8 @@ window.DemoAPI = (() => {
           const pm = p.jenis === 'pmi', K = p.kolom || {};
           const contoh = pm ? [{ nm: 'Siti Contoh', ra: '0533001122', pt: (K.pt || '').indexOf('tetap:') === 0 ? K.pt.slice(6) : 'PT Minori SSW', pr: 'KUR PMI' }] : [{ nm: 'PT Contoh Satu', cif: 'CIF001', wa: '08111111111', bd: '50.000.000', pl: '80.000.000', pr: (K.pr || '').indexOf('tetap:') === 0 ? K.pr.slice(6) : 'KUR KECIL' }, { nm: 'CV Contoh Dua', cif: 'CIF002', wa: '08122222222', bd: '40.000.000', pl: '60.000.000', pr: 'BWU' }];
           const kol = Object.keys(contoh[0]).map((f) => ({ f, sumber: K[f] ? (K[f].indexOf('tetap:') === 0 ? '= ' + K[f].slice(6) : K[f].replace(/^(hdr|kol):/, '')) : (pm && f === 'pr' ? '= KUR PMI' : 'otomatis') }));
-          lap[pm ? 'Debitur KUR PMI' : 'Debitur Umum'] = { sumber: pm ? 1 : 3, ditambah: pm ? 1 : 3, diperbarui: 0, dilewati: 0, contoh, kolom: kol };
+          lap[pm ? 'Debitur KUR PMI' : 'Debitur Umum'] = { sumber: pm ? 1 : 3, ditambah: pm ? 1 : 3, diperbarui: 0, dilewati: 0, contoh, kolom: kol,
+            multi: pm ? [] : [{ cif: 'CIF001', nama: 'PT Contoh Satu', rek: ['1001234567', '1001234999'] }], nMulti: pm ? 0 : 1 };
         });
         if (d.sheets && d.sheets.Pengguna) lap.Pengguna = { sumber: 4, ditambah: 0, diperbarui: 0, dilewati: 4 };
         return ok({ sumber: { nama: 'Rekap Cabang (demo)', id: 'demo' }, dryRun: d.dryRun !== false, laporan: lap, peringatan: ['Demo: tidak ada data yang benar-benar ditulis.'] }, d.dryRun !== false ? 'Pindai selesai — belum ada data yang ditulis.' : 'Import selesai (demo).');

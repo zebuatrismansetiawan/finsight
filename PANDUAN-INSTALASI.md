@@ -1,10 +1,74 @@
-# Panduan Instalasi FinSight v1.4.0
+# Panduan Instalasi FinSight v1.5.0
 
 Monitoring Portofolio Kredit & Penagihan — Google Apps Script (backend REST API) + frontend PWA (GitHub Pages / Vercel) + Cloudflare (opsional, disarankan)
 
 ---
 
-## ⬆️ Upgrade dari v1.3.0 ke v1.4.0 (aplikasi yang sudah berjalan)
+## ⬆️ Upgrade dari v1.4.0 ke v1.5.0 (aplikasi yang sudah berjalan)
+
+Data, akun, kata sandi, authenticator, token Fonnte, logo, URL `/exec`, **Cloudflare Worker, `GATEWAY_SECRET`, dan `js/config.js` Anda tidak berubah.** Fitur lain di luar 16 poin di bawah tidak diubah.
+
+**Yang berubah di v1.5.0**
+
+| # | Perubahan |
+|---|---|
+| 1 | **Mitra KUR PMI — sumber per PT**: tiap PT (PT Minori Pemagang, PT Minori SSW, PT Aji, PT Nagomi) membaca **sheet-nya sendiri** di spreadsheet database KUR PMI. Baris judul & asal tiap kolom diatur sendiri (mis. *Nama Debitur* ← kolom **B** "Nama Deb", baris judul **5**). Debitur KUR PMI yang tidak ada di sheet PT mana pun **tidak ditampilkan**; PT yang tidak terdaftar / tidak punya sheet tidak ikut tampil |
+| 2 | **Nominal ringkas dipotong, bukan dibulatkan**: Rp 999.568.274 → **Rp 999,56 Jt** (bukan Rp 1.000 Jt); ≥ 1 miliar → **Rp x,xx M**. Detail Debitur tetap nominal penuh |
+| 3 | **Penagihan**: kolom Nama Debitur, Rek Pinjaman, Rek Afil, Produk, Kol, Tgl Booking, Jatuh Tempo, Plafon, Baki Debet, Angsuran, Saldo Akhir, Kekurangan Saldo, Indikator Risiko, Aksi Cepat. No HP yang belum ada = **kosong** (tanpa "nomor tidak valid"). Di **Detail Debitur**, semua peran hanya bisa **menambah / mengubah No HP** |
+| 4 | Sub menu **Daftar Debitur bisa diciutkan** (status buka/tutup diingat) |
+| 5 | **Kotak produk Dashboard** lebih ringkas: laptop 6 kotak sebaris, tablet 3, HP 2 — tidak tumpang tindih |
+| 6 | **Hasil pencarian di HP** rapi: nama, rekening, CIF, produk & Kol tersusun per baris |
+| 7 | **Import**: **CIF sama + Rek Pinjaman berbeda** = pinjaman terpisah → **diimpor & ditampilkan**; hasil pindai memuat daftarnya |
+| 8 | **Filter Unit** di Daftar Debitur — 15 kantor bawaan (31100 KCU Jababeka … 31166 KC Delta Mas), **bisa ditambah / diubah Super Admin** |
+| 9 | **Perangkat Analisa → Edit di Word** (Super Admin): membuat dokumen Google Docs berisi semua format (penanda tangan, kantor & kredit, semua kalimat). Perubahan di dokumen **otomatis masuk ke aplikasi** |
+| 10 | **Filter NPP RM**: peran RM hanya menerima debitur dengan NPP-nya — di Dashboard, Kualitas, Daftar Debitur, Penagihan, WA Blast & pencarian (disaring di server). **Kolom NPP diatur Super Admin** |
+| 11 | "Entitas / Kontak" → **Nama Debitur**; Penagihan "Debitur & Kontak" → **Nama Debitur** |
+| 12 | Kolom **#** di Penagihan dihapus; "Kolektibilitas" & "Kol. OJK" → **Kol** |
+| 13 | **Penagihan: unduh Excel, PDF & Cetak** untuk semua peran (kop, 5 kotak ringkasan, indikator risiko berwarna) |
+| 14 | Sub menu **SME** (BCM, CCC) & **SBP** (BWU, CCC, KUR, KPP, KUR PMI). RM → SME; PRM / ARM → SBP; Business Banking Manager, Branch Manager, SME Credit Risk → semua (bisa diubah di **Pengaturan → Akses Data**) |
+| 15 | **Salam di Dashboard** sesuai waktu (Selamat Pagi / Siang / Sore / Malam **Bpk/Ibu NAMA**) + **kata motivasi yang berganti tiap hari** |
+| 16 | **Halaman masuk**: paragraf rata kanan-kiri (judul besar tetap rata kiri agar tidak berlubang), jarak logo ↔ "Selamat Datang" dirapatkan |
+
+**A. Backend (Apps Script)** — ganti **5 berkas**, **tambah 1 berkas baru**
+
+1. Buka proyek Apps Script FinSight. Ganti **seluruh isi** berkas **`Kode`, `Data`, `Migrasi`, `Blast`, `Analisa`** dengan berkas baru dari paket.
+   (`Auth`, `Ekspor`, `Setup`, `Keamanan`, `appsscript.json` **tidak berubah** — baris `ADMIN_AWAL` di `Setup.gs` tidak perlu disentuh.)
+2. Ikon **+** → *Skrip* → beri nama persis **`Akses`** → hapus isi bawaan → tempel isi **`Akses.gs`**.
+3. Simpan (Ctrl+S).
+4. Jalankan **`setupAppEnvironment`** sekali. Fungsi ini hanya **menambah 4 kolom di ujung kanan sheet `Debitur`** — `Tgl_Booking`, `Unit`, `NPP_RM`, `Segmen` — dan sheet baru **`Kontak_Debitur`** (No HP yang ditambahkan lewat aplikasi). Data, sandi & rahasia tidak disentuh. Bila dilewati, kolom dibuat otomatis saat import berikutnya.
+5. **Deploy → Kelola deployment → ✏️ Edit → Versi: Versi baru → Deploy.** Jangan membuat deployment baru (URL `/exec` yang dipakai Worker harus tetap sama).
+
+> **Pasang backend dulu, baru frontend.** Frontend v1.5 memanggil fitur baru di server (akses data, No HP, sumber per PT, Edit di Word).
+
+**B. Frontend (GitHub Pages / Vercel)**
+
+1. Ekstrak `finsight-frontend-v1.5.0.zip` → salin semua isinya ke folder repository lama → *Replace*. ZIP **tidak berisi `js/config.js`**, jadi `GAS_URL` Anda (URL Worker) tetap aman. Berkas baru: **`js/akses.js`**.
+2. Dari terminal di folder repository:
+   ```bash
+   git add .
+   git commit -m "FinSight v1.5.0"
+   git push
+   ```
+3. Tunggu 1–2 menit → buka **https://finsightbbjba.vercel.app** → **Ctrl+Shift+R**. Footer menampilkan **v1.5.0**. Di HP/PWA akan muncul "Versi baru tersedia" → muat ulang.
+
+**C. Setelah upgrade (Super Admin) — urutan yang disarankan**
+
+| # | Tugas | Di mana |
+|---|---|---|
+| 1 | **Petakan kolom baru** Tgl Booking, Unit, NPP RM, Segmen | **Pengaturan → Import Data → Baca spreadsheet → Atur kolom** → pilih asalnya (mis. *NPP RM* ← kolom "NPP RM") → **Pindai (dry-run)** → periksa tabel *CIF sama dengan Rek Pinjaman berbeda* → **Jalankan import** (lihat **Bagian 2-B**). Bila kartu *Debitur KUR PMI* membaca **sheet yang sama** dengan *Debitur Umum* (mis. JBA), **hapus centangnya** — KUR PMI sudah ikut dari Debitur Umum |
+| 2 | **Atur akses data per peran** | **Pengaturan → Akses Data**: kolom Unit / NPP RM / Segmen di sheet, produk tiap segmen (SME / SBP), segmen & filter NPP per peran, daftar unit (lihat **Bagian 4-B**) |
+| 3 | **Hubungkan database KUR PMI per PT** | **Pengaturan → Mitra KUR PMI → Sumber data KUR PMI per PT** (lihat **Bagian 2-C**) |
+| 4 | **Edit format analisa di Word** (opsional) | **Analisa → Perangkat Analisa KUR PMI → Edit di Word** (lihat **Bagian 6c-C**) |
+| 5 | Periksa nama di salam Dashboard | Diambil dari **nama pengguna** (Pengguna & Peran) dan ditulis huruf besar, mis. *Selamat Pagi Bpk/Ibu BUDI SANTOSO* |
+
+> **Catatan penting v1.5**
+> - **RM yang belum punya data NPP**: filter NPP baru berlaku setelah kolom `NPP_RM` **berisi data**. Selama kolom masih kosong, RM melihat semua debitur segmen SME (Pengaturan → Akses Data menampilkan peringatan). Setelah terisi, RM hanya melihat debitur dengan NPP-nya — pastikan NPP di sheet sama dengan NPP login RM.
+> - **Segmen CCC**: CCC ada di SME dan SBP. Segmennya diambil dari kolom `Segmen` bila terisi; bila kosong, dari peran RM pengelola (NPP RM → RM = SME, PRM/ARM = SBP).
+> - **Grafik tren Kol bulanan** tidak ditampilkan untuk peran dengan filter NPP aktif, karena snapshot disimpan per produk, bukan per RM. Peran dengan filter segmen saja tetap melihat tren produk segmennya.
+
+<details>
+<summary><b>Riwayat: upgrade dari v1.3.0 ke v1.4.0</b></summary>
+
 
 Data, akun, kata sandi, authenticator, token Fonnte, logo, URL `/exec`, **Cloudflare Worker, `GATEWAY_SECRET`, dan `js/config.js` Anda tidak berubah.** Fitur lain di luar 4 poin di bawah tidak diubah.
 
@@ -50,6 +114,8 @@ Data, akun, kata sandi, authenticator, token Fonnte, logo, URL `/exec`, **Cloudf
 | Petakan kolom import debitur | **Pengaturan → Import Data** → **Baca spreadsheet** → atur *Debitur Umum* & *Debitur KUR PMI* → **Pindai (dry-run)** (lihat **Bagian 2-B**) |
 | Petakan kolom sumber KUR PMI | **Pengaturan → Mitra KUR PMI → Sumber detail KUR PMI → Pemetaan kolom** → **Perbarui** (lihat **Bagian 2-C**) |
 | Hak akses menu Analisa | Tetap seperti v1.3 (**Pengguna & Peran → Peran & Hak Akses Menu → Analisa**). Hanya Super Admin yang bisa *Atur format* |
+
+</details>
 
 <details>
 <summary><b>Riwayat: upgrade dari v1.2.0 ke v1.3.0</b></summary>
@@ -225,6 +291,7 @@ HP / Laptop  →  Vercel / GitHub Pages (frontend PWA)  ──fetch JSON──�
 | Berkas | Dipasang di | Keterangan |
 |---|---|---|
 | `Kode.gs` | Apps Script | Router API, hak akses per menu & peran (dicek tiap panggilan), audit log |
+| `Akses.gs` *(v1.5)* | Apps Script | Cakupan data per peran (segmen SME/SBP, filter NPP RM, unit), No HP debitur, sumber KUR PMI per PT |
 | `Auth.gs` | Apps Script | Login NPP, ganti sandi wajib, 2FA Microsoft Authenticator (TOTP), sesi 1 perangkat, ganti NPP |
 | `Data.gs` | Apps Script | Baca Sheets, cache berlapis, dataset debitur, snapshot kolektibilitas, pengaturan, peran & Mitra KUR PMI |
 | `Blast.gs` | Apps Script | Template WA, antrean WA blast (Fonnte), log |
@@ -235,7 +302,7 @@ HP / Laptop  →  Vercel / GitHub Pages (frontend PWA)  ──fetch JSON──�
 | `Analisa.gs` | Apps Script | Perangkat Analisa KUR PMI (format, penanda tangan, data import massal) & format surat Word (Drive) |
 | `worker.js` (+ `wrangler.toml` opsional) | **Cloudflare Workers — bukan Apps Script** | Gerbang API (lihat Bagian 6b). Jangan ditempel ke editor Apps Script |
 | `appsscript.json` | Apps Script | Zona waktu Asia/Jakarta & setelan Web App |
-| `finsight-frontend-v1.4.0.zip` | GitHub Pages / Vercel | Isi folder ini = isi repository (index.html di root). Tidak berisi `js/config.js` — instalasi baru: buat `js/config.js` sesuai langkah 3.2 |
+| `finsight-frontend-v1.5.0.zip` | GitHub Pages / Vercel | Isi folder ini = isi repository (index.html di root). Tidak berisi `js/config.js` — instalasi baru: buat `js/config.js` sesuai langkah 3.2 |
 
 > **Mode demo.** Sebelum backend terpasang, frontend otomatis berjalan dengan data fiktif. Buka `index.html` lewat server lokal atau GitHub Pages lalu login dengan NPP `10001` (Super Admin), `20001` (RM), atau `30001` (Manager). Kata sandi pertama = NPP. Kode authenticator demo ditampilkan di layar.
 
@@ -247,7 +314,7 @@ Gunakan **akun Google yang akan memiliki data** (sebaiknya akun kerja yang diset
 
 1. Buka <https://script.google.com> → **Proyek baru**. Beri nama `FinSight API`.
 2. Di **⚙️ Setelan Proyek**: centang **Tampilkan file manifes "appsscript.json"**. Pastikan **Zona waktu = (GMT+07:00) Jakarta**.
-3. Buat 9 berkas skrip (ikon **+** → *Skrip*) dengan nama persis: `Kode`, `Auth`, `Data`, `Blast`, `Ekspor`, `Migrasi`, `Setup`, `Keamanan`, `Analisa`. Hapus isi bawaan, lalu tempel isi berkas `.gs` yang sesuai.
+3. Buat 10 berkas skrip (ikon **+** → *Skrip*) dengan nama persis: `Kode`, `Auth`, `Data`, `Blast`, `Ekspor`, `Migrasi`, `Setup`, `Keamanan`, `Analisa`, `Akses`. Hapus isi bawaan, lalu tempel isi berkas `.gs` yang sesuai.
 4. Buka `appsscript.json`, ganti seluruh isinya dengan berkas `appsscript.json` dari paket.
 5. Buka `Setup.gs`, **ganti NPP admin awal** dengan NPP Anda (5 digit):
    ```js
@@ -256,7 +323,7 @@ Gunakan **akun Google yang akan memiliki data** (sebaiknya akun kerja yang diset
 6. Simpan semua (Ctrl+S). Pilih fungsi **`setupAppEnvironment`** di toolbar → **▶ Jalankan** → **Tinjau izin** → pilih akun → **Izinkan**.
 7. Buka **Log eksekusi**. Harus muncul `✅ Setup selesai` beserta tautan spreadsheet. Setup membuat:
    - Folder Drive `📁 FinSight` berisi spreadsheet `🗃️ FinSight — Database` dan folder `📂 Ekspor Laporan`.
-   - Sheet: `Debitur`, `Produk`, `Template_WA`, `Log_Blast`, `Pengguna`, `Snapshot_Kol`, `Snapshot_Debitur`, `Pengaturan`, `Audit_Log`, `AppConfig`, `Template_Surat`, `Data_Analisa`.
+   - Sheet: `Debitur`, `Produk`, `Template_WA`, `Log_Blast`, `Pengguna`, `Snapshot_Kol`, `Snapshot_Debitur`, `Pengaturan`, `Audit_Log`, `AppConfig`, `Template_Surat`, `Data_Analisa`, `Kontak_Debitur`.
    - 3 template WA awal, 5 produk, akun Super Admin awal, serta 4 pemicu otomatis (lihat bagian 7).
    > Setup **aman dijalankan ulang**: tidak menimpa data, sandi, atau rahasia yang sudah ada.
 8. *(Opsional, untuk UAT)* Jalankan **`isiDataContoh`** → 150 debitur fiktif (CIF berawalan `DEMO`, sebagian KUR PMI lengkap dengan PT). Hapus nanti dengan **`hapusDataContoh`**.
@@ -279,10 +346,10 @@ Data debitur **diedit langsung di Google Sheets** (aplikasi bersifat monitoring)
 
 | Kolom | Isi | Nama lain yang juga dikenali |
 |---|---|---|
-| `CIF` *(wajib, unik — kunci Debitur Umum)* | Nomor CIF nasabah (format **teks**) | No CIF |
-| `Rek_Afiliasi` *(wajib, unik — kunci Debitur KUR PMI)* | No. rekening afiliasi/autodebet (format **teks**) | Rek Afil, Rekening Afiliasi, Rek Tabungan, Rek Autodebet |
-| `Rek_Pinjaman` | No. rekening pinjaman (format **teks**) — ditampilkan, dipakai di Log Blast & template WA `{id_debitur}` | Rek Pinjaman, No Rek Pinjaman, Rekening Kredit |
-| `Nama` | Nama debitur | Nama Debitur |
+| `Rek_Pinjaman` *(wajib, unik — kunci debitur sejak v1.5: 1 rekening pinjaman = 1 baris)* | No. rekening pinjaman (format **teks**) — dipakai di Log Blast & template WA `{id_debitur}` | Rek Pinjaman, No Rek Pinjaman, Rekening Kredit |
+| `CIF` *(wajib)* | Nomor CIF nasabah (format **teks**). **CIF sama dengan Rek Pinjaman berbeda** = pinjaman terpisah, semuanya tampil | No CIF |
+| `Rek_Afiliasi` *(wajib untuk KUR PMI)* | No. rekening afiliasi/autodebet (format **teks**) — pencocokan data KUR PMI | Rek Afil, Rekening Afiliasi, Rek Tabungan, Rek Autodebet |
+| `Nama` | Nama debitur | Nama Debitur, Nama Deb, Nama Nasabah |
 | `No_WA` | 08xx / 62xx (format **teks**) | No HP, WA, Telepon |
 | `Produk` | BWU / CCC / KUR / KUR PMI / KPP | Jenis Produk |
 | `Plafon`, `Baki_Debet` | Angka | Plafond, OS, Outstanding |
@@ -294,25 +361,40 @@ Data debitur **diedit langsung di Google Sheets** (aplikasi bersifat monitoring)
 | `Opt_Out_WA` | `Ya` bila tidak ingin dihubungi | Opt Out |
 | `PT_PMI` | Khusus produk KUR PMI: nama PT penempatan (mis. PT Minori SSW). Huruf besar/kecil & awalan "PT" bebas | PT, PT Penempatan, Perusahaan, Mitra, P3MI, LPK |
 | `Kontak`, `RM` | Opsional, untuk tampilan | — |
+| `Tgl_Booking` *(v1.5)* | Tanggal booking / realisasi | Tgl Booking, Tgl Realisasi, Tgl Pencairan, Tgl Akad |
+| `Unit` *(v1.5)* | Kode unit 5 digit (mis. `31102`) atau nama kantor (mis. *KC Cikarang*) — otomatis jadi kode | Kode Unit, Kode Cabang, Cabang, Uker |
+| `NPP_RM` *(v1.5)* | NPP RM pengelola (5 digit) — dipakai filter NPP peran RM | NPP RM, NPP, NPP Pengelola, NPP AO |
+| `Segmen` *(v1.5)* | `SME` atau `SBP` (boleh "SBP - Small Business"). Kosong = ditentukan dari produk / peran RM pengelola | Segment, Segmentasi, LOB |
 | `ID_Debitur` | *Opsional (data lama)*. Dipakai sementara bila CIF / Rek Afil / Rek Pinjaman kosong | ID, No Pinjaman |
 
-**B. Menu Import** (Super Admin → Pengaturan → Import Data): tempel URL spreadsheet lama → **Pindai (dry-run)** → **Jalankan import**. Sumber hanya dibaca, kunci `CIF` (Debitur Umum) / `Rek_Afiliasi` (KUR PMI) mencegah baris ganda, teks berawalan `=`/`+`/`-`/`@` disimpan sebagai teks (bukan rumus), nomor WA diperbaiki (angka 0 di depan yang hilang dipulihkan), dan rumus di sheet tujuan dipertahankan. Import aman diulang sebelum *go-live* untuk menangkap data terbaru (delta).
+**B. Menu Import** (Super Admin → Pengaturan → Import Data): tempel URL spreadsheet lama → **Pindai (dry-run)** → **Jalankan import**. Sumber hanya dibaca, kunci `Rek_Pinjaman` (1 rekening pinjaman = 1 debitur; bila kosong → Rek Afil → CIF) mencegah baris ganda — **CIF yang sama dengan Rek Pinjaman berbeda diimpor sebagai pinjaman terpisah** dan didaftar di hasil pindai, teks berawalan `=`/`+`/`-`/`@` disimpan sebagai teks (bukan rumus), nomor WA diperbaiki (angka 0 di depan yang hilang dipulihkan), dan rumus di sheet tujuan dipertahankan. Import aman diulang sebelum *go-live* untuk menangkap data terbaru (delta).
 
 **Pemetaan kolom (v1.4)** — agar data sumber yang judul kolomnya berbeda tetap tampil benar di Daftar Debitur:
 
 1. Tempel URL / ID spreadsheet sumber → **Baca spreadsheet**. Muncul daftar sheet beserta jumlah barisnya.
-2. Ada 2 kartu: **Debitur Umum** (kunci CIF) dan **Debitur KUR PMI** (kunci Rek Afil, produk otomatis *KUR PMI*). Centang yang ingin diimpor, pilih **Sheet sumber** (mis. `JBA`) dan **Baris judul** (baris tempat judul kolom berada, biasanya 1).
-3. Klik **Atur kolom** → untuk setiap data di Daftar Debitur (Entitas / Nama debitur, Kontak, No. WA, CIF, Rek Pinjaman, Rek Afil, Produk, Plafon, Baki Debet, Angsuran, Saldo Blokir, Saldo Akhir, Jatuh Tempo, Kol. OJK, Status, RM, Opt-out WA; KUR PMI juga PT Penempatan) pilih asalnya:
+2. Ada 2 kartu: **Debitur Umum** (kunci Rek Pinjaman) dan **Debitur KUR PMI** (produk otomatis *KUR PMI*). Bila kedua kartu membaca **sheet yang sama**, cukup centang *Debitur Umum* (aplikasi memberi peringatan). Centang yang ingin diimpor, pilih **Sheet sumber** (mis. `JBA`) dan **Baris judul** (baris tempat judul kolom berada, biasanya 1).
+3. Klik **Atur kolom** → untuk setiap data di Daftar Debitur (Nama Debitur, Kontak, No. WA, CIF, Rek Pinjaman, Rek Afil, Produk, Plafon, Baki Debet, Angsuran, Saldo Blokir, Saldo Akhir, Jatuh Tempo, Kol, Status, RM, Opt-out WA, **Tgl Booking, Unit, NPP RM, Segmen**; KUR PMI juga PT Penempatan) pilih asalnya:
    - **Otomatis (judul dikenali)** — bawaan; judul seperti Nama, CIF, OS, Plafond, No HP dikenali sendiri;
    - **kolom sumber** — tampil sebagai huruf + judul, mis. `A · Nama Deb`. Pilihan disimpan berdasarkan **judul**, jadi tetap benar walau kolom di sumber digeser; kolom tanpa judul disimpan berdasarkan **huruf**;
    - **Isi tetap…** — satu nilai untuk semua baris (mis. RM = `Andi`);
    - **— Tidak diimpor —**.
    Kolom *Contoh nilai baris pertama* membantu memastikan pilihan sudah tepat.
-4. **Simpan pemetaan** (juga tersimpan otomatis saat Pindai / Import) → **Pindai (dry-run)**. Hasil pindai menampilkan **contoh hasil pemetaan** (3 baris pertama) per jenis debitur dengan asal kolomnya → bila sesuai, **Jalankan import**.
+4. **Simpan pemetaan** (juga tersimpan otomatis saat Pindai / Import) → **Pindai (dry-run)**. Hasil pindai menampilkan **contoh hasil pemetaan** (3 baris pertama) per jenis debitur dengan asal kolomnya, serta tabel **CIF sama dengan Rek Pinjaman berbeda** (v1.5) → bila sesuai, **Jalankan import**.
 
 Sheet `Debitur` gaya lama (1 sheet campuran) tetap bisa dipakai: centang *Debitur Umum*, pilih sheet-nya, dan biarkan **Produk = Otomatis** — debitur KUR PMI tetap dikenali dari kolom Produk.
 
-**C. Detail KUR PMI dari spreadsheet terpisah** (Pengaturan → Mitra KUR PMI → Sumber detail KUR PMI). Isi minimal kolom `Rek Afil`, lalu `Nama`, `Nama Perusahaan`, `Jangka Waktu` (angka = bulan), `Batch`. Nama & Nama Perusahaan dari spreadsheet ini menggantikan Nama & PT_PMI di sheet Debitur untuk debitur KUR PMI; data keuangan tetap dari sheet Debitur. Perubahan terbaca ±5 menit (pemicu `warmupCache`).
+**C. Debitur KUR PMI per PT (v1.5, disarankan)** — Pengaturan → **Mitra KUR PMI** → kartu **Sumber data KUR PMI per PT**. Cocok untuk spreadsheet database KUR PMI yang punya **1 sheet per PT** (mis. sheet `PT Minori Pemagang`, `PT Minori SSW`, `PT Aji`, `PT Nagomi`).
+
+1. Pastikan daftar PT di kartu atas sudah benar (nama PT = nama yang tampil di aplikasi).
+2. Tempel link spreadsheet database KUR PMI → **Baca spreadsheet**. Sheet tiap PT **dipilih otomatis** bila namanya sama dengan nama PT; ubah bila berbeda. Hapus centang PT yang tidak punya sheet.
+3. Isi **Baris judul** — baris tempat judul kolom berada (mis. **5** bila judul "Nama Deb" ada di sel **B5**).
+4. **Dicocokkan lewat**: *Otomatis* (Rek Afil → Rek Pinjaman → CIF) atau pilih salah satu. Baris PT yang cocok dengan base data **memperbarui** debitur itu (baki debet, kol, saldo tetap dari sheet Debitur bila tidak dipetakan); baris yang tidak cocok **ditambahkan** sebagai debitur KUR PMI baru.
+5. **Atur kolom** → pilih asal tiap data, mis. *Nama Debitur* ← `B · Nama Deb`, *Rek Afil* ← `C · No Rek Afiliasi`, *Batch* ← `D · Angkatan`, *Jangka Waktu* ← `E · Tenor`. Pilihan: *Otomatis*, kolom sumber, *Isi tetap…*, *Dari base data*. Kolom *Contoh* menampilkan nilai baris pertama.
+6. **Hubungkan** (setelah aktif: **Simpan & terapkan**). Daftar Debitur → **SBP → KUR PMI** menampilkan *"Data KUR PMI dari … — sheet per PT"* beserta jumlah per PT.
+
+> Selama sumber per PT aktif, **debitur KUR PMI di sheet Debitur yang tidak ada di sheet PT mana pun disembunyikan** (jumlahnya tampil untuk Super Admin di bilah sumber), dan PT yang tidak terdaftar tidak ditampilkan. Klik **Putuskan** untuk kembali ke cara lama. Perubahan di spreadsheet terbaca ±5 menit.
+
+**C2. Alternatif (cara lama v1.3): satu spreadsheet untuk semua PT** — Pengaturan → Mitra KUR PMI → buka **Alternatif: satu spreadsheet untuk semua PT** (hanya tampil bila sumber per PT tidak aktif). Isi minimal kolom `Rek Afil`, lalu `Nama`, `Nama Perusahaan`, `Jangka Waktu` (angka = bulan), `Batch`. Nama & Nama Perusahaan dari spreadsheet ini menggantikan Nama & PT_PMI di sheet Debitur untuk debitur KUR PMI; data keuangan tetap dari sheet Debitur. Perubahan terbaca ±5 menit (pemicu `warmupCache`).
 
 **Pemetaan kolom sumber KUR PMI (v1.4)**: bila judul kolom di spreadsheet KUR PMI berbeda (mis. `No Rek Afiliasi`, `Nama PMI`, `Tenor`) atau judulnya tidak di baris 1, isi **Baris judul** → buka **Pemetaan kolom** → **Baca kolom spreadsheet** → pilih asal kolom untuk *Rek Afil*, *Nama*, *Nama Perusahaan / PT Penempatan*, *Jangka Waktu*, *Batch* (Otomatis / kolom sumber / Isi tetap / Tidak diimpor) → **Hubungkan** atau **Perbarui**. Kartu sumber menampilkan kolom mana yang dipakai.
 
@@ -365,6 +447,17 @@ Sheet `Debitur` gaya lama (1 sheet campuran) tetap bisa dipakai: centang *Debitu
 
 **Peran & menu:** tab **Peran & Hak Akses Menu** — centang menu yang boleh dibuka tiap peran, atau **+ Tambah Peran**. Menu yang tidak dicentang hilang dari sidebar & bottom bar dan ditolak server.
 
+**B. Akses data per peran (v1.5)** — Pengaturan → **Akses Data** (Super Admin):
+
+| Bagian | Isi |
+|---|---|
+| Cakupan data per peran | **Segmen** Daftar Debitur (Semua / SME saja / SBP saja) dan **Hanya debitur dengan NPP RM sendiri** per peran. Bawaan: RM → SME + NPP sendiri; PRM / ARM → SBP; Business Banking Manager, Branch Manager, SME Credit Risk & peran lain → semua. Super Admin selalu melihat semua |
+| Kolom di sheet Debitur | Kolom yang dibaca sebagai **Unit**, **NPP RM**, **Segmen** (bawaan: dikenali otomatis dari judulnya) |
+| Produk per segmen | SME: BCM, CCC • SBP: BWU, CCC, KUR, KPP, KUR PMI (bisa diubah) |
+| Daftar unit | 15 kantor bawaan (31100 KCU Jababeka … 31166 KC Delta Mas) — **Tambah unit**, ubah nama, hapus, atau **Kembalikan bawaan** |
+
+Penyaringan dilakukan di **server** sebelum data dikirim ke perangkat, jadi debitur di luar cakupan tidak pernah sampai ke HP/laptop pengguna tersebut. **Simpan** → pengguna terkait memuat ulang data otomatis.
+
 **Ganti NPP:** **✏️ Edit** pengguna → ubah NPP. Sandi & authenticator ikut pindah; pengguna masuk dengan NPP baru.
 
 **1 akun = 1 perangkat:** login yang berhasil di perangkat baru menutup paksa sesi di perangkat lama.
@@ -406,6 +499,8 @@ Semua rahasia ada di **Apps Script → ⚙️ Setelan Proyek → Properti skrip*
 | `TURNSTILE_SECRET` | Super Admin lewat Pengaturan → Keamanan Sistem | Secret key Cloudflare Turnstile |
 | `GATEWAY_SECRET` | Super Admin lewat Pengaturan → Keamanan Sistem (sama dengan secret di Worker) | Rahasia gerbang Cloudflare Worker |
 | `PMI_SRC_ID`, `PMI_SRC_SHEET` | Super Admin lewat Mitra KUR PMI | ID spreadsheet KUR PMI (hanya dibaca) |
+| `PMI_PT_SRC` *(v1.5)* | Super Admin lewat Mitra KUR PMI → sumber per PT | ID spreadsheet database KUR PMI + sheet, baris judul & pemetaan kolom tiap PT (hanya dibaca) |
+| `PAK_DOC_ID`, `PAK_DOC_HASH`, `PAK_DOC_SYNC` *(v1.5)* | Otomatis saat **Edit di Word** | ID dokumen Google Docs format analisa & penanda sinkron |
 | `AKT_<NPP>` | Otomatis | Awal masa berlaku sandi awal |
 | `FOLDER_SURAT` | Otomatis | Folder Drive `📂 Template Surat` (file format surat Word) |
 | `SPREADSHEET_ID`, `ROOT_FOLDER_ID`, `EXPORTS_FOLDER` | Otomatis saat setup | ID database & folder (dicatat juga di sheet AppConfig) |
@@ -479,7 +574,7 @@ Pindahkan DNS domain ke Cloudflare (awan oranye / *Proxied*), arahkan subdomain 
 
 ## 6c. Halaman Analisa
 
-Halaman Analisa punya 2 tab: **Perangkat Analisa KUR PMI** (v1.4, tab bawaan) dan **Format Word** (v1.3).
+Halaman Analisa punya 2 tab: **Perangkat Analisa KUR PMI** (v1.4, tab bawaan) dan **Format Word** (v1.3). Sejak v1.5, format Perangkat Analisa juga bisa diedit langsung di Google Docs (**Bagian C**).
 
 ### A. Perangkat Analisa KUR PMI
 
@@ -526,6 +621,15 @@ File format surat disimpan di folder Drive `📂 Template Surat`; mengganti/meng
 
 > Pratinjau di aplikasi mendekati tampilan Word (teks, tabel, gambar, kop/kaki). Efek Word yang rumit (kotak teks melayang, WordArt, kolom koran) bisa tampil sedikit berbeda di pratinjau, tetapi **file Word hasil unduhan selalu memakai format asli**.
 
+### C. Edit di Word / Google Docs (v1.5, Super Admin)
+
+1. **Analisa → Perangkat Analisa KUR PMI → Edit di Word.** Aplikasi membuat dokumen **"Format Perangkat Analisa KUR PMI — FinSight"** di folder Drive `📂 Template Surat` lalu membukanya di tab baru. Super Admin aktif yang punya **email Google** di menu Pengguna otomatis mendapat akses edit (tanpa email pemberitahuan); pemilik akun Apps Script selalu bisa membukanya.
+2. Dokumen berisi tabel **Bagian | Isi | Kode**: penanda tangan, kantor & kredit, serta **semua kalimat** dokumen. **Ubah hanya kolom *Isi*** — jangan mengubah kolom *Kode* atau menghapus baris. Penanda seperti `{{nama}}` atau `{{plafond:rp}}` boleh dipakai di kalimat.
+3. Perubahan **masuk ke aplikasi otomatis** saat halaman Perangkat Analisa dibuka (diperiksa paling sering 1× per menit), atau klik **Sinkronkan**. Hanya bagian yang berubah yang diterapkan, lalu tercatat di Audit Log.
+4. Bilah status menampilkan waktu sinkron terakhir, **Buka dokumen**, **Unduh Word (.docx)**, **Sinkronkan**, dan **Buat ulang isi** (menimpa isi dokumen dengan format terkini di aplikasi — tautan tetap).
+
+> Tata letak 8 halaman (kop, tabel, posisi tanda tangan) tetap diatur aplikasi agar hasil cetak selalu rapi; yang diedit di dokumen adalah **isi teks** formatnya.
+
 ---
 
 ## 7. Sinkronisasi hampir real-time & pemicu otomatis
@@ -549,18 +653,25 @@ Browser memeriksa versi data setiap 30 detik (Pengaturan → `POLLING_DETIK`, 15
 |---|---|---|
 | Hak akses | Login sebagai Manager | Menu WA Blast, Template, Pengguna tidak tampil; buka `#/blast` dialihkan; server menolak aksi kirim |
 | Peran & menu | Cabut 1 menu dari RM, login sebagai RM | Menu hilang dari sidebar & bottom bar; alamatnya dialihkan |
-| Kunci CIF / Rek Afil | Gandakan 1 CIF di sheet Debitur | Baris kedua diabaikan; peringatan (nomor baris) tampil di Daftar Debitur untuk Super Admin |
+| Kunci Rek Pinjaman | Gandakan 1 Rek Pinjaman di sheet Debitur; buat 1 CIF dengan 2 Rek Pinjaman | Baris ganda diabaikan + peringatan (nomor baris) untuk Super Admin; CIF dengan 2 rekening tampil 2 baris |
 | Sumber KUR PMI | Ubah Batch di spreadsheet KUR PMI | Kolom Batch di Debitur KUR PMI ikut berubah ≤ 5 menit |
 | Turnstile / Gerbang | Aktifkan sesuai Bagian 6b; panggil URL `/exec` langsung | Login wajib verifikasi Cloudflare; panggilan langsung ditolak |
 | Analisa (Word) | Tab Format Word → pakai contoh format → template import → import 3 baris → unduh ZIP & gabung | 3 surat Word terisi, tanpa sisa `{{…}}` |
 | Perangkat Analisa KUR PMI | Template import → isi 3 debitur → Import → Cetak terpilih | 24 halaman A4 (8 per debitur); angsuran sama dengan sheet *SIM KUR* untuk plafond, jangka waktu & bunga yang sama |
 | Atur format | Ganti nama penanda tangan → Simpan format → buka pratinjau | Nama baru tampil di Perangkat Analisa, Call Memo & Check List |
 | Halaman login | Pengaturan → Logo Aplikasi → ukuran 120 px, centang/hapus centang nama & subjudul → Simpan logo → buka halaman login | Logo & teks sesuai pengaturan |
-| Pemetaan import | Pengaturan → Import Data → pilih sheet JBA, Entitas ← kolom A → Pindai | Contoh hasil pemetaan menampilkan nama dari kolom A |
+| Pemetaan import | Pengaturan → Import Data → pilih sheet JBA, Nama Debitur ← kolom A → Pindai | Contoh hasil pemetaan menampilkan nama dari kolom A |
 | Lihat sandi | Klik ikon mata di setiap kolom sandi | Sandi terlihat / tersembunyi |
 | 1 perangkat | Login akun yang sama di HP lalu di laptop | HP kembali ke halaman masuk dengan pesan "perangkat lain" |
 | Ganti NPP | Super Admin ganti NPP pengguna | Pengguna masuk dengan NPP baru, sandi & authenticator lama tetap |
-| KUR PMI | Buka Daftar Debitur → Debitur KUR PMI | Chip per PT + jumlah; Debitur Umum tidak memuat KUR PMI |
+| KUR PMI | Daftar Debitur → SBP → KUR PMI | Chip per PT + jumlah; SME tidak memuat KUR PMI |
+| KUR PMI per PT (v1.5) | Hubungkan database per PT, baris judul 5, Nama Debitur ← "Nama Deb" | Nama sesuai sheet PT; debitur yang tidak ada di sheet PT tidak tampil |
+| Akses data (v1.5) | Login sebagai RM (NPP terisi di `NPP_RM`) | Hanya sub menu SME; hanya debitur dengan NPP-nya di Dashboard, Daftar Debitur, Penagihan, pencarian |
+| Filter Unit (v1.5) | Daftar Debitur → Unit = 31102 - KC Cikarang | Jumlah sama dengan COUNTIF kolom Unit di sheet |
+| Penagihan (v1.5) | Unduh Excel, PDF, Cetak sebagai RM & Manager | Kolom Nama Debitur … Aksi Cepat, tanpa #; nominal Excel tetap angka penuh |
+| No HP (v1.5) | Detail Debitur → Tambah No HP → simpan | Nomor tersimpan di sheet `Kontak_Debitur` & tampil tersamar; tidak tertimpa import |
+| Nominal (v1.5) | Debitur dengan baki Rp 999.568.274 | Tabel: Rp 999,56 Jt; Detail: Rp 999.568.274 |
+| Edit di Word (v1.5) | Edit di Word → ubah 1 kalimat di Google Docs → buka lagi Perangkat Analisa | Kalimat baru tampil di pratinjau |
 | Login | NPP baru, sandi = NPP | Wajib ganti sandi → QR → kode 6 digit |
 | QR sekali pakai | Buka QR di 2 jendela, biarkan 3 menit, login ulang setelah aktif | QR lama ditolak; QR kedaluwarsa wajib dibuat ulang; QR tidak tampil lagi setelah aktif |
 | Keluar otomatis | Diamkan aplikasi 5 menit | Peringatan 30 detik → kembali ke halaman masuk |
@@ -600,7 +711,13 @@ Browser memeriksa versi data setiap 30 detik (Pengaturan → `POLLING_DETIK`, 15
 | Import analisa: baris dilewati | Kolom wajib (Nama, Perusahaan, NIK, Jangka Waktu, Plafond) kosong | Lengkapi baris yang disebutkan di ringkasan, import ulang |
 | Pemetaan: daftar kolom sumber kosong | Spreadsheet belum dibaca atau Baris judul salah | Klik **Baca spreadsheet** / **Baca kolom spreadsheet**, cek nomor Baris judul |
 | Detail KUR PMI "belum ditemukan" | Rek Afil di sheet Debitur tidak ada di spreadsheet KUR PMI | Samakan nomor Rek Afil (0 di depan boleh hilang) |
-| Debitur hilang dari daftar | CIF / Rek Afil ganda | Lihat peringatan kuning di Daftar Debitur (nomor baris) & perbaiki di sheet |
+| Debitur hilang dari daftar | Rek Pinjaman ganda (atau Rek Afil / CIF ganda bila Rek Pinjaman kosong) | Lihat peringatan kuning di Daftar Debitur (nomor baris) & perbaiki di sheet |
+| RM melihat 0 debitur (v1.5) | NPP di kolom `NPP_RM` tidak sama dengan NPP login RM, atau segmen RM tidak cocok | Periksa NPP di sheet (5 digit); Pengaturan → Akses Data → atur segmen / filter NPP peran tersebut |
+| PT KUR PMI tidak tampil (v1.5) | PT belum terdaftar di Mitra KUR PMI, sheet-nya tidak ada / tidak dicentang | Tambahkan PT di daftar Mitra, pilih sheet-nya → **Simpan & terapkan** |
+| Debitur KUR PMI lama hilang (v1.5) | Sumber per PT aktif dan debitur itu tidak ada di sheet PT mana pun | Normal — tambahkan ke sheet PT, atau periksa kolom pencocokan (Rek Afil / Rek Pinjaman) |
+| Edit di Word: "Drive API … disabled" / gagal membuat dokumen | Layanan Drive belum aktif di proyek Apps Script | Editor Apps Script → **Layanan +** → **Drive API** → Tambahkan → Simpan → Deploy versi baru → coba lagi |
+| Filter Unit kosong | Kolom `Unit` belum berisi data | Petakan *Unit* di Import Data atau isi kolom `Unit` di sheet |
+| "Aksi tidak dikenal" setelah upgrade v1.5 | Backend belum v1.5 / belum *Versi baru* / berkas `Akses` belum dibuat | Lakukan langkah **Upgrade A** lengkap → Deploy → Kelola deployment → Edit → **Versi baru** |
 | Data baru tidak muncul | Pemicu belum terpasang | Pengaturan → Sinkronisasi → *Pemicu aktif* harus 4; bila kosong jalankan setup lagi |
 | Tren Kol kosong | Snapshot baru 1 bulan | Normal — tren terisi otomatis tiap akhir bulan |
 | Pesan WA "Antre" terus | Mode Fonnte tanpa token / kuota habis | Isi token, cek kuota di menu Gateway |

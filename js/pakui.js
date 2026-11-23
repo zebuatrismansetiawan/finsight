@@ -6,7 +6,7 @@
    ========================================================================== */
 'use strict';
 
-const PKU = { k: null, ubah: false, muat: false, ts: 0, sel: new Set(), baris: '', f: { q: '', hal: 1, per: 10 }, edit: null, tab: 'ttd' };
+const PKU = { k: null, ubah: false, muat: false, ts: 0, sel: new Set(), baris: '', f: { q: '', hal: 1, per: 10 }, edit: null, tab: 'ttd', doc: null };
 
 const PAKUI = {
   data() { return AN.data[PAK.ID] || null; },
@@ -32,8 +32,9 @@ const PAKUI = {
           <small class="muted">8 halaman (Perangkat Analisa, Struktur Fasilitas, 2 Call Memo, Check List) • bunga ${esc(PAK.fmt(kr.bunga))}% efektif anuitas • ${U.num(k.kolom.length)} kolom data</small></div>
         <div class="row-g">
           <button class="btn btn-secondary btn-sm" data-act="pkSim">${ic('coins', 15)} Simulasi angsuran</button>
-          ${PKU.ubah ? `<button class="btn btn-secondary btn-sm" data-act="pkAtur">${ic('settings', 15)} Atur format</button>` : ''}
-        </div></div>
+          ${PKU.ubah ? `<button class="btn btn-secondary btn-sm" data-act="pkAtur">${ic('settings', 15)} Atur format</button>
+          <button class="btn btn-primary btn-sm" data-act="pkWord" title="Edit kalimat & isian format di Google Docs / Word">${ic('filetext', 15)} Edit di Word</button>` : ''}
+        </div></div>${PKU.ubah ? this.docBar() : ''}
       <div class="pk-ttd">${[['Dipersiapkan', t.prm], ['Mengetahui', t.bbm], ['Pemutus', t.bm], ['COP', t.cop]].map((x) => `<span class="pk-tg"><small>${x[0]}</small><b>${esc((x[1] || {}).nama || '—')}</b><i>${esc((x[1] || {}).jabatan || '')}</i></span>`).join('')}</div></div>`;
     h += `<div class="an-grid"><section class="card tbl-card" id="pkData"></section>
       <section class="card an-prev-c"><div class="an-prev-h"><b>Pratinjau dokumen</b><div class="row-g">
@@ -63,11 +64,51 @@ const PAKUI = {
     const r = await Api.call('analisa.pak.konfig', {});
     PKU.muat = false; PKU.ts = Date.now();
     if (!r.success) { U.toast(r.message, 'err'); return; }
-    const lama = JSON.stringify(PKU.k) + AN.aver;
+    const lama = JSON.stringify(PKU.k) + AN.aver + JSON.stringify(PKU.doc);
     PKU.k = r.data.konfig; PKU.ubah = r.data.bolehUbah;
+    PKU.doc = r.data.doc || null;                                // v1.5: status dokumen Google Docs (sinkron otomatis di server)
+    if (PKU.doc && PKU.doc.otomatis && PKU.doc.berubah && PKU.ubah) U.toast(`${PKU.doc.berubah} isian format diperbarui dari Google Docs.`, 'info', 5000);
     if (AN.aver && AN.aver !== r.data.aver) AN.data = {};
     AN.aver = r.data.aver;
-    if (App.halaman === 'analisa' && AN.jenis === 'pak' && lama !== JSON.stringify(PKU.k) + AN.aver) App.render({ tetap: true });
+    if (App.halaman === 'analisa' && AN.jenis === 'pak' && lama !== JSON.stringify(PKU.k) + AN.aver + JSON.stringify(PKU.doc)) App.render({ tetap: true });
+  },
+  /** v1.5: bilah status dokumen Google Docs (Super Admin). */
+  docBar() {
+    const { esc, ic } = U;
+    const d = PKU.doc;
+    if (!d || !d.ada) return `<div class="pk-doc">${ic('info', 14)}<span>${d && d.hilang ? 'Dokumen Google Docs sebelumnya tidak ditemukan (dihapus / dipindah ke sampah). ' : ''}Klik <b>Edit di Word</b> untuk membuat dokumen Google Docs berisi semua kalimat & isian format. Hasil edit masuk ke aplikasi otomatis; tata letak 8 halaman tetap.</span></div>`;
+    return `<div class="pk-doc on">${ic('link', 14, 'pos')}<span>Terhubung ke Google Docs • sinkron terakhir ${d.sinkron ? U.tglJam(d.sinkron) : '—'}${d.perlu ? ' • <b class="warn">ada perubahan belum disinkron</b>' : ''}</span>
+      <a class="lnk-a" href="${esc(d.url)}" target="_blank" rel="noopener noreferrer">${ic('ext', 13)} Buka dokumen</a><a class="lnk-a" href="${esc(d.docx)}" target="_blank" rel="noopener noreferrer">${ic('download', 13)} Unduh Word (.docx)</a>
+      <button class="btn-link sm" data-act="pkDocSinkron">${ic('refresh', 13)} Sinkronkan</button><button class="btn-link sm" data-act="pkDocUlang" title="Tulis ulang isi dokumen dari format aplikasi">${ic('undo', 13)} Buat ulang isi</button></div>`;
+  },
+  /** Isian format (efektif = ubahan Super Admin atau kalimat bawaan) untuk dokumen Google Docs. */
+  isiDoc() {
+    const k = PKU.k, t = k.ttd || {}, ka = k.kantor || {}, kr = k.kredit || {};
+    const isi = [];
+    const add = (kode, label, grup, nilai) => isi.push({ kode, label, grup, nilai: nilai === undefined || nilai === null ? '' : String(nilai) });
+    [['prm', 'Dipersiapkan oleh (ARM / PRM)'], ['bbm', 'Mengetahui'], ['bm', 'Keputusan Komite / Pemutus'], ['cop', 'Check List — kolom ketiga']].forEach((x) => {
+      add(`ttd.${x[0]}.nama`, x[1] + ' — Nama', 'Penanda tangan', (t[x[0]] || {}).nama);
+      add(`ttd.${x[0]}.jabatan`, x[1] + ' — Jabatan', 'Penanda tangan', (t[x[0]] || {}).jabatan);
+      if (x[0] === 'prm') add('ttd.prm.panjang', x[1] + ' — Jabatan lengkap (tabel verifikasi)', 'Penanda tangan', (t.prm || {}).panjang);
+    });
+    [['bank', 'Nama bank (kop Call Memo)'], ['cabang', 'Kantor cabang (kop Call Memo)'], ['unit', 'Sebutan unit ("BNI …" di Call Memo)'], ['booking', 'Booking Office'], ['kota', 'Kota (tanggal keputusan)'], ['formulir', 'Nomor formulir Call Memo']]
+      .forEach((x) => add('kantor.' + x[0], x[1], 'Kantor & kredit', ka[x[0]]));
+    [['bunga', 'Suku bunga per tahun (%)'], ['batas', 'Batas rasio kewajiban / gaji (%)'], ['negara', 'Negara penempatan bawaan'], ['perihal', 'Perihal / nama fasilitas'], ['jenis', 'Jenis / bentuk kredit'], ['keperluan', 'Keperluan (1.1.2)'], ['propisi', 'Propisi'], ['admin', 'Biaya administrasi']]
+      .forEach((x) => add('kredit.' + x[0], x[1], 'Kantor & kredit', kr[x[0]]));
+    Object.keys(PAK.TEKS).forEach((kk) => add('teks.' + kk, PAK.LABEL_TEKS[kk] || kk, 'Kalimat dokumen', (k.teks || {})[kk] !== undefined ? k.teks[kk] : PAK.TEKS[kk]));
+    return isi;
+  },
+  async word(ulang) {
+    const d = PKU.doc;
+    if (d && d.ada && !ulang) { window.open(d.url, '_blank', 'noopener'); return; }
+    const w = ulang ? null : window.open('about:blank', '_blank');       // buka tab dulu (hindari pemblokir pop-up)
+    if (w) w.document.write('<p style="font-family:Arial;padding:24px">Membuat dokumen Google Docs…</p>');
+    const r = await Api.call('analisa.pak.docs', { aksi: 'buat', ulang: !!ulang, isi: this.isiDoc(), appUrl: location.origin + location.pathname + '#/analisa' }, { timeout: 120000 });
+    if (!r.success) { if (w) w.close(); return U.toast(r.message, 'err', 7000); }
+    PKU.doc = r.data;
+    U.toast(r.message, 'ok', 5000);
+    if (w && r.data.url) w.location.href = r.data.url;
+    App.render({ tetap: true });
   },
   async muatData() {
     const r = await Api.call('analisa.data.list', { tpl: PAK.ID });
@@ -357,6 +398,21 @@ const PAKUI = {
       if (PKU.sel.has(PKU.baris)) PKU.baris = '';
       U.toast(r.message.replace('surat', 'analisa'), 'ok'); PKU.sel.clear();
       await PAKUI.muatData();
+    },
+    pkWord: () => PAKUI.word(false),
+    pkDocUlang: async () => {
+      if (!(await U.konfirmasi({ title: 'Buat ulang isi dokumen?', body: 'Isi Google Docs ditulis ulang dari format yang sekarang ada di aplikasi (tautan dokumen tetap). Perubahan di dokumen yang belum disinkronkan akan hilang.', ok: 'Buat ulang' }))) return;
+      PAKUI.word(true);
+    },
+    pkDocSinkron: async (el) => {
+      el.disabled = true;
+      const r = await Api.call('analisa.pak.docs', { aksi: 'sinkron' }, { timeout: 90000 });
+      el.disabled = false;
+      if (!r.success) return U.toast(r.message, 'err', 6000);
+      if (r.data.konfig) PKU.k = r.data.konfig;
+      if (r.data.aver && AN.aver !== r.data.aver) { AN.aver = r.data.aver; }
+      PKU.doc = { ada: r.data.ada, url: r.data.url, docx: r.data.docx, sinkron: r.data.sinkron, diubah: r.data.diubah, perlu: r.data.perlu };
+      U.toast(r.message, 'ok'); App.render({ tetap: true });
     },
     pkTabel: () => { const r = PKU.baris ? PAKUI.baris(PKU.baris) : null; PAKUI.simulasi(r ? r.d : null); },
     pkSim: () => PAKUI.simulasi(null),

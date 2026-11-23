@@ -20,7 +20,9 @@ const U = (() => {
   const num = (n) => nf0.format(Math.round(Number(n) || 0));
   const dec = (n, d = 1) => new Intl.NumberFormat('id-ID', { minimumFractionDigits: d, maximumFractionDigits: d }).format(Number(n) || 0);
   const rp = (n) => (n < 0 ? '-' : '') + 'Rp ' + num(Math.abs(n));
-  /** Rupiah ringkas: Rp 1,24 T / Rp 396,8 M / Rp 48,2 Jt / Rp 950 Rb */
+  /** Potong (bukan bulatkan) ke d desimal — nominal ringkas tidak pernah tampil lebih besar dari aslinya. */
+  const potong = (v, d) => { const f = Math.pow(10, d); return Math.floor(Math.abs(v) * f + 1e-6) / f; };
+  /** Rupiah ringkas: Rp 1,24 T / Rp 396,8 M / Rp 48,2 Jt / Rp 950 Rb (dipotong, mis. 999,57 Jt → Rp 999 Jt) */
   function rpS(n, opt = {}) {
     n = Number(n) || 0;
     const a = Math.abs(n), s = n < 0 ? '-' : '';
@@ -31,7 +33,17 @@ const U = (() => {
     else if (a >= 1e3) { v = a / 1e3; u = 'Rb'; }
     else return s + 'Rp ' + num(a);
     const d = v >= 100 ? 0 : v >= 10 ? 1 : 2;
-    return s + 'Rp ' + dec(v, d) + (opt.noUnit ? '' : ' ' + u);
+    return s + 'Rp ' + dec(potong(v, d), d) + (opt.noUnit ? '' : ' ' + u);
+  }
+  /** v1.5 — nominal tabel dalam Juta / M, 2 desimal dipotong: Rp 999.568.274 → "Rp 999,56 Jt", Rp 1 M → "Rp 1,00 M". */
+  function rpJ(n) {
+    n = Number(n) || 0;
+    const a = Math.abs(n), s = n < 0 ? '-' : '';
+    if (!a) return 'Rp 0';
+    if (a >= 1e12) return s + 'Rp ' + dec(potong(a / 1e12, 2), 2) + ' T';
+    if (a >= 1e9) return s + 'Rp ' + dec(potong(a / 1e9, 2), 2) + ' M';
+    if (a >= 1e4) return s + 'Rp ' + dec(potong(a / 1e6, 2), 2) + ' Jt';
+    return s + 'Rp ' + num(a);
   }
   function rpParts(n) {           // {angka, satuan} untuk KPI besar
     const s = rpS(n, { long: true });
@@ -251,7 +263,7 @@ const U = (() => {
 
   return {
     proper: (t) => properTeks(String(t || ''), { awal: true }), properAuto, mataAuto, pasangMata,
-    $, $$, esc, ic, num, dec, rp, rpS, rpParts, pct, tgl, tgl2, periodeLabel, jam, tglJam, isoLokal, selisihHari,
+    $, $$, esc, ic, num, dec, rp, rpS, rpJ, rpParts, pct, tgl, tgl2, periodeLabel, jam, tglJam, isoLokal, selisihHari,
     tambahHari, periodeGeser, debounce, inisial, unduh, b64ToBlob, salin, toast, modal, konfirmasi, initTip, BLN, BULAN
   };
 })();

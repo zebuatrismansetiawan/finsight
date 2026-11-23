@@ -875,3 +875,125 @@ mark.sr-isi { background: #FCE7F3; color: inherit; border-radius: 2px; }
 .src-peta-b { padding: 0 14px 12px; display: flex; flex-direction: column; gap: 10px; }
 @media (max-width: 760px) { .imp-src { flex-direction: column; align-items: stretch; } .imp-prof-f { width: 100%; } .imp-prof-f .fld { flex: 1 1 140px; } .imp-tbl td:first-child { width: auto; } }
 
+
+/* ==========================================================================
+   v1.5 — menu Daftar Debitur bertingkat, segmen SME/SBP, unit, salam,
+   pita produk rapi, pencarian HP, Penagihan, No HP, Akses Data, Edit di Word
+   ========================================================================== */
+/* --- menu samping bertingkat & dapat diciutkan */
+.nav-g { display: flex; flex-direction: column; }
+.nav-r { display: flex; align-items: center; gap: 2px; position: relative; }
+.nav-r > .nav-i, .nav-r > .nav-s { flex: 1; min-width: 0; }
+.nav-tg { flex: none; width: 28px; height: 28px; display: inline-flex; align-items: center; justify-content: center; border: 0; background: transparent; border-radius: 8px; color: var(--mut); cursor: pointer; transition: transform .18s, background .15s, color .15s; }
+.nav-tg:hover { background: var(--soft2); color: var(--tx); }
+.nav-tg.sm { width: 24px; height: 24px; }
+.nav-g.open > .nav-r > .nav-tg { transform: rotate(180deg); color: var(--pink-d); }
+.nav-g > .nav-sub, .nav-g > .nav-sub2 { display: none; }
+.nav-g.open > .nav-sub { display: flex; }
+.nav-g.open > .nav-sub2 { display: flex; }
+.nav-g.akar.on > .nav-r > .nav-i { background: var(--pink-bg); color: var(--pink-d); font-weight: 600; }
+.nav-sub2 { flex-direction: column; gap: 1px; margin: 1px 0 4px 18px; padding-left: 10px; border-left: 1.5px dashed var(--bd2); }
+.nav-s2 { display: flex; align-items: center; gap: 8px; padding: 5px 10px; border-radius: 8px; font-size: 12.5px; color: var(--tx2); text-decoration: none !important; }
+.nav-s2:hover { background: var(--soft2); color: var(--tx); } .nav-s2.on { color: var(--pink-d); font-weight: 600; background: #FFF5FA; }
+.dot-p { width: 7px; height: 7px; border-radius: 50%; background: var(--c); flex: none; box-shadow: 0 0 0 2px color-mix(in srgb, var(--c) 18%, #fff); }
+@media (max-width: 1279px) and (min-width: 768px) { .nav-tg { display: none; } .nav-g > .nav-sub, .nav-g.open > .nav-sub { display: none; } .nav-g.akar.on > .nav-r > .nav-i { justify-content: center; } }
+
+/* --- segmen & produk di halaman Daftar Debitur */
+.segwrap { display: flex; flex-direction: column; gap: 10px; }
+.segnav a.in { background: var(--pink-bg); color: var(--pink-d); }
+.prodnav { display: flex; gap: 8px; flex-wrap: wrap; }
+.prodnav a { --c: var(--pink-d); display: inline-flex; align-items: center; gap: 7px; padding: 6px 12px; border-radius: 99px; border: 1px solid var(--bd2); background: #fff; font-size: 12.5px; font-weight: 600; color: var(--tx2); text-decoration: none !important; white-space: nowrap; transition: background .15s, border-color .15s; }
+.prodnav a i { width: 8px; height: 8px; border-radius: 50%; background: var(--c); }
+.prodnav a em { font-style: normal; font-size: 11px; padding: 0 7px; border-radius: 99px; background: var(--soft); color: var(--tx2); }
+.prodnav a:hover { border-color: color-mix(in srgb, var(--c) 45%, #fff); color: var(--tx); }
+.prodnav a.on { background: color-mix(in srgb, var(--c) 12%, #fff); border-color: var(--c); color: var(--c); }
+.prodnav a.on em { background: #fff; color: var(--c); }
+.fgrid { grid-template-columns: 2fr repeat(5, minmax(0, 1fr)); }
+.fgrid.pmi { grid-template-columns: 2fr repeat(5, minmax(0, 1fr)); }
+@media (max-width: 1279px) { .fgrid, .fgrid.pmi { grid-template-columns: repeat(3, minmax(0, 1fr)); } .fgrid .f4, .fgrid.pmi .f4 { grid-column: span 3; } }
+@media (max-width: 767px) { .fgrid, .fgrid.pmi { grid-template-columns: 1fr 1fr; } .fgrid .f4, .fgrid.pmi .f4 { grid-column: span 2; } .prodnav { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 2px; } }
+
+/* --- salam & motivasi di Dashboard */
+.salam { display: flex; align-items: center; gap: 12px; width: 100%; margin-bottom: 10px; padding: 12px 16px; border-radius: 16px; background: linear-gradient(120deg, #FFF1F7 0%, #F5F0FF 100%); border: 1px solid #F5D0E6; }
+.salam-ic { flex: none; width: 40px; height: 40px; border-radius: 12px; display: inline-flex; align-items: center; justify-content: center; color: #fff; background: var(--grad); box-shadow: 0 8px 18px -8px rgba(219,39,119,.6); }
+.salam-t { min-width: 0; }
+.salam-t b { display: block; font-size: 15px; line-height: 21px; color: var(--tx); font-weight: 600; }
+.salam-n { font-weight: 800; letter-spacing: .01em; color: var(--pink-d); }
+.ph .salam-m, .salam-m { margin-top: 2px; font-size: 13px; line-height: 19px; color: var(--tx2); }
+@media (max-width: 767px) { .salam { padding: 10px 12px; gap: 10px; } .salam-ic { width: 34px; height: 34px; border-radius: 10px; } .salam-t b { font-size: 14px; line-height: 20px; } .salam-m { font-size: 12.5px; } }
+
+/* --- pita produk Dashboard: ringkas & tidak bertumpuk di laptop, tablet, HP */
+.ribbon { --n: 6; grid-template-columns: repeat(var(--n), minmax(0, 1fr)); gap: 12px; overflow: visible; }
+.rb { gap: 10px; padding: 10px 12px; min-width: 0; border-radius: 14px; }
+.rb-ic { width: 34px; height: 34px; border-radius: 10px; }
+.rb-t { gap: 1px; }
+.rb { container-type: inline-size; }
+.rb-h { flex-wrap: nowrap; font-size: 11px; line-height: 15px; } .rb-h b { color: var(--tx2); letter-spacing: .02em; white-space: nowrap; flex: none; }
+.rb-h .dl { flex: 0 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; }
+@container (max-width: 200px) { .rb-h .dl .ic { display: none; } .rb-h .dl { padding: 1px 5px; } }
+.rb-t > .rb-v { font-size: 14px; line-height: 19px; font-weight: 700; color: var(--tx); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rb-t small { font-size: 11px; line-height: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+@media (max-width: 1440px) { .ribbon { grid-template-columns: repeat(var(--n), minmax(0, 1fr)); overflow: visible; } }
+@media (max-width: 1279px) { .ribbon { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 767px) { .ribbon { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; } .rb { padding: 9px 10px; gap: 8px; } .rb-ic { width: 30px; height: 30px; } .rb-ic .ic { width: 16px; height: 16px; } .rb-h .dl { display: none; } }
+@media (max-width: 359px) { .ribbon { grid-template-columns: 1fr; } }
+
+/* --- hasil pencarian global (rapi di HP) */
+.gs-h { padding: 4px 8px 6px; font-size: 11px; font-weight: 600; color: var(--mut); text-transform: uppercase; letter-spacing: .06em; }
+.gs-i { align-items: center; }
+.gs-t { gap: 2px; }
+.gs-m { display: flex; flex-wrap: wrap; gap: 2px 10px; font-size: 11.5px; color: var(--tx2); }
+.gs-c { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; flex: none; }
+@media (max-width: 767px) {
+  .gs-drop { position: fixed; top: calc(var(--top) + 4px); left: 8px; right: 8px; max-height: calc(100dvh - var(--top) - 96px); overflow-y: auto; border-radius: 16px; padding: 6px; }
+  .gs-i { display: grid; grid-template-columns: 32px minmax(0, 1fr); grid-template-areas: 'av t' 'av c'; column-gap: 10px; row-gap: 6px; padding: 10px 8px; border-bottom: 1px solid var(--bd); border-radius: 0; }
+  .gs-i:last-of-type { border-bottom: 0; }
+  .gs-i > .avatar { grid-area: av; align-self: start; }
+  .gs-t { grid-area: t; } .gs-t b { white-space: normal; font-size: 14px; line-height: 19px; }
+  .gs-c { grid-area: c; flex-direction: row; align-items: center; flex-wrap: wrap; gap: 6px; }
+  .gs-all { padding: 12px; margin-top: 6px; }
+}
+
+/* --- Penagihan */
+.dl-g { display: inline-flex; gap: 6px; flex-wrap: wrap; }
+.tbl-tagih td.nw, .tbl-tagih .rek { white-space: nowrap; }
+.tbl-tagih .ent { min-width: 210px; }
+.tbl-tagih .num { white-space: nowrap; }
+.tbl-tagih .ind { display: flex; flex-direction: column; gap: 4px; align-items: flex-start; }
+@media (max-width: 767px) { .dl-g { width: 100%; } .dl-g .btn { flex: 1; justify-content: center; } }
+
+/* --- No HP di Detail Debitur */
+.dt-hp .hp-v { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 2px; }
+.dt-hp .hp-v .tag { font-size: 10.5px; }
+.dt-hp .hp-f { display: flex; gap: 8px; align-items: center; margin-top: 4px; flex-wrap: wrap; }
+.dt-hp .hp-f .inp { height: 36px; flex: 1 1 160px; min-width: 0; padding: 0 12px; border: 1px solid var(--bd2); border-radius: 10px; }
+.dt-hp small { display: block; margin-top: 4px; }
+
+/* --- Pengaturan: sumber KUR PMI per PT & Akses Data */
+.pt-src-l { display: flex; flex-direction: column; gap: 10px; margin-top: 12px; }
+.ak-tbl .sel { min-width: 170px; height: 36px; } .ak-tbl .inp { width: 100%; height: 34px; padding: 0 10px; border: 1px solid var(--bd2); border-radius: 9px; }
+.ak-prod { display: flex; flex-wrap: wrap; gap: 8px 14px; padding: 10px 12px; border: 1px solid var(--bd2); border-radius: 12px; background: #fff; }
+.chk.sm { font-size: 12.5px; }
+.ak-foot { position: sticky; bottom: 12px; z-index: 5; box-shadow: var(--sh2); }
+.ak-foot .card-f { border-top: 0; margin: 0; padding: 12px 16px; }
+
+/* --- Perangkat Analisa: Edit di Word (Google Docs) */
+.pk-doc { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 0 18px 14px; padding: 9px 12px; border-radius: 12px; background: var(--soft2); border: 1px dashed var(--bd2); font-size: 12.5px; color: var(--tx2); }
+.pk-doc.on { background: #F0FDF4; border: 1px solid #BBF7D0; color: #166534; }
+.pk-doc > span { flex: 1 1 260px; }
+.pk-doc .lnk-a, .pk-doc .btn-link { font-size: 12.5px; }
+
+/* --- halaman masuk: teks rata kanan-kiri & jarak logo ↔ judul */
+.lg-art h1 { text-align: left; text-wrap: balance; }
+.lg-art p { text-align: justify; text-align-last: left; hyphens: auto; -webkit-hyphens: auto; text-wrap: pretty; }
+.lg-logo.solo { padding: 0; }
+.lg-logo.solo + .lg-head, .lg-logo + .lg-head { margin-top: -4px; }
+.lg-logo.solo.rapat + .lg-head { margin-top: 2px; }
+.lg-head .lg-sub { margin-top: 4px; }
+@media (max-width: 767px) { .lg-art p { text-align: justify; } }
+
+/* v1.5: sumber KUR PMI cara lama (satu spreadsheet) sebagai alternatif yang bisa dibuka */
+.src-alt { margin-top: 16px; }
+.src-alt > summary { cursor: pointer; list-style: none; display: inline-flex; align-items: center; gap: 8px; padding: 8px 12px; border: 1px dashed var(--bd); border-radius: 10px; font-size: 13px; font-weight: 600; color: var(--tx2); }
+.src-alt > summary::-webkit-details-marker { display: none; }
+.src-alt[open] > summary { margin-bottom: 12px; }

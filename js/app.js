@@ -49,7 +49,9 @@ const M = (() => {
         oo: r[c.oo], rm: r[c.rm] || '', kl: r[c.kl] === null || r[c.kl] === undefined ? null : +r[c.kl],
         rp: c.rp === undefined ? '' : String(r[c.rp] || ''), ra: c.ra === undefined ? '' : String(r[c.ra] || ''),   // v1.1 (data lama: kosong)
         pt: c.pt === undefined ? '' : String(r[c.pt] || ''), il: c.il === undefined ? '' : String(r[c.il] || ''),   // v1.2
-        jw: c.jw === undefined ? '' : String(r[c.jw] || ''), bt: c.bt === undefined ? '' : String(r[c.bt] || ''), sx: c.sx === undefined ? 0 : +r[c.sx] || 0   // v1.3
+        jw: c.jw === undefined ? '' : String(r[c.jw] || ''), bt: c.bt === undefined ? '' : String(r[c.bt] || ''), sx: c.sx === undefined ? 0 : +r[c.sx] || 0,   // v1.3
+        tb: c.tb === undefined ? '' : String(r[c.tb] || ''), un: c.un === undefined ? '' : String(r[c.un] || ''), np: c.np === undefined ? '' : String(r[c.np] || ''),   // v1.5
+        sg: c.sg === undefined ? '' : String(r[c.sg] || ''), hm: c.hm === undefined ? 0 : +r[c.hm] || 0
       };
       // v1.3: id = CIF (Debitur Umum) / Rek Afil (KUR PMI); nomor rekening pinjaman tetap dari Rek_Pinjaman
       o.rek = o.rp || o.il || (c.jw === undefined ? o.id : '');
@@ -60,7 +62,7 @@ const M = (() => {
       o.risiko = o.fBlokir || o.fSaldo;
       o.kurang = o.aktif ? Math.max(0, o.an - o.sa) : 0;
       o.mv = o.aktif && o.kl ? o.kol - o.kl : 0;
-      o.q = (o.id + ' ' + o.nm + ' ' + o.cif + ' ' + o.pic + ' ' + o.pr + ' ' + o.rm + ' ' + o.rp + ' ' + o.ra + ' ' + o.pt + ' ' + o.il + ' ' + o.bt).toLowerCase();
+      o.q = (o.id + ' ' + o.nm + ' ' + o.cif + ' ' + o.pic + ' ' + o.pr + ' ' + o.rm + ' ' + o.rp + ' ' + o.ra + ' ' + o.pt + ' ' + o.il + ' ' + o.bt + ' ' + o.un + ' ' + o.np).toLowerCase();
       return o;
     });
   }
@@ -138,9 +140,33 @@ const M = (() => {
 })();
 
 // ============================================================================
+//  v1.5 — Segmen (SME / SBP), unit & cakupan data
+// ============================================================================
+const SEG = (() => {
+  const BAWAAN = { SME: ['BCM', 'CCC'], SBP: ['BWU', 'CCC', 'KUR', 'KPP', 'KUR PMI'] };
+  const NAMA = { SME: 'SME', SBP: 'SBP' };
+  const UNIT_BAWAAN = [['31100', 'KCU Jababeka'], ['31102', 'KC Cikarang'], ['31105', 'KC Mutiara Gading'], ['31107', 'KC Tambun'], ['31160', 'KC RE Martadinata'], ['31162', 'KC Cibitung'],
+    ['31106', 'KC Cikarang Baru'], ['31161', 'KC MM2100'], ['31163', 'KC Grandwisata'], ['31165', 'KC Wisma Asri'], ['31101', 'KC Bulak Kapal'], ['31103', 'KC Lippo Cikarang'], ['31104', 'KC Kalimas'],
+    ['31108', 'KC Cikarang Central City'], ['31166', 'KC Delta Mas']].map((x) => ({ k: x[0], n: x[1] }));
+  function akses() {
+    let a = null; try { a = JSON.parse(S.setting.AKSES_DATA || 'null'); } catch (e) { a = null; }
+    a = a && typeof a === 'object' ? a : {};
+    return { seg: a.seg && a.seg.SME ? a.seg : BAWAAN, unit: Array.isArray(a.unit) ? a.unit : UNIT_BAWAAN, peran: a.peran || {} };
+  }
+  /** Segmen yang boleh dibuka pengguna ini (server = sumber kebenaran, lihat S.cakupan). */
+  const milikku = () => { const c = S.cakupan || (S.ds && S.ds.cakupan); return c && c.s ? [c.s] : ['SME', 'SBP']; };
+  const produk = (seg) => (akses().seg[seg] || []).slice();
+  /** Debitur termasuk segmen? (kolom Segmen → produk; segmen belum diketahui tampil di kedua segmen produk itu) */
+  const masuk = (d, seg) => (d.sg ? d.sg === seg : produk(seg).includes(d.pr));
+  const units = () => akses().unit;
+  const namaUnit = (k) => { if (!k) return ''; const u = units().find((x) => x.k === k || x.n === k); return u ? (u.k && u.n ? u.k + ' - ' + u.n : u.n || u.k) : k; };
+  return { akses, milikku, produk, masuk, units, namaUnit, NAMA };
+})();
+
+// ============================================================================
 //  APLIKASI
 // ============================================================================
-const VERSI_APP = '1.4.0';   // versi frontend (config.js milik Anda tidak perlu diubah)
+const VERSI_APP = '1.5.0';   // versi frontend (config.js milik Anda tidak perlu diubah)
 const App = (() => {
   const { $, $$, esc, ic } = U;
   let halaman = 'dashboard';
@@ -150,14 +176,14 @@ const App = (() => {
   const kunciCache = () => 'fs_cache_' + (Api.DEMO ? 'demo_' : '') + ((S.me && S.me.npp) || (Api.sesi && Api.sesi.me && Api.sesi.me.npp) || 'x');
   function simpanLokal() {
     try {
-      localStorage.setItem(kunciCache(), JSON.stringify({ t: Date.now(), ver: S.ver, ds: S.ds, snap: S.snap, produk: S.produk, setting: S.setting, tpl: S.tpl, gw: S.gw, me: S.me, akses: S.akses, periodeIni: S.periodeIni }));
+      localStorage.setItem(kunciCache(), JSON.stringify({ t: Date.now(), ver: S.ver, ds: S.ds, snap: S.snap, produk: S.produk, setting: S.setting, tpl: S.tpl, gw: S.gw, me: S.me, akses: S.akses, periodeIni: S.periodeIni, cakupan: S.cakupan || null }));
     } catch (e) { /* kuota penuh → abaikan */ }
   }
   function muatLokal() {
     try {
       const c = JSON.parse(localStorage.getItem(kunciCache()) || 'null');
       if (!c || !c.ds || Date.now() - c.t > 7 * 86400e3) return false;
-      S.setting = c.setting || {}; S.produk = c.produk || []; S.snap = c.snap || []; S.tpl = c.tpl || []; S.gw = c.gw; S.me = S.me || c.me; if (!S.akses && c.akses) S.akses = c.akses;
+      S.setting = c.setting || {}; S.produk = c.produk || []; S.snap = c.snap || []; S.tpl = c.tpl || []; S.gw = c.gw; S.me = S.me || c.me; if (!S.akses && c.akses) S.akses = c.akses; if (c.cakupan) S.cakupan = c.cakupan;
       S.periodeIni = c.periodeIni || U.isoLokal(new Date()).slice(0, 7);
       S.hariIni = U.isoLokal(new Date());
       if (!S.periode) S.periode = S.periodeIni;
@@ -180,6 +206,7 @@ const App = (() => {
     S.me = d.me; S.setting = d.setting || {}; S.produk = d.produk || []; S.snap = d.snap || [];
     if (Array.isArray(d.akses)) S.akses = d.akses;
     S.periodeIni = d.periode; S.hariIni = d.hariIni; S.lver = d.lver; S.gw = d.gw;
+    if (d.cakupan) S.cakupan = d.cakupan;                       // v1.5: cakupan data peran (segmen & NPP)
     if (!S.periode || S.periode > S.periodeIni) S.periode = S.periodeIni;
     if (d.tpl) S.tpl = d.tpl;
     if (d.ds) terapkanData(d.ds);
@@ -290,9 +317,7 @@ const App = (() => {
     <aside class="side" id="side">
       <div class="side-top">
         <a class="brand${br.teks ? '' : ' no-teks'}" href="#/dashboard" style="--logo:${br.ukuran}px">${brandIsi(br)}</a>
-        <nav class="nav">${MENU.filter((m) => boleh(m[0])).map((m) => `<a href="#/${m[0]}" data-nav="${m[0]}" class="nav-i" title="${esc(m[1])}">${ic(m[2], 19)}<span class="nav-t">${esc(m[1])}</span>${m[0] === 'blast' ? '<span class="nav-badge">Baru</span>' : ''}${m[0] === 'risiko' ? '<span class="nav-cnt" id="navRisk"></span>' : ''}</a>${m[0] === 'debitur' ? `<div class="nav-sub">
-            <a href="#/debitur" data-sub="debitur" class="nav-s">${ic('users', 15)}<span>Debitur Umum</span></a>
-            <a href="#/debitur-pmi" data-sub="debitur-pmi" class="nav-s">${ic('plane', 15)}<span>Debitur KUR PMI</span></a></div>` : ''}`).join('')}</nav>
+        <nav class="nav">${navIsi()}</nav>
       </div>
       <div class="side-user">
         <div class="avatar">${esc(U.inisial(S.me.nama))}</div>
@@ -329,6 +354,42 @@ const App = (() => {
     updatePeriode(); updatePill(); notifikasi(); tandaiNav();
   }
 
+  function navIsi() {
+    return MENU.filter((m) => boleh(m[0])).map((m) => m[0] === 'debitur' ? navDebitur(m) : `<a href="#/${m[0]}" data-nav="${m[0]}" class="nav-i" title="${esc(m[1])}">${ic(m[2], 19)}<span class="nav-t">${esc(m[1])}</span>${m[0] === 'blast' ? '<span class="nav-badge">Baru</span>' : ''}${m[0] === 'risiko' ? '<span class="nav-cnt" id="navRisk"></span>' : ''}</a>`).join('');
+  }
+  /** Bangun ulang menu samping (mis. setelah produk segmen / cakupan berubah). */
+  function segarNav() { const n = $('.side .nav'); if (n) { n.innerHTML = navIsi(); tandaiNav(); } }
+  /** v1.5: menu Daftar Debitur bertingkat & dapat diciutkan — SME (BCM, CCC) / SBP (BWU, CCC, KUR, KPP, KUR PMI), sesuai peran. */
+  let navBuka = {};
+  try { navBuka = JSON.parse(localStorage.getItem('fs_nav') || '{}') || {}; } catch (e) { navBuka = {}; }
+  function simpanNav() { try { localStorage.setItem('fs_nav', JSON.stringify(navBuka)); } catch (e) { /* penuh */ } }
+  function navDebitur(m) {
+    const segs = SEG.milikku();
+    const grup = (seg) => {
+      const pr = SEG.produk(seg);
+      return `<div class="nav-g" data-grp="${seg}"><div class="nav-r"><a href="#/debitur?seg=${seg}" class="nav-s" data-sub="debitur|${seg}|">${ic(seg === 'SME' ? 'building' : 'store', 15)}<span>${esc(SEG.NAMA[seg])}</span></a>
+        <button type="button" class="nav-tg sm" data-g="navtg" data-k="${seg}" aria-label="Buka/ciutkan ${esc(SEG.NAMA[seg])}" aria-expanded="false">${ic('down', 14)}</button></div>
+        <div class="nav-sub2">${pr.map((p) => p === 'KUR PMI'
+          ? `<a href="#/debitur-pmi" class="nav-s2" data-sub="debitur-pmi||">${ic('plane', 13)}<span>KUR PMI</span></a>`
+          : `<a href="#/debitur?seg=${seg}&pr=${encodeURIComponent(p)}" class="nav-s2" data-sub="debitur|${seg}|${esc(p)}"><i class="dot-p" style="--c:${(S.prodMap[p] || {}).warna || '#94A3B8'}"></i><span>${esc(p)}</span></a>`).join('')}</div></div>`;
+    };
+    return `<div class="nav-g akar" data-grp="deb"><div class="nav-r"><a href="#/debitur" data-nav="debitur" class="nav-i" title="${esc(m[1])}">${ic(m[2], 19)}<span class="nav-t">${esc(m[1])}</span></a>
+      <button type="button" class="nav-tg" data-g="navtg" data-k="deb" aria-label="Buka/ciutkan Daftar Debitur" aria-expanded="false">${ic('down', 15)}</button></div>
+      <div class="nav-sub">${segs.map(grup).join('')}</div></div>`;
+  }
+  /** Parameter rute (#/debitur?seg=SME&pr=CCC). */
+  function param() { const q = (location.hash || '').split('?')[1] || ''; const o = {}; q.split('&').forEach((x) => { const [k, v] = x.split('='); if (k) o[k] = decodeURIComponent(v || ''); }); return o; }
+  function bukaNav() {
+    const p = param(), aktif = halaman === 'debitur' || halaman === 'debitur-pmi';
+    $$('.nav-g[data-grp]').forEach((g) => {
+      const k = g.dataset.grp;
+      const paksa = aktif && (k === 'deb' || (halaman === 'debitur' && p.seg === k) || (halaman === 'debitur-pmi' && k === 'SBP'));
+      const buka = navBuka[k] === undefined ? paksa : navBuka[k] || paksa;
+      g.classList.toggle('open', !!buka);
+      const b = g.querySelector(':scope > .nav-r > .nav-tg'); if (b) b.setAttribute('aria-expanded', buka ? 'true' : 'false');
+    });
+  }
+
   function updatePeriode() {          // v1.2: pemilih tanggal di bilah atas dihapus (tetap aman dipanggil)
     const el = $('#perTxt'); if (!el) return;
     const p = S.periode || S.periodeIni;
@@ -357,8 +418,11 @@ const App = (() => {
 
   function tandaiNav() {
     const induk = RUTE_INDUK[halaman] || halaman;
-    $$('.nav-i').forEach((a) => a.classList.toggle('on', a.dataset.nav === induk));
-    $$('.nav-s').forEach((a) => a.classList.toggle('on', a.dataset.sub === halaman));
+    const p = param(), kunci = halaman + '|' + (halaman === 'debitur' ? (p.seg || '') + '|' + (p.seg ? p.pr || '' : '') : '|');
+    $$('.nav-i').forEach((a) => a.classList.toggle('on', a.dataset.nav === induk && (induk !== 'debitur' || kunci === 'debitur||')));
+    $$('.nav-s, .nav-s2').forEach((a) => a.classList.toggle('on', a.dataset.sub === kunci));
+    $$(".nav-g.akar").forEach((g) => g.classList.toggle('on', induk === 'debitur'));
+    bukaNav();
     $$('.bn-i[data-bn]').forEach((a) => a.classList.toggle('on', a.dataset.bn === induk));
     const bm = $('.bn-menu');
     if (bm) bm.classList.toggle('on', !$$('.bn-i[data-bn]').some((a) => a.dataset.bn === induk));
@@ -455,7 +519,7 @@ const App = (() => {
   }
   async function muatMeta() {
     const r = await Api.call('boot', { ver: S.ver });
-    if (r.success) { terapkanBoot(r.data); simpanLokal(); segarBrand(); renderAman(); }
+    if (r.success) { terapkanBoot(r.data); simpanLokal(); segarBrand(); segarNav(); renderAman(); }
   }
   async function muatLog() {
     const q = S.logQ || {};
@@ -621,7 +685,9 @@ const App = (() => {
     if (!q) { drop.classList.remove('show'); return; }
     const hasil = [];
     for (const d of S.D) { if (d.q.includes(q)) { hasil.push(d); if (hasil.length >= 8) break; } }
-    drop.innerHTML = (hasil.length ? hasil.map((d) => `<button class="gs-i" data-id="${esc(d.id)}"><span class="avatar xs" style="--c:${(S.prodMap[d.pr] || {}).warna || '#64748B'}">${esc(U.inisial(d.nm))}</span><span class="gs-t"><b>${esc(d.nm)}</b><small>Rek ${esc(d.rek)}${d.cif ? ' • CIF ' + esc(d.cif) : ''}</small></span>${UI.prod(d.pr)}${UI.kol(d.kol, true)}</button>`).join('')
+    drop.innerHTML = (hasil.length ? `<div class="gs-h">${U.num(hasil.length)}${hasil.length >= 8 ? '+' : ''} debitur cocok</div>` + hasil.map((d) => `<button class="gs-i" data-id="${esc(d.id)}"><span class="avatar xs" style="--c:${(S.prodMap[d.pr] || {}).warna || '#64748B'}">${esc(U.inisial(d.nm))}</span>
+        <span class="gs-t"><b>${esc(d.nm)}</b><span class="gs-m">${d.rek ? `<span class="tnum">Rek ${esc(d.rek)}</span>` : ''}${d.cif ? `<span class="tnum">CIF ${esc(d.cif)}</span>` : ''}</span></span>
+        <span class="gs-c">${UI.prod(d.pr)}${d.aktif ? UI.kol(d.kol, true) : UI.status(d.st)}</span></button>`).join('')
       : `<div class="gs-empty">Tidak ada debitur cocok dengan “${esc(q)}”.</div>`) +
       `<button class="gs-all" data-all="1">${ic('search', 14)} Tampilkan semua hasil di Daftar Debitur</button>`;
     drop.classList.add('show');
@@ -661,8 +727,12 @@ const App = (() => {
         <div><span>Saldo blokir</span><b class="tnum ${d.fBlokir ? 'neg' : ''}">${d.sb === null ? 'Kosong' : U.rp(d.sb)}</b></div>
         <div><span>Saldo akhir</span><b class="tnum ${d.fSaldo ? 'neg' : ''}">${U.rp(d.sa)}</b></div>
         <div><span>Kol. awal bulan</span><b>${d.kl ? 'Kol. ' + d.kl : '—'}</b>${d.mv ? `<small class="${d.mv > 0 ? 'neg' : 'pos'}">${d.mv > 0 ? 'Turun' : 'Naik'} ${Math.abs(d.mv)} tingkat</small>` : ''}</div>
-        <div><span>Kontak</span><b>${esc(d.wa || '—')}</b><small>${esc(d.pic || '')}${d.wv ? '' : ' • nomor tidak valid'}</small></div>
-        ${d.rm ? `<div class="span2"><span>RM pengelola</span><b>${esc(d.rm)}</b></div>` : ''}
+        <div><span>Tgl booking</span><b>${d.tb ? U.tgl(d.tb) : '<span class="muted">—</span>'}</b></div>
+        <div class="span2 dt-hp" id="dtHp"><span>No. HP debitur</span>${hpIsi(d)}</div>
+        ${d.pic ? `<div><span>Kontak (PIC)</span><b>${esc(d.pic)}</b></div>` : ''}
+        ${d.un ? `<div><span>Unit</span><b>${esc(SEG.namaUnit(d.un))}</b></div>` : ''}
+        ${d.sg ? `<div><span>Segmen</span><b>${esc(d.sg)}</b></div>` : ''}
+        ${d.rm || d.np ? `<div class="span2"><span>RM pengelola</span><b>${esc(d.rm || '—')}</b>${d.np ? `<small class="tnum">NPP ${esc(d.np)}</small>` : ''}</div>` : ''}
       </div>
       <h5 class="dt-sub">Riwayat WA (30 hari)</h5>
       ${riw === null ? '<p class="muted">Riwayat sedang dimuat…</p>' : riw.length ? `<ul class="dt-log">${riw.map((r) => `<li>${UI.logStatus(r[9])}<span><b>${esc(r[8])}</b><small>${U.tglJam(r[2])} • oleh ${esc(r[4])}</small></span></li>`).join('')}</ul>` : '<p class="muted">Belum ada pesan WA.</p>'}`;
@@ -674,6 +744,39 @@ const App = (() => {
       if (b.dataset.x === 'salin') U.salin(d.rek || d.ra || d.cif);
       if (b.dataset.x === 'wa') { m.close(); blastKe([d.id], 'Detail debitur'); }
     });
+    pasangHp(m, d);
+  }
+
+  /** v1.5: No HP di Detail Debitur — semua peran hanya dapat menambah / mengganti No HP (data lain tetap dari base data). */
+  function hpIsi(d, form) {
+    if (form) return `<form class="hp-f" novalidate><input class="inp" id="hpIn" inputmode="tel" maxlength="16" placeholder="08xxxxxxxxxx" autocomplete="off" aria-label="Nomor HP debitur">
+      <button class="btn btn-primary btn-sm" type="submit">${ic('check', 14)} Simpan</button><button class="btn btn-ghost btn-sm" type="button" data-hp="batal">Batal</button></form>
+      <small class="muted">Nomor disimpan di sheet Kontak_Debitur (tidak tertimpa import) & tercatat di Audit_Log.</small>`;
+    return `<div class="hp-v">${d.wa ? `<b class="tnum">${esc(d.wa)}</b>${d.hm ? '<span class="tag">ditambahkan di aplikasi</span>' : ''}` : '<b class="muted">Belum ada</b>'}
+      <button class="btn btn-secondary btn-sm" type="button" data-hp="ubah">${ic(d.wa ? 'edit' : 'plus', 14)} ${d.wa ? 'Ganti No. HP' : 'Tambah No. HP'}</button></div>`;
+  }
+  function pasangHp(m, d) {
+    const box = m.el.querySelector('#dtHp');
+    if (!box) return;
+    const gambar = (form) => {
+      box.innerHTML = `<span>No. HP debitur</span>${hpIsi(d, form)}`;
+      const ub = box.querySelector('[data-hp="ubah"]'); if (ub) ub.onclick = () => { gambar(true); setTimeout(() => { const i = box.querySelector('#hpIn'); if (i) i.focus(); }, 30); };
+      const bt = box.querySelector('[data-hp="batal"]'); if (bt) bt.onclick = () => gambar(false);
+      const f = box.querySelector('form');
+      if (f) f.onsubmit = async (e) => {
+        e.preventDefault();
+        const v = box.querySelector('#hpIn').value.trim(), b = f.querySelector('[type="submit"]');
+        if (!/^(\+?62|0)?8\d{7,12}$/.test(v.replace(/[\s.-]/g, ''))) return U.toast('Nomor HP tidak valid. Contoh: 081234567890.', 'warn');
+        b.disabled = true; b.innerHTML = '<span class="spin"></span>';
+        const r = await Api.call('debitur.hp', { id: d.id, hp: v });
+        if (!r.success) { b.disabled = false; b.innerHTML = ic('check', 14) + ' Simpan'; return U.toast(r.message, 'err'); }
+        d.wa = r.data.wa; d.wv = 1; d.hm = 1;
+        gambar(false);
+        U.toast(r.message, 'ok');
+        await muatData(false);
+      };
+    };
+    gambar(false);
   }
 
   /** Bawa daftar ID ke halaman WA Blast (langkah 2: pilih template). */
@@ -726,6 +829,7 @@ const App = (() => {
         else if (a === 'sync-now') { S.syncing = true; updatePill(); await Sync.tick(true); S.syncing = false; updatePill(); }
         else if (a === 'reload') location.reload();
         else if (a === 'bantuan') bantuan();
+        else if (a === 'navtg') { const gr = g.closest('.nav-g'); const buka = !gr.classList.contains('open'); navBuka[g.dataset.k] = buka; simpanNav(); gr.classList.toggle('open', buka); g.setAttribute('aria-expanded', buka ? 'true' : 'false'); }
         else if (a === 'privasi') privasi();
         return;
       }
@@ -789,7 +893,7 @@ const App = (() => {
     } else mulai();
   }
 
-  return { init, mulai, render, go, detail, blastKe, eksporXlsx, eksporPdf, cetak, kosong, muatData, muatLog, simpanLokal, terapkanBoot, hapusLokal, tutupPopover, get halaman() { return halaman; }, logoSvg, logoHtml, brand, simpanBrand, segarBrand, pasangFavicon, aksesKu, boleh, labelPeran, keluarPaksa, aktif: () => Idle.reset(), Sync: () => Sync };
+  return { init, mulai, render, go, detail, blastKe, param, segarNav, eksporXlsx, eksporPdf, cetak, kosong, muatData, muatLog, simpanLokal, terapkanBoot, hapusLokal, tutupPopover, get halaman() { return halaman; }, logoSvg, logoHtml, brand, simpanBrand, segarBrand, pasangFavicon, aksesKu, boleh, labelPeran, keluarPaksa, aktif: () => Idle.reset(), Sync: () => Sync };
 })();
 
 document.addEventListener('DOMContentLoaded', App.init);

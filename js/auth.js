@@ -82,6 +82,41 @@ const Auth = (() => {
     return `${App.logoHtml(b, b.logo ? lu : Math.round(lu * 0.75))}${b.lt ? `<div><b>${esc(b.nama)}</b><span>${esc(b.sub)}</span></div>` : ''}`;
   }
   function kelasLogo() { return 'lg-logo' + (App.brand().lt ? '' : ' solo'); }
+  /** v1.5: buang ruang kosong (transparan / putih) di tepi logo agar jarak ke "Selamat Datang" rapat & rapi. */
+  const _rapat = {};
+  async function rapatkanLogo(url) {
+    if (!/^data:image\//.test(url || '')) return url;
+    if (_rapat[url]) return _rapat[url];
+    try {
+      const img = await new Promise((ok, no) => { const i = new Image(); i.onload = () => ok(i); i.onerror = no; i.src = url; });
+      const w = img.naturalWidth, h = img.naturalHeight;
+      if (!w || !h) return url;
+      const c = document.createElement('canvas'); c.width = w; c.height = h;
+      const g = c.getContext('2d'); g.drawImage(img, 0, 0);
+      const d = g.getImageData(0, 0, w, h).data;
+      const kosong = (x, y) => { const i = (y * w + x) * 4; return d[i + 3] < 20 || (d[i] > 242 && d[i + 1] > 242 && d[i + 2] > 242); };
+      const barisKosong = (y) => { for (let x = 0; x < w; x++) if (!kosong(x, y)) return false; return true; };
+      const kolomKosong = (x, t, b) => { for (let y = t; y <= b; y++) if (!kosong(x, y)) return false; return true; };
+      let t = 0, b = h - 1, l = 0, r = w - 1;
+      while (t < b && barisKosong(t)) t++;
+      while (b > t && barisKosong(b)) b--;
+      while (l < r && kolomKosong(l, t, b)) l++;
+      while (r > l && kolomKosong(r, t, b)) r--;
+      const cw = r - l + 1, ch = b - t + 1;
+      if (cw < w * 0.15 || ch < h * 0.15 || (cw === w && ch === h)) { _rapat[url] = url; return url; }
+      const pad = Math.max(2, Math.round(Math.max(cw, ch) * 0.03));
+      const o = document.createElement('canvas'); o.width = cw + pad * 2; o.height = ch + pad * 2;
+      o.getContext('2d').drawImage(c, l, t, cw, ch, pad, pad, cw, ch);
+      _rapat[url] = o.toDataURL('image/png');
+      return _rapat[url];
+    } catch (e) { return url; }
+  }
+  async function pasangLogoRapat() {
+    const im = document.querySelector('#lgLogo img.logo-img');
+    if (!im) return;
+    const asli = im.getAttribute('src'), baru = await rapatkanLogo(asli);
+    if (baru && baru !== asli && im.isConnected) { im.src = baru; im.closest('#lgLogo').classList.add('rapat'); }
+  }
   let brandDicek = false;
   async function cekBrand() {
     if (brandDicek) return;
@@ -94,7 +129,7 @@ const Auth = (() => {
       lt: r.data.lt === true, lu: Number(r.data.lu) || 96 });
     if ((r.data.ts || '') !== tsLama && st.langkah === 'LOGIN') { render(); return; }      // Turnstile baru diaktifkan/dimatikan
     const el = $('#lgLogo');
-    if (el && JSON.stringify(App.brand()) !== lama) { el.className = kelasLogo(); el.innerHTML = logoLogin(); }
+    if (el && JSON.stringify(App.brand()) !== lama) { el.className = kelasLogo(); el.innerHTML = logoLogin(); pasangLogoRapat(); }
   }
 
   function stepper() {
@@ -208,6 +243,7 @@ const Auth = (() => {
     pasang();
     jalankanHitungMundur();
     cekBrand();
+    pasangLogoRapat();
   }
 
   let demoTimer = null;

@@ -182,6 +182,11 @@ const XLSX = (() => {
               const w = (umum.STW || {})[v] || ['475569', 'F1F5F9'];
               return cell(ref, v, G.s(Object.assign(dasar, v ? { b: true, c: w[0], bg: w[1], ah: 'center' } : {})));
             }
+            case 'risk': {          // v1.5: indikator risiko penagihan berwarna
+              if (!v) return cell(ref, '', G.s(dasar));
+              const blk = /blokir/i.test(v);
+              return cell(ref, v, G.s(Object.assign(dasar, { b: true, wrap: true, c: blk ? 'BE123C' : 'B45309', bg: blk ? 'FFE4E6' : 'FEF3C7' })));
+            }
             default: return cell(ref, v, G.s(dasar));
           }
         }).join('');
