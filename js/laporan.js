@@ -209,9 +209,10 @@ ${ring.length ? `<table class="ring"><tr>${ring.map((r) => `<td><div class="kl">
     const k = [
       { h: 'No', t: 'no' },
       { h: 'Nama Debitur', t: 'ent', x: (d) => d.nm + '\n' + kontak(d), p: (d) => ({ v: d.nm, l2: kontak(d) }) },
-      { h: 'Rek Pinjaman', t: 'rek', x: (d) => d.rek || '' },
-      { h: 'Rek Afil', t: 'rek', x: (d) => d.ra || '' },
-      opsi.pt ? { h: 'PT Penempatan', t: 'teks', w: 20, x: (d) => (d.pt ? UI.namaPt(d.pt) : 'Belum diisi'), p: (d) => (d.pt ? UI.namaPt(d.pt) : { v: 'Belum diisi', c: 'mut' }) } : { h: 'Produk', t: 'prod', x: (d) => d.pr },
+      // v1.6: debitur SME per CIF (beberapa rekening) → semua rekening ditulis
+      { h: 'Rek Pinjaman', t: 'rek', x: (d) => (d.grup ? d.grup.map((z) => z.rek).filter(Boolean).join(', ') : d.rek || '') },
+      { h: 'Rek Afil', t: 'rek', x: (d) => (d.grup ? Array.from(new Set(d.grup.map((z) => z.ra).filter((v) => v && !/^0+$/.test(v)))).join(', ') || d.ra || '' : d.ra || '') },
+      opsi.pt ? null : { h: 'Produk', t: 'prod', x: (d) => (d.prs ? d.prs.join(', ') : d.pr) },   // v1.6: KUR PMI tanpa kolom PT (Perusahaan di Detail)
       opsi.pt ? { h: 'Batch', t: 'teks', w: 11, x: (d) => d.bt || '' } : null,
       opsi.pt ? { h: 'Jangka Waktu', t: 'teks', w: 12, x: (d) => d.jw || '' } : null,
       { h: 'Plafon', t: 'rp', sum: true, x: (d) => d.pl },

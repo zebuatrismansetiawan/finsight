@@ -997,3 +997,38 @@ mark.sr-isi { background: #FCE7F3; color: inherit; border-radius: 2px; }
 .src-alt > summary { cursor: pointer; list-style: none; display: inline-flex; align-items: center; gap: 8px; padding: 8px 12px; border: 1px dashed var(--bd); border-radius: 10px; font-size: 13px; font-weight: 600; color: var(--tx2); }
 .src-alt > summary::-webkit-details-marker { display: none; }
 .src-alt[open] > summary { margin-bottom: 12px; }
+
+/* ===================== v1.6 ===================== */
+/* 1. Detail Debitur di HP: 2 kolom ringkas seperti di laptop (tidak memanjang 1 kolom) */
+@media (max-width: 767px) {
+  .dt-grid { grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
+  .dt-grid .span2 { grid-column: span 2; }
+  .dt-grid > div { padding: 8px 10px; border-radius: 9px; min-width: 0; }
+  .dt-grid span { font-size: 10px; letter-spacing: .03em; }
+  .dt-grid b { font-size: 13.5px; line-height: 19px; overflow-wrap: anywhere; }
+  .dt-grid small { font-size: 11px; }
+  .dt-head { gap: 12px; margin-bottom: 10px; } .dt-head h4 { font-size: 16px; } .dt-head .avatar.lg { width: 46px; height: 46px; font-size: 16px; }
+  .dt-sub { margin: 14px 0 6px; }
+  .dt-hp .hp-v { gap: 8px; } .dt-hp .hp-f { flex-wrap: wrap; }
+}
+@media (max-width: 330px) { .dt-grid { grid-template-columns: 1fr; } .dt-grid .span2 { grid-column: span 1; } }
+
+/* 4. Debitur SME per CIF (beberapa rekening) */
+.t-rek { margin: 2px 0 0; background: color-mix(in srgb, var(--pink-d) 10%, #fff); color: var(--pink-d); font-size: 10.5px; padding: 1px 8px; }
+.ent .t-rek { display: inline-flex; width: fit-content; }
+.rek-more { display: block; font-size: 11px; color: var(--tx2); font-weight: 600; }
+.row-grup td { background-image: linear-gradient(90deg, color-mix(in srgb, var(--pink-d) 4%, transparent), transparent 40%); }
+.dt-lns { display: flex; flex-direction: column; gap: 10px; }
+.dt-ln { border: 1px solid var(--bd); border-radius: 12px; padding: 10px 12px; background: #fff; }
+.dt-ln.off { opacity: .65; }
+.dt-ln-h { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; } .dt-ln-h b { font-size: 14px; margin-right: auto; }
+.dt-grid.dt-sm { margin-top: 8px; gap: 8px; } .dt-grid.dt-sm > div { padding: 7px 10px; } .dt-grid.dt-sm b { font-size: 13px; }
+
+/* 5. Cek NPP & rekonsiliasi */
+.w-npp { max-width: 200px; }
+.cek-npp { display: grid; gap: 10px; }
+.cek-npp .src-st b { font-size: 14px; }
+.tbl tr.tot td { border-top: 2px solid var(--bd); background: var(--soft2); }
+.rekon .dt-sub { margin-top: 16px; }
+.rekon-ket { margin: 12px 0 0; padding-left: 18px; display: grid; gap: 4px; }
+td.warn { color: var(--warn); font-weight: 600; }

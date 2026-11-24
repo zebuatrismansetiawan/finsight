@@ -40,7 +40,8 @@ window.DemoAPI = (() => {
   // ---------- Dataset ----------
   const rows = [];
   let no = 10000;
-  PRODUK.forEach((p) => {
+  const EMP = ['Fuji Co., Ltd.', 'Toyota Boshoku Co., Ltd.', 'Daihatsu Motor Co., Ltd.', 'Kyowa Foods Co., Ltd.', 'Sakura Seiki K.K.', 'Yamato Logistics Co., Ltd.', 'Hokkaido Agri Farm', 'Nagoya Steel Works'];
+  const buatProduk = (p) => {
     const nL = Math.round(N_AKTIF[p.kode] * 0.12);
     for (let i = 0; i < N_AKTIF[p.kode] + nL; i++) {
       const lunas = i >= N_AKTIF[p.kode];
@@ -72,12 +73,33 @@ window.DemoAPI = (() => {
       // v1.3: kunci debitur (id) = CIF (Debitur Umum) / Rek Afil (KUR PMI)
       const id = p.kode === 'KUR PMI' ? ra : cif;
       rows.push([id, nm, cif, pilih(PIC), wa, wv ? 1 : 0, p.kode, pl, bd, jt, lunas ? 'Lunas' : 'Aktif', kol, sb, sa, an, rnd() < 0.02 ? 1 : 0, rmNm, kl, rp, ra, pt, '', '', '', 0,
-        tb, un === 'KC Grandwisata' ? '31163' : un, NPP_RM[rmNm] || '', sg, 0]);
-      if (p.kode === 'KUR PMI') EXT.set(ra, { jw: pilih(['12 bulan', '24 bulan', '36 bulan', '48 bulan']), bt: 'Batch ' + ri(1, 18), ada: rnd() < 0.93 });
+        tb, un === 'KC Grandwisata' ? '31163' : un, NPP_RM[rmNm] || '', sg, 0, '']);
+      if (p.kode === 'KUR PMI') EXT.set(ra, { jw: pilih(['12 bulan', '24 bulan', '36 bulan', '48 bulan']), bt: 'Batch ' + ri(1, 18), ada: rnd() < 0.93, pu: EMP[no % EMP.length] });
     }
-  });
+  };
+  PRODUK.forEach(buatProduk);
+  // v1.6: produk SME SCF & Other — sengaja TIDAK ada di master produk demo (frontend melengkapinya dari data)
+  N_AKTIF.SCF = 34; N_AKTIF.OTHER = 18; RANGE.SCF = [5e8, 8e9]; RANGE.OTHER = [1e8, 2e9]; SEG_DEMO.SCF = 'SME'; SEG_DEMO.OTHER = 'SME';
+  [{ kode: 'SCF' }, { kode: 'OTHER' }].forEach(buatProduk);
   rows.sort((a, b) => (a[0] < b[0] ? 1 : -1));
-  const COLS = ['id', 'nm', 'cif', 'pic', 'wa', 'wv', 'pr', 'pl', 'bd', 'jt', 'st', 'kol', 'sb', 'sa', 'an', 'oo', 'rm', 'kl', 'rp', 'ra', 'pt', 'il', 'jw', 'bt', 'sx', 'tb', 'un', 'np', 'sg', 'hm'];
+  const COLS = ['id', 'nm', 'cif', 'pic', 'wa', 'wv', 'pr', 'pl', 'bd', 'jt', 'st', 'kol', 'sb', 'sa', 'an', 'oo', 'rm', 'kl', 'rp', 'ra', 'pt', 'il', 'jw', 'bt', 'sx', 'tb', 'un', 'np', 'sg', 'hm', 'pu'];
+  // v1.6: debitur SME dengan CIF sama & beberapa rekening pinjaman (BCM; 1 CIF BCM + SCF; 1 CIF dengan Rek Afil sama)
+  (() => {
+    const bcm = rows.filter((r) => r[6] === 'BCM' && r[10] === 'Aktif').slice(0, 4);
+    bcm.forEach((a, j) => {
+      const nTambah = j === 0 ? 2 : 1;
+      for (let k = 1; k <= nTambah; k++) {
+        const b = a.slice(); no += 3; const rp = '10' + String(no).padStart(8, '0');
+        b[0] = a[2] + '-' + rp; b[18] = rp;
+        if (j === 3) b[6] = 'SCF';
+        b[7] = Math.round(a[7] * (0.3 + 0.2 * k) / 1e6) * 1e6; b[8] = Math.round(b[7] * 0.7 / 1e5) * 1e5; b[14] = Math.round(b[7] / 48 / 1e4) * 1e4; b[12] = b[14];
+        if (j === 1) b[13] = a[13];                              // rek afil sama → saldo akhir tidak dijumlah 2×
+        else { b[19] = '0' + String(no * 7).padStart(9, '0'); b[13] = b[14] * 3; }
+        b[9] = iso(new Date(Date.now() + (40 + k * 30) * 864e5)); b[25] = iso(new Date(Date.now() - (200 + k * 90) * 864e5)); b[11] = k === 2 ? 2 : a[11]; b[17] = b[11];
+        rows.push(b);
+      }
+    });
+  })();
   // v1.5: 1 CIF dengan 2 rekening pinjaman (demo)
   (() => { const a = rows.find((r) => r[6] === 'CCC' && r[10] === 'Aktif'); if (!a) return; const b = a.slice(); b[0] = a[2] + '-10' + String(no + 7).padStart(8, '0'); b[18] = '10' + String(no + 7).padStart(8, '0'); b[7] = Math.round(a[7] / 2); b[8] = Math.round(a[8] / 2); rows.push(b); })();
   let sumberPt = null;                                         // v1.5: sumber KUR PMI per PT (simulasi)
@@ -87,7 +109,9 @@ window.DemoAPI = (() => {
     rows.forEach((r) => {
       if (r[6] !== 'KUR PMI') return;
       const x = EXT.get(r[19]);
-      if (sumberPmi && x && x.ada) { r[22] = x.jw; r[23] = x.bt; r[24] = 1; } else { r[22] = ''; r[23] = ''; r[24] = 0; if (sumberPmi) tanpa++; }
+      const ptOn = !!(sumberPt && sumberPt[r[20]] && sumberPt[r[20]].aktif !== false);   // sumber per PT (sama dengan server)
+      if ((sumberPmi || ptOn) && x && x.ada) { r[22] = x.jw; r[23] = x.bt; r[24] = 1; } else { r[22] = ''; r[23] = ''; r[24] = ptOn ? 1 : 0; if (sumberPmi) tanpa++; }
+      r[30] = ptOn && x ? x.pu : '';                              // v1.6: Perusahaan (tempat kerja) dari sheet PT
     });
     return tanpa;
   }
@@ -97,12 +121,20 @@ window.DemoAPI = (() => {
     const vis = ptAktif ? rows.filter((r) => r[6] !== 'KUR PMI' || ptAktif.includes(r[20])) : rows;
     return { cols: COLS, rows: vis, n: vis.length, dibangun: Date.now(), periode: PERIODE, adaBaseline: true, ver,
     kunci: { dup: [], nDup: 0, tanpa: [], nTanpa: 0, pmiTanpaSumber: t, pmiDisembunyikan: rows.length - vis.length, multi: 1 }, sumberPmi: sumberPmi ? { nama: sumberPmi.nama, n: sumberPmi.n } : null,
-    kolom: { tb: true, un: true, np: true, sg: true }, sumberPt: sumberPt ? { nama: 'Database KUR PMI (demo)', galat: '', pt: Object.keys(sumberPt).map((n) => ({ nama: n, n: rows.filter((r) => r[6] === 'KUR PMI' && r[20] === n).length, galat: '' })) } : null }; };
+    rekon: rekonDemo(vis), kolom: { tb: true, un: true, np: true, sg: true, npH: 'NPP_RM', pu: !!sumberPt }, sumberPt: sumberPt ? { nama: 'Database KUR PMI (demo)', galat: '', pt: Object.keys(sumberPt).map((n) => ({ nama: n, n: rows.filter((r) => r[6] === 'KUR PMI' && r[20] === n).length, galat: '' })) } : null }; };
+  /** v1.6: rekonsiliasi per produk (sama bentuknya dengan server). KPP di "database" tertulis KPP DEMAND. */
+  function rekonDemo(vis) {
+    const sumber = {}, tampil = {}, cif = {};
+    rows.forEach((r) => { const raw = r[6] === 'KPP' ? 'KPP DEMAND' : r[6] === 'OTHER' ? 'OTHERS' : r[6]; const x = sumber[raw] || (sumber[raw] = { asli: raw, pr: r[6], n: 0, pl: 0, bd: 0, dup: 0, tanpa: 0 }); x.n++; x.pl += r[7]; x.bd += r[8]; });
+    vis.forEach((r) => { const x = tampil[r[6]] || (tampil[r[6]] = { pr: r[6], n: 0, cif: 0, aktif: 0, pl: 0, bd: 0 }); x.n++; if (r[10] === 'Aktif') x.aktif++; x.pl += r[7]; x.bd += r[8]; const k = r[6] + '|' + r[2]; if (!cif[k]) { cif[k] = 1; x.cif++; } });
+    const urut = (o) => Object.values(o).sort((a, b) => b.n - a.n);
+    return { sumber: urut(sumber), tampil: urut(tampil), pindah: {}, pmiSembunyi: rows.length - vis.length, pmiBaru: 0, baris: rows.length };
+  }
   // ---------- v1.5: cakupan data per peran (sama dengan server) ----------
-  const SEG_BAWAAN = { SME: ['BCM', 'CCC'], SBP: ['BWU', 'CCC', 'KUR', 'KPP', 'KUR PMI'] };
+  const SEG_BAWAAN = { SME: ['BCM', 'CCC', 'SCF', 'OTHER'], SBP: ['BWU', 'CCC', 'KUR', 'KPP', 'KUR PMI'] };
   const UNIT_BAWAAN = [['31100', 'KCU Jababeka'], ['31102', 'KC Cikarang'], ['31105', 'KC Mutiara Gading'], ['31107', 'KC Tambun'], ['31160', 'KC RE Martadinata'], ['31162', 'KC Cibitung'], ['31106', 'KC Cikarang Baru'], ['31161', 'KC MM2100'], ['31163', 'KC Grandwisata'], ['31165', 'KC Wisma Asri'], ['31101', 'KC Bulak Kapal'], ['31103', 'KC Lippo Cikarang'], ['31104', 'KC Kalimas'], ['31108', 'KC Cikarang Central City'], ['31166', 'KC Delta Mas']].map((x) => ({ k: x[0], n: x[1] }));
-  const aksesD = () => { let a = null; try { a = JSON.parse(setting.AKSES_DATA || 'null'); } catch (e) { a = null; } a = a || {}; return { unit: a.unit || UNIT_BAWAAN, kol: a.kol || {}, seg: a.seg || SEG_BAWAAN, peran: a.peran || {} }; };
-  const peranDef = (n) => { const l = String(n || '').toLowerCase(); if (/(^|[^a-z])(prm|arm)([^a-z]|$)/.test(l) || /program relationship/.test(l)) return { s: 'SBP', n: 0 }; if (l === 'rm' || /^rm([^a-z]|$)/.test(l) || /relationship manager/.test(l)) return { s: 'SME', n: 1 }; return { s: '', n: 0 }; };
+  const aksesD = () => { let a = null; try { a = JSON.parse(setting.AKSES_DATA || 'null'); } catch (e) { a = null; } a = a || {}; return { unit: a.unit || UNIT_BAWAAN, kol: a.kol || {}, seg: a.seg || SEG_BAWAAN, segV: 2, peran: a.peran || {} }; };
+  const peranDef = (n) => { const l = String(n || '').toLowerCase(); if (/(^|[^a-z])(prm|arm)([^a-z]|$)/.test(l) || /program relationship/.test(l)) return { s: 'SBP', n: 1 }; if (l === 'rm' || /^rm([^a-z]|$)/.test(l) || /relationship manager/.test(l)) return { s: 'SME', n: 1 }; return { s: '', n: 0 }; };
   const aturPeran = (p) => (p === 'Admin' ? { s: '', n: 0 } : aksesD().peran[p] || peranDef(p));
   const cakupan = (u) => { const p = aturPeran(u.peran); return { s: p.s || '', npp: p.n ? u.npp : '' }; };
   const sufiks = (sc) => (sc.s || sc.npp ? '|' + sc.s + '|' + sc.npp : '');
@@ -110,8 +142,9 @@ window.DemoAPI = (() => {
     const D = ds(), sc = cakupan(u);
     if (!sc.s && !sc.npp) return D;
     const a = aksesD();
-    const r = D.rows.filter((x) => (!sc.s || (x[28] ? x[28] === sc.s : (a.seg[sc.s] || []).includes(x[6]))) && (!sc.npp || x[27] === sc.npp));
-    return Object.assign({}, D, { rows: r, n: r.length, ver: ver + sufiks(sc), kunci: null, cakupan: { s: sc.s, npp: sc.npp, nppAktif: !!sc.npp, nppBelum: false } });
+    // v1.6: NPP login = kunci — bila filter NPP aktif, segmen tidak ikut menyaring
+    const r = D.rows.filter((x) => (sc.npp ? x[27] === sc.npp : (!sc.s || (x[28] ? x[28] === sc.s : (a.seg[sc.s] || []).includes(x[6])))));
+    return Object.assign({}, D, { rows: r, n: r.length, ver: ver + sufiks(sc), kunci: null, rekon: null, cakupan: { s: sc.s, npp: sc.npp, nppAktif: !!sc.npp, nppBelum: false } });
   };
   const verU = (u) => ver + sufiks(cakupan(u));
   const byId = () => { const m = {}; rows.forEach((r) => { m[r[0]] = r; }); return m; };
@@ -250,7 +283,7 @@ window.DemoAPI = (() => {
     'analisa.template.list': ['analisa'], 'analisa.template.ambil': ['analisa'], 'analisa.template.simpan': 'A', 'analisa.template.hapus': 'A',
     'analisa.data.list': ['analisa'], 'analisa.data.impor': ['analisa'], 'analisa.data.hapus': ['analisa'], 'analisa.catat': ['analisa'],
     'analisa.pak.konfig': ['analisa'], 'analisa.pak.simpan': 'A', 'import.info': 'A', 'import.peta': 'A', 'import.peta.simpan': 'A',
-    'analisa.pak.docs': 'A', 'akses.info': 'A', 'akses.simpan': 'A', 'pmi.pt.info': 'A', 'pmi.pt.baca': 'A', 'pmi.pt.simpan': 'A', 'pmi.pt.hapus': 'A'
+    'analisa.pak.docs': 'A', 'akses.info': 'A', 'akses.simpan': 'A', 'akses.cek': 'A', 'pmi.pt.info': 'A', 'pmi.pt.baca': 'A', 'pmi.pt.simpan': 'A', 'pmi.pt.hapus': 'A'
   };
   const boleh = (u, a) => { const r = ROLES[a]; if (!r || u.peran === 'Admin') return true; if (r === 'A') return false; const m = menuPeran(u.peran); return r.some((x) => m.includes(x)); };
 
@@ -336,15 +369,27 @@ window.DemoAPI = (() => {
         const peran = {}; Object.keys(peranAkses()).forEach((p) => { peran[p] = aturPeran(p); });
         return ok({ akses: aksesD(), header: ['Rek_Pinjaman', 'Nama', 'No_WA', 'Produk', 'PT_PMI', 'CIF', 'RM', 'Tgl_Booking', 'Unit', 'NPP_RM', 'Segmen'], kolom: { tb: true, un: true, np: true, sg: true }, hitung: n, perUnit, total: D.rows.length, peran, bawaan: { unit: UNIT_BAWAAN, seg: SEG_BAWAAN } });
       }
+      case 'akses.cek': {                                         // v1.6: sama dengan server
+        const npp = String(d.npp || '').replace(/\D/g, '').replace(/^0+(?=\d)/, '');
+        if (!npp || npp.length > 5) return fail('Isi NPP (maksimal 5 digit), mis. 67221.', 'VALIDATION');
+        const n5 = npp.padStart(5, '0'), D = ds();
+        const ringkas = (L) => { const per = {}, cf = {}; L.forEach((r) => { const x = per[r[6]] || (per[r[6]] = { pr: r[6], n: 0, cif: 0, pl: 0, bd: 0, sme: 0, sbp: 0 }); x.n++; x.pl += r[7]; x.bd += r[8]; if (r[28] === 'SME') x.sme++; else if (r[28] === 'SBP') x.sbp++; const k = r[6] + '|' + r[2]; if (!cf[k]) { cf[k] = 1; x.cif++; } }); return Object.values(per).sort((a, b) => b.n - a.n); };
+        const milik = D.rows.filter((r) => r[27] === n5), us = users.find((x) => x.npp === n5);
+        let lihat = null;
+        if (us) { const L = us.peran === 'Admin' ? D.rows : dsUntuk(us).rows, sc = cakupan(us); lihat = { segmen: sc.s, filterNpp: !!sc.npp, nppAktif: !!sc.npp, n: L.length, produk: ringkas(L) }; }
+        const hit = {}; D.rows.forEach((r) => { const k = r[27] || '(kosong)'; hit[k] = (hit[k] || 0) + 1; });
+        const contoh = Object.keys(hit).sort((a, b) => hit[b] - hit[a]).slice(0, 12).map((k) => { const p = users.find((x) => x.npp === k); return { npp: k, n: hit[k], nama: p ? p.nama : '', peran: p ? p.peran : '' }; });
+        return ok({ npp: n5, adaNpp: true, kolom: 'NPP_RM', total: D.rows.length, n: milik.length, produk: ringkas(milik), pengguna: us ? { nama: us.nama, peran: us.peran, status: us.status } : null, lihat, contoh });
+      }
       case 'akses.simpan': {
         const a = d.akses || {};
-        setting.AKSES_DATA = JSON.stringify({ unit: (a.unit || []).filter((x) => x.k || x.n), kol: a.kol || {}, seg: a.seg || SEG_BAWAAN, peran: a.peran || {} });
+        setting.AKSES_DATA = JSON.stringify({ unit: (a.unit || []).filter((x) => x.k || x.n), kol: a.kol || {}, seg: a.seg || SEG_BAWAAN, segV: 2, peran: a.peran || {} });
         ver = String(Date.now()); sver = String(Date.now());
         return ok({ akses: aksesD(), ver, setting }, 'Pengaturan akses data disimpan. Berlaku langsung untuk semua pengguna.');
       }
       case 'pmi.pt.info': {
         const daftar = JSON.parse(setting.PMI_PT || '[]');
-        const judul = [['A', 'No', '1'], ['B', 'Nama Deb', 'Siti Contoh'], ['C', 'No Rek Afiliasi', '0533001122'], ['D', 'Angkatan', 'Batch 9'], ['E', 'Tenor', '36']].map((x) => ({ kol: x[0], h: x[1], contoh: x[2] }));
+        const judul = [['A', 'No', '1'], ['B', 'Nama Deb', 'Siti Contoh'], ['C', 'No Rek Afiliasi', '0533001122'], ['D', 'Angkatan', 'Batch 9'], ['E', 'Tenor', '36'], ['F', 'Perusahaan', 'Fuji Co., Ltd.']].map((x) => ({ kol: x[0], h: x[1], contoh: x[2] }));
         if (!sumberPt) return ok({ aktif: false, daftar, lama: !!sumberPmi });
         return ok({ aktif: true, url: 'https://docs.google.com/spreadsheets/d/demo/edit', nama: 'Database KUR PMI (demo)', galat: '', sheets: daftar.concat(['Fuji Co., Ltd.']), disembunyikan: 0, lama: false,
           pt: daftar.map((n) => { const c = sumberPt[n] || { aktif: true, sheet: n, baris: 5, kunci: 'auto', kolom: {} }; return Object.assign({ nama: n, tersimpan: !!sumberPt[n], n: rows.filter((r) => r[6] === 'KUR PMI' && r[20] === n).length, cocok: rows.filter((r) => r[6] === 'KUR PMI' && r[20] === n).length, baru: 0, galat: '', judul, pakai: { nm: 'B · Nama Deb', ra: 'C · No Rek Afiliasi', bt: 'D · Angkatan', jw: 'E · Tenor' } }, c); }) });
@@ -353,7 +398,7 @@ window.DemoAPI = (() => {
         if (!String(d.url || '').trim()) return fail('Tempel link spreadsheet KUR PMI yang valid.', 'VALIDATION');
         const daftar = JSON.parse(setting.PMI_PT || '[]');
         const out = { nama: 'Database KUR PMI (demo)', sheets: daftar.concat(['Fuji Co., Ltd.']) };
-        if (d.sheet) { const b = Math.max(1, +d.baris || 1); out.baris = b; out.n = 40; out.judul = b === 5 ? [['A', 'No', '1'], ['B', 'Nama Deb', 'Siti Contoh'], ['C', 'No Rek Afiliasi', '0533001122'], ['D', 'Angkatan', 'Batch 9'], ['E', 'Tenor', '36']].map((x) => ({ kol: x[0], h: x[1], contoh: x[2] })) : [{ kol: 'A', h: 'DATA DEBITUR KUR PMI', contoh: '' }]; }
+        if (d.sheet) { const b = Math.max(1, +d.baris || 1); out.baris = b; out.n = 40; out.judul = b === 5 ? [['A', 'No', '1'], ['B', 'Nama Deb', 'Siti Contoh'], ['C', 'No Rek Afiliasi', '0533001122'], ['D', 'Angkatan', 'Batch 9'], ['E', 'Tenor', '36'], ['F', 'Perusahaan', 'Fuji Co., Ltd.']].map((x) => ({ kol: x[0], h: x[1], contoh: x[2] })) : [{ kol: 'A', h: 'DATA DEBITUR KUR PMI', contoh: '' }]; }
         return ok(out);
       }
       case 'pmi.pt.simpan': {

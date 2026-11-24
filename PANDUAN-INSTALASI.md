@@ -1,10 +1,63 @@
-# Panduan Instalasi FinSight v1.5.0
+# Panduan Instalasi FinSight v1.6.0
 
 Monitoring Portofolio Kredit & Penagihan — Google Apps Script (backend REST API) + frontend PWA (GitHub Pages / Vercel) + Cloudflare (opsional, disarankan)
 
 ---
 
-## ⬆️ Upgrade dari v1.4.0 ke v1.5.0 (aplikasi yang sudah berjalan)
+## ⬆️ Upgrade dari v1.5.0 ke v1.6.0 (aplikasi yang sudah berjalan)
+
+Data, akun, kata sandi, authenticator, token Fonnte, logo, URL `/exec`, **Cloudflare Worker, `GATEWAY_SECRET`, dan `js/config.js` Anda tidak berubah.** Tidak ada kolom/sheet baru yang wajib dibuat. Fitur lain di luar 5 poin di bawah tidak diubah.
+
+**Yang berubah di v1.6.0**
+
+| # | Perubahan |
+|---|---|
+| 1 | **Detail Debitur di HP** tampil **2 kolom ringkas** seperti di laptop (sebelumnya 1 kolom memanjang) |
+| 2 | **KUR PMI — Perusahaan**: data baru **Perusahaan** (tempat debitur bekerja, mis. *Fuji Co., Ltd.*) diambil dari sheet PT di database KUR PMI dan **dapat diatur kolomnya** di **Pengaturan → Mitra KUR PMI → Atur kolom** tiap PT (PT Minori Pemagang, PT Minori SSW, PT Aji, PT Nagomi, dan PT tambahan). Judul "Perusahaan" / "Nama Perusahaan" dikenali otomatis |
+| 3 | **Daftar Debitur KUR PMI** tidak lagi menampilkan kolom PT Penempatan. **Perusahaan** (dan Mitra KUR PMI) tampil saat nama debitur diklik (**Detail Debitur**). Excel/PDF/Cetak mengikuti tabel |
+| 4 | **SME**: sub menu **SME → BCM, CCC, SCF, OTHER**. Debitur SME dengan **CIF sama & lebih dari 1 Rek Pinjaman tampil 1 baris** (label *"n rekening"*) dengan **total** Plafon, Baki Debet, Angsuran, Saldo Blokir, Saldo Akhir (Kol = terburuk, Jatuh Tempo = terdekat). Klik nama → Detail berisi total + **rincian tiap rekening** (Rek Pinjaman, Plafon, Baki Debet, Angsuran, Jatuh Tempo, Saldo Blokir, Saldo Akhir, Kol. awal bulan, Tgl booking). Debitur SBP tetap 1 baris per rekening |
+| 5 | **Data cocok dengan database**: (a) produk database dinormalkan — **KPP DEMAND → KPP**, **OTHERS → OTHER**, SCF; produk yang ada di data tetapi belum ada di master produk (BCM, SCF, OTHER) ikut tampil di Dashboard & filter. (b) **NPP login = kunci**: bila filter NPP aktif, pengguna menerima **semua** debitur yang NPP RM pengelolanya = NPP login-nya (apa pun segmen/produknya) — mis. ARM/PRM 67221 melihat BWU, KUR & KPP miliknya walau perannya tercatat "RM". NPP di data dibaca toleran (`061531`, `61531.0`, `NPP 61531`). (c) Bawaan **PRM / ARM = SBP + NPP sendiri**. (d) Alat cek baru: **Pengaturan → Akses Data → Cek NPP** dan **Pengaturan → Sinkronisasi & Data → Cek kecocokan data per produk** |
+
+**A. Backend (Apps Script)** — ganti **3 berkas** saja
+
+1. Buka proyek Apps Script FinSight. Ganti **seluruh isi** berkas **`Kode`, `Data`, `Akses`** dengan berkas baru dari paket.
+   (`Auth`, `Ekspor`, `Setup`, `Keamanan`, `Migrasi`, `Blast`, `Analisa`, `appsscript.json` **tidak berubah**.)
+2. Simpan (Ctrl+S). **Tidak perlu** menjalankan `setupAppEnvironment`.
+3. **Deploy → Kelola deployment → ✏️ Edit → Versi: Versi baru → Deploy.** (URL `/exec` tetap sama.)
+
+**B. Frontend (Vercel / GitHub Pages)**
+
+1. Ekstrak `finsight-frontend-v1.6.0.zip` ke folder baru → **pilih semua isinya** (Ctrl+A) → salin (Ctrl+C) → buka folder repository `finsight` → tempel (Ctrl+V) → pilih **"Replace the files in the destination / Ganti file di tujuan"** (**jangan Skip**). ZIP tidak berisi `js/config.js`.
+2. Dari terminal di folder repository, pastikan berkas benar-benar terganti:
+   ```bash
+   git status
+   ```
+   Harus muncul **modified** antara lain `index.html`, `sw.js`, `css/style.css`, `js/app.js`, `js/pages.js`, `js/akses.js`, `js/laporan.js`. Lalu:
+   ```bash
+   git add .
+   git commit -m "FinSight v1.6.0"
+   git push
+   ```
+3. Tunggu Vercel **Ready** → buka **https://finsightbbjba.vercel.app/sw.js** harus tertulis `finsight-v1.6.0` → buka aplikasi → **Ctrl+Shift+R** → footer **v1.6.0**.
+
+**C. Setelah upgrade (Super Admin)**
+
+| # | Tugas | Di mana |
+|---|---|---|
+| 1 | Petakan **Perusahaan** tiap PT | **Pengaturan → Mitra KUR PMI → Sumber data KUR PMI per PT → Atur kolom** (tiap PT) → baris **Perusahaan (tempat kerja)** ← kolom "Perusahaan" di sheet PT → **Simpan & terapkan** |
+| 2 | Pastikan filter NPP peran RM & PRM/ARM | **Pengaturan → Akses Data** → centang **Hanya debitur dengan NPP RM sendiri** untuk RM dan PRM / ARM → **Simpan** |
+| 3 | Uji NPP pengguna | **Akses Data → Cek NPP** → ketik mis. `67221` → bandingkan jumlah per produk dengan pivot database; baris "Setelah login menerima … debitur" harus sama |
+| 4 | Cocokkan angka dengan pivot database | **Sinkronisasi & Data → Cek kecocokan data per produk** — kolom *Baris*, *Plafon* (makskrd), *Baki debet* per nilai produk/flag di sheet Debitur |
+
+> **Catatan v1.6**
+> - Bila jumlah di aplikasi berbeda dengan pivot database, lihat tabel rekonsiliasi: kolom **Ganda** (Rek Pinjaman sama dihitung 1×), **Tanpa kunci**, baris **Pindah ke KUR PMI** (rekening KUR yang cocok dengan sheet PT mitra), dan apakah sheet Debitur sudah di-import ulang dari database terbaru (**Import Data → Jalankan import**).
+> - **Jumlah debitur SME** di Daftar Debitur dihitung **per CIF** (rekening ganda digabung); Dashboard, Kualitas Kredit & Penagihan tetap per rekening pinjaman.
+> - **Saldo Akhir** total per CIF dijumlah per **rekening afiliasi** (rekening afiliasi yang sama tidak dihitung dua kali).
+> - Pengaturan segmen yang disimpan di v1.5 otomatis mendapat **SCF & OTHER** di SME; bisa diubah di Akses Data.
+
+<details>
+<summary><b>Riwayat: upgrade dari v1.4.0 ke v1.5.0</b></summary>
+
 
 Data, akun, kata sandi, authenticator, token Fonnte, logo, URL `/exec`, **Cloudflare Worker, `GATEWAY_SECRET`, dan `js/config.js` Anda tidak berubah.** Fitur lain di luar 16 poin di bawah tidak diubah.
 
@@ -65,6 +118,8 @@ Data, akun, kata sandi, authenticator, token Fonnte, logo, URL `/exec`, **Cloudf
 > - **RM yang belum punya data NPP**: filter NPP baru berlaku setelah kolom `NPP_RM` **berisi data**. Selama kolom masih kosong, RM melihat semua debitur segmen SME (Pengaturan → Akses Data menampilkan peringatan). Setelah terisi, RM hanya melihat debitur dengan NPP-nya — pastikan NPP di sheet sama dengan NPP login RM.
 > - **Segmen CCC**: CCC ada di SME dan SBP. Segmennya diambil dari kolom `Segmen` bila terisi; bila kosong, dari peran RM pengelola (NPP RM → RM = SME, PRM/ARM = SBP).
 > - **Grafik tren Kol bulanan** tidak ditampilkan untuk peran dengan filter NPP aktif, karena snapshot disimpan per produk, bukan per RM. Peran dengan filter segmen saja tetap melihat tren produk segmennya.
+
+</details>
 
 <details>
 <summary><b>Riwayat: upgrade dari v1.3.0 ke v1.4.0</b></summary>
@@ -302,7 +357,7 @@ HP / Laptop  →  Vercel / GitHub Pages (frontend PWA)  ──fetch JSON──�
 | `Analisa.gs` | Apps Script | Perangkat Analisa KUR PMI (format, penanda tangan, data import massal) & format surat Word (Drive) |
 | `worker.js` (+ `wrangler.toml` opsional) | **Cloudflare Workers — bukan Apps Script** | Gerbang API (lihat Bagian 6b). Jangan ditempel ke editor Apps Script |
 | `appsscript.json` | Apps Script | Zona waktu Asia/Jakarta & setelan Web App |
-| `finsight-frontend-v1.5.0.zip` | GitHub Pages / Vercel | Isi folder ini = isi repository (index.html di root). Tidak berisi `js/config.js` — instalasi baru: buat `js/config.js` sesuai langkah 3.2 |
+| `finsight-frontend-v1.6.0.zip` | GitHub Pages / Vercel | Isi folder ini = isi repository (index.html di root). Tidak berisi `js/config.js` — instalasi baru: buat `js/config.js` sesuai langkah 3.2 |
 
 > **Mode demo.** Sebelum backend terpasang, frontend otomatis berjalan dengan data fiktif. Buka `index.html` lewat server lokal atau GitHub Pages lalu login dengan NPP `10001` (Super Admin), `20001` (RM), atau `30001` (Manager). Kata sandi pertama = NPP. Kode authenticator demo ditampilkan di layar.
 
@@ -389,9 +444,11 @@ Sheet `Debitur` gaya lama (1 sheet campuran) tetap bisa dipakai: centang *Debitu
 2. Tempel link spreadsheet database KUR PMI → **Baca spreadsheet**. Sheet tiap PT **dipilih otomatis** bila namanya sama dengan nama PT; ubah bila berbeda. Hapus centang PT yang tidak punya sheet.
 3. Isi **Baris judul** — baris tempat judul kolom berada (mis. **5** bila judul "Nama Deb" ada di sel **B5**).
 4. **Dicocokkan lewat**: *Otomatis* (Rek Afil → Rek Pinjaman → CIF) atau pilih salah satu. Baris PT yang cocok dengan base data **memperbarui** debitur itu (baki debet, kol, saldo tetap dari sheet Debitur bila tidak dipetakan); baris yang tidak cocok **ditambahkan** sebagai debitur KUR PMI baru.
-5. **Atur kolom** → pilih asal tiap data, mis. *Nama Debitur* ← `B · Nama Deb`, *Rek Afil* ← `C · No Rek Afiliasi`, *Batch* ← `D · Angkatan`, *Jangka Waktu* ← `E · Tenor`. Pilihan: *Otomatis*, kolom sumber, *Isi tetap…*, *Dari base data*. Kolom *Contoh* menampilkan nilai baris pertama.
+5. **Atur kolom** → pilih asal tiap data, mis. *Nama Debitur* ← `B · Nama Deb`, **Perusahaan (tempat kerja)** ← `F · Perusahaan` *(v1.6)*, *Rek Afil* ← `C · No Rek Afiliasi`, *Batch* ← `D · Angkatan`, *Jangka Waktu* ← `E · Tenor`. Pilihan: *Otomatis*, kolom sumber, *Isi tetap…*, *Dari base data*. Kolom *Contoh* menampilkan nilai baris pertama.
 6. **Hubungkan** (setelah aktif: **Simpan & terapkan**). Daftar Debitur → **SBP → KUR PMI** menampilkan *"Data KUR PMI dari … — sheet per PT"* beserta jumlah per PT.
 
+> **Perusahaan** (tempat kerja, mis. *Fuji Co., Ltd.*) hanya tampil di **Detail Debitur** KUR PMI, bersama **Mitra KUR PMI (PT)**. Daftar Debitur KUR PMI dikelompokkan per mitra lewat chip di atas tabel.
+>
 > Selama sumber per PT aktif, **debitur KUR PMI di sheet Debitur yang tidak ada di sheet PT mana pun disembunyikan** (jumlahnya tampil untuk Super Admin di bilah sumber), dan PT yang tidak terdaftar tidak ditampilkan. Klik **Putuskan** untuk kembali ke cara lama. Perubahan di spreadsheet terbaca ±5 menit.
 
 **C2. Alternatif (cara lama v1.3): satu spreadsheet untuk semua PT** — Pengaturan → Mitra KUR PMI → buka **Alternatif: satu spreadsheet untuk semua PT** (hanya tampil bila sumber per PT tidak aktif). Isi minimal kolom `Rek Afil`, lalu `Nama`, `Nama Perusahaan`, `Jangka Waktu` (angka = bulan), `Batch`. Nama & Nama Perusahaan dari spreadsheet ini menggantikan Nama & PT_PMI di sheet Debitur untuk debitur KUR PMI; data keuangan tetap dari sheet Debitur. Perubahan terbaca ±5 menit (pemicu `warmupCache`).
@@ -451,9 +508,10 @@ Sheet `Debitur` gaya lama (1 sheet campuran) tetap bisa dipakai: centang *Debitu
 
 | Bagian | Isi |
 |---|---|
-| Cakupan data per peran | **Segmen** Daftar Debitur (Semua / SME saja / SBP saja) dan **Hanya debitur dengan NPP RM sendiri** per peran. Bawaan: RM → SME + NPP sendiri; PRM / ARM → SBP; Business Banking Manager, Branch Manager, SME Credit Risk & peran lain → semua. Super Admin selalu melihat semua |
+| Cakupan data per peran | **Segmen** Daftar Debitur (Semua / SME saja / SBP saja) dan **Hanya debitur dengan NPP RM sendiri** per peran. Bawaan: RM → SME + NPP sendiri; PRM / ARM → SBP + NPP sendiri (v1.6); Business Banking Manager, Branch Manager, SME Credit Risk & peran lain → semua. Super Admin selalu melihat semua. **NPP = kunci (v1.6)**: bila filter NPP aktif & kolom NPP RM berisi data, pengguna menerima semua debitur dengan NPP RM = NPP login-nya, apa pun segmennya |
+| Cek NPP (v1.6) | Ketik NPP → jumlah rekening/CIF/plafon/baki per produk dengan NPP RM itu, pemilik NPP (nama & peran), dan jumlah debitur yang ia terima setelah login. Bila 0, tampil nilai NPP terbanyak di data untuk memeriksa format kolom |
 | Kolom di sheet Debitur | Kolom yang dibaca sebagai **Unit**, **NPP RM**, **Segmen** (bawaan: dikenali otomatis dari judulnya) |
-| Produk per segmen | SME: BCM, CCC • SBP: BWU, CCC, KUR, KPP, KUR PMI (bisa diubah) |
+| Produk per segmen | SME: BCM, CCC, SCF, OTHER • SBP: BWU, CCC, KUR, KPP, KUR PMI (bisa diubah) |
 | Daftar unit | 15 kantor bawaan (31100 KCU Jababeka … 31166 KC Delta Mas) — **Tambah unit**, ubah nama, hapus, atau **Kembalikan bawaan** |
 
 Penyaringan dilakukan di **server** sebelum data dikirim ke perangkat, jadi debitur di luar cakupan tidak pernah sampai ke HP/laptop pengguna tersebut. **Simpan** → pengguna terkait memuat ulang data otomatis.
@@ -543,7 +601,7 @@ Darurat (halaman masuk tidak bisa dipakai, mis. hostname salah): editor Apps Scr
 
 ### B. Gerbang Cloudflare Worker (±20 menit, sangat disarankan)
 
-1. Cloudflare → **Workers & Pages** → **Create** → **Create Worker** → nama `finsight-gateway` → **Deploy** → **Edit code** → hapus isi bawaan → tempel isi **`worker.js`** dari paket → **Deploy**.
+1. Cloudflare → **Workers & Pages** → **Create** → **Create Worker** (*Start with Hello World* — **jangan** pilih *Import a repository*, karena repository GitHub Anda berisi frontend, bukan Worker) → nama `finsight-gateway` → **Deploy** → **Edit code** → hapus isi bawaan → tempel isi **`worker.js`** dari paket → **Deploy**.
 2. Di FinSight: **Pengaturan → Keamanan Sistem → Gerbang Cloudflare Worker** → **Buat rahasia** (otomatis tersalin).
 3. Worker → **Settings → Variables and Secrets** → **Add**:
    | Nama | Tipe | Isi |
@@ -653,7 +711,7 @@ Browser memeriksa versi data setiap 30 detik (Pengaturan → `POLLING_DETIK`, 15
 |---|---|---|
 | Hak akses | Login sebagai Manager | Menu WA Blast, Template, Pengguna tidak tampil; buka `#/blast` dialihkan; server menolak aksi kirim |
 | Peran & menu | Cabut 1 menu dari RM, login sebagai RM | Menu hilang dari sidebar & bottom bar; alamatnya dialihkan |
-| Kunci Rek Pinjaman | Gandakan 1 Rek Pinjaman di sheet Debitur; buat 1 CIF dengan 2 Rek Pinjaman | Baris ganda diabaikan + peringatan (nomor baris) untuk Super Admin; CIF dengan 2 rekening tampil 2 baris |
+| Kunci Rek Pinjaman | Gandakan 1 Rek Pinjaman di sheet Debitur; buat 1 CIF dengan 2 Rek Pinjaman | Baris ganda diabaikan + peringatan (nomor baris) untuk Super Admin; CIF dengan 2 rekening: SBP tampil 2 baris, SME 1 baris "2 rekening" (v1.6) |
 | Sumber KUR PMI | Ubah Batch di spreadsheet KUR PMI | Kolom Batch di Debitur KUR PMI ikut berubah ≤ 5 menit |
 | Turnstile / Gerbang | Aktifkan sesuai Bagian 6b; panggil URL `/exec` langsung | Login wajib verifikasi Cloudflare; panggilan langsung ditolak |
 | Analisa (Word) | Tab Format Word → pakai contoh format → template import → import 3 baris → unduh ZIP & gabung | 3 surat Word terisi, tanpa sisa `{{…}}` |
@@ -666,12 +724,17 @@ Browser memeriksa versi data setiap 30 detik (Pengaturan → `POLLING_DETIK`, 15
 | Ganti NPP | Super Admin ganti NPP pengguna | Pengguna masuk dengan NPP baru, sandi & authenticator lama tetap |
 | KUR PMI | Daftar Debitur → SBP → KUR PMI | Chip per PT + jumlah; SME tidak memuat KUR PMI |
 | KUR PMI per PT (v1.5) | Hubungkan database per PT, baris judul 5, Nama Debitur ← "Nama Deb" | Nama sesuai sheet PT; debitur yang tidak ada di sheet PT tidak tampil |
-| Akses data (v1.5) | Login sebagai RM (NPP terisi di `NPP_RM`) | Hanya sub menu SME; hanya debitur dengan NPP-nya di Dashboard, Daftar Debitur, Penagihan, pencarian |
+| Akses data (v1.5–1.6) | Login sebagai RM (NPP terisi di `NPP_RM`) | Hanya debitur dengan NPP-nya (SME maupun SBP) di Dashboard, Daftar Debitur, Penagihan, pencarian; sub menu mengikuti debiturnya |
 | Filter Unit (v1.5) | Daftar Debitur → Unit = 31102 - KC Cikarang | Jumlah sama dengan COUNTIF kolom Unit di sheet |
 | Penagihan (v1.5) | Unduh Excel, PDF, Cetak sebagai RM & Manager | Kolom Nama Debitur … Aksi Cepat, tanpa #; nominal Excel tetap angka penuh |
 | No HP (v1.5) | Detail Debitur → Tambah No HP → simpan | Nomor tersimpan di sheet `Kontak_Debitur` & tampil tersamar; tidak tertimpa import |
 | Nominal (v1.5) | Debitur dengan baki Rp 999.568.274 | Tabel: Rp 999,56 Jt; Detail: Rp 999.568.274 |
 | Edit di Word (v1.5) | Edit di Word → ubah 1 kalimat di Google Docs → buka lagi Perangkat Analisa | Kalimat baru tampil di pratinjau |
+| Detail di HP (v1.6) | Buka Detail Debitur di HP | Kotak 2 kolom ringkas, tidak memanjang |
+| Perusahaan KUR PMI (v1.6) | Atur kolom PT → Perusahaan ← "Perusahaan" → buka Detail debitur KUR PMI | Perusahaan sesuai database (mis. Abdul Majid → Fuji Co., Ltd.); daftar tanpa kolom PT |
+| SME per CIF (v1.6) | Debitur BCM dengan 2 Rek Pinjaman (CIF sama) | 1 baris "2 rekening" dengan total; Detail menampilkan kedua rekening |
+| NPP = kunci (v1.6) | Login ARM/PRM 67221 | BWU, KUR, KPP dengan NPP RM 67221 tampil; jumlah = Cek NPP 67221 |
+| Rekonsiliasi (v1.6) | Sinkronisasi & Data → Cek kecocokan data | Baris, Plafon, Baki per produk = pivot database (KPP DEMAND → KPP) |
 | Login | NPP baru, sandi = NPP | Wajib ganti sandi → QR → kode 6 digit |
 | QR sekali pakai | Buka QR di 2 jendela, biarkan 3 menit, login ulang setelah aktif | QR lama ditolak; QR kedaluwarsa wajib dibuat ulang; QR tidak tampil lagi setelah aktif |
 | Keluar otomatis | Diamkan aplikasi 5 menit | Peringatan 30 detik → kembali ke halaman masuk |
@@ -703,6 +766,7 @@ Browser memeriksa versi data setiap 30 detik (Pengaturan → `POLLING_DETIK`, 15
 | Apps Script tidak bisa disimpan: *SyntaxError: Unexpected token 'export'* (berkas `Worker.gs`) | `worker.js` (kode Cloudflare) ikut ditempel ke Apps Script | Di Apps Script: ⋮ di samping `Worker.gs` → **Hapus** → Ctrl+S. `worker.js` dipasang di Cloudflare (Bagian 6b) |
 | "Akses langsung ke server ditolak" | Gerbang aktif, tetapi `GAS_URL` masih ke `/exec` atau rahasia Worker berbeda | Arahkan `GAS_URL` ke Worker / samakan `GATEWAY_SECRET`; darurat: `matikanGerbang` |
 | Kotak Turnstile tidak muncul / gagal | Hostname widget tidak cocok | Tambahkan hostname aplikasi di widget Turnstile; darurat: `matikanTurnstile` |
+| GitHub menampilkan ✗ **Workers Builds: finsight-gateway** setiap push (log: *Could not read package.json*) | Worker gerbang tersambung ke repository frontend (Git integration), jadi Cloudflare mencoba mem-build Worker dari folder frontend | Cloudflare → Workers & Pages → `finsight-gateway` → **Settings → Build → Git repository → Disconnect**. Worker tetap berjalan dengan versi terakhir. Jangan menambah `package.json` ke repository frontend |
 | "Terlalu banyak permintaan" (429) | Batas per IP di Worker | Tunggu 1 menit; bila wajar sering terjadi, naikkan batas di `worker.js` |
 | Halaman login masih menampilkan nama & subjudul | Frontend/backend belum v1.4, atau pengaturan dicentang | Cek footer v1.4.0; Pengaturan → Logo Aplikasi → hapus centang *Tampilkan nama aplikasi & subjudul* → Simpan logo |
 | Analisa: "Aksi tidak dikenal" / format tidak termuat | Frontend v1.4 tetapi backend belum diperbarui / belum *Versi baru* | Ganti 4 berkas backend → Deploy → Kelola deployment → Edit → **Versi baru** |
@@ -718,6 +782,9 @@ Browser memeriksa versi data setiap 30 detik (Pengaturan → `POLLING_DETIK`, 15
 | Edit di Word: "Drive API … disabled" / gagal membuat dokumen | Layanan Drive belum aktif di proyek Apps Script | Editor Apps Script → **Layanan +** → **Drive API** → Tambahkan → Simpan → Deploy versi baru → coba lagi |
 | Filter Unit kosong | Kolom `Unit` belum berisi data | Petakan *Unit* di Import Data atau isi kolom `Unit` di sheet |
 | "Aksi tidak dikenal" setelah upgrade v1.5 | Backend belum v1.5 / belum *Versi baru* / berkas `Akses` belum dibuat | Lakukan langkah **Upgrade A** lengkap → Deploy → Kelola deployment → Edit → **Versi baru** |
+| Jumlah debitur / baki di aplikasi beda dengan pivot database (v1.6) | Rek Pinjaman ganda, baris tanpa kunci, rekening KUR pindah ke KUR PMI, atau sheet Debitur belum di-import ulang | Pengaturan → Sinkronisasi & Data → **Cek kecocokan data per produk**; import ulang dari database terbaru |
+| RM / PRM / ARM tidak melihat debiturnya (v1.6) | NPP login ≠ NPP RM pengelola di kolom NPP, filter NPP belum dicentang, atau kolom NPP salah | Akses Data → **Cek NPP**; centang "Hanya debitur dengan NPP RM sendiri"; petakan kolom NPP RM yang benar |
+| Sub menu SCF / OTHER kosong (v1.6) | Nilai produk di database berbeda (mis. "SCF DISTRIBUTOR") | Normal bila diawali SCF; lainnya atur di Akses Data → Produk SME |
 | Data baru tidak muncul | Pemicu belum terpasang | Pengaturan → Sinkronisasi → *Pemicu aktif* harus 4; bila kosong jalankan setup lagi |
 | Tren Kol kosong | Snapshot baru 1 bulan | Normal — tren terisi otomatis tiap akhir bulan |
 | Pesan WA "Antre" terus | Mode Fonnte tanpa token / kuota habis | Isi token, cek kuota di menu Gateway |

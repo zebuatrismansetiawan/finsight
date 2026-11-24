@@ -51,7 +51,8 @@ const M = (() => {
         pt: c.pt === undefined ? '' : String(r[c.pt] || ''), il: c.il === undefined ? '' : String(r[c.il] || ''),   // v1.2
         jw: c.jw === undefined ? '' : String(r[c.jw] || ''), bt: c.bt === undefined ? '' : String(r[c.bt] || ''), sx: c.sx === undefined ? 0 : +r[c.sx] || 0,   // v1.3
         tb: c.tb === undefined ? '' : String(r[c.tb] || ''), un: c.un === undefined ? '' : String(r[c.un] || ''), np: c.np === undefined ? '' : String(r[c.np] || ''),   // v1.5
-        sg: c.sg === undefined ? '' : String(r[c.sg] || ''), hm: c.hm === undefined ? 0 : +r[c.hm] || 0
+        sg: c.sg === undefined ? '' : String(r[c.sg] || ''), hm: c.hm === undefined ? 0 : +r[c.hm] || 0,
+        pu: c.pu === undefined ? '' : String(r[c.pu] || '')                                                    // v1.6: Perusahaan (tempat kerja KUR PMI)
       };
       // v1.3: id = CIF (Debitur Umum) / Rek Afil (KUR PMI); nomor rekening pinjaman tetap dari Rek_Pinjaman
       o.rek = o.rp || o.il || (c.jw === undefined ? o.id : '');
@@ -62,7 +63,7 @@ const M = (() => {
       o.risiko = o.fBlokir || o.fSaldo;
       o.kurang = o.aktif ? Math.max(0, o.an - o.sa) : 0;
       o.mv = o.aktif && o.kl ? o.kol - o.kl : 0;
-      o.q = (o.id + ' ' + o.nm + ' ' + o.cif + ' ' + o.pic + ' ' + o.pr + ' ' + o.rm + ' ' + o.rp + ' ' + o.ra + ' ' + o.pt + ' ' + o.il + ' ' + o.bt + ' ' + o.un + ' ' + o.np).toLowerCase();
+      o.q = (o.id + ' ' + o.nm + ' ' + o.cif + ' ' + o.pic + ' ' + o.pr + ' ' + o.rm + ' ' + o.rp + ' ' + o.ra + ' ' + o.pt + ' ' + o.il + ' ' + o.bt + ' ' + o.un + ' ' + o.np + ' ' + o.pu).toLowerCase();
       return o;
     });
   }
@@ -143,7 +144,7 @@ const M = (() => {
 //  v1.5 — Segmen (SME / SBP), unit & cakupan data
 // ============================================================================
 const SEG = (() => {
-  const BAWAAN = { SME: ['BCM', 'CCC'], SBP: ['BWU', 'CCC', 'KUR', 'KPP', 'KUR PMI'] };
+  const BAWAAN = { SME: ['BCM', 'CCC', 'SCF', 'OTHER'], SBP: ['BWU', 'CCC', 'KUR', 'KPP', 'KUR PMI'] };   // v1.6: SME + SCF & Other
   const NAMA = { SME: 'SME', SBP: 'SBP' };
   const UNIT_BAWAAN = [['31100', 'KCU Jababeka'], ['31102', 'KC Cikarang'], ['31105', 'KC Mutiara Gading'], ['31107', 'KC Tambun'], ['31160', 'KC RE Martadinata'], ['31162', 'KC Cibitung'],
     ['31106', 'KC Cikarang Baru'], ['31161', 'KC MM2100'], ['31163', 'KC Grandwisata'], ['31165', 'KC Wisma Asri'], ['31101', 'KC Bulak Kapal'], ['31103', 'KC Lippo Cikarang'], ['31104', 'KC Kalimas'],
@@ -151,10 +152,19 @@ const SEG = (() => {
   function akses() {
     let a = null; try { a = JSON.parse(S.setting.AKSES_DATA || 'null'); } catch (e) { a = null; }
     a = a && typeof a === 'object' ? a : {};
-    return { seg: a.seg && a.seg.SME ? a.seg : BAWAAN, unit: Array.isArray(a.unit) ? a.unit : UNIT_BAWAAN, peran: a.peran || {} };
+    let seg = a.seg && a.seg.SME ? { SME: a.seg.SME.slice(), SBP: (a.seg.SBP || []).slice() } : BAWAAN;
+    if (a.seg && a.segV !== 2) {            // v1.6: pengaturan lama (v1.5) belum mengenal SCF & Other — sama dengan server
+      ['SME', 'SBP'].forEach((g) => BAWAAN[g].forEach((p) => { if (!seg.SME.includes(p) && !seg.SBP.includes(p)) seg[g].push(p); }));
+    }
+    return { seg, unit: Array.isArray(a.unit) ? a.unit : UNIT_BAWAAN, peran: a.peran || {} };
   }
-  /** Segmen yang boleh dibuka pengguna ini (server = sumber kebenaran, lihat S.cakupan). */
-  const milikku = () => { const c = S.cakupan || (S.ds && S.ds.cakupan); return c && c.s ? [c.s] : ['SME', 'SBP']; };
+  /** Segmen yang boleh dibuka pengguna ini (server = sumber kebenaran, lihat S.cakupan).
+   *  v1.6: bila filter NPP aktif, NPP login = kunci → segmen mengikuti debitur miliknya (SME dan/atau SBP). */
+  const milikku = () => {
+    const c = (S.ds && S.ds.cakupan) || S.cakupan;
+    if (c && c.nppAktif && S.D) { const ada = ['SME', 'SBP'].filter((g) => S.D.some((d) => masuk(d, g))); if (ada.length) return ada; }
+    return c && c.s ? [c.s] : ['SME', 'SBP'];
+  };
   const produk = (seg) => (akses().seg[seg] || []).slice();
   /** Debitur termasuk segmen? (kolom Segmen → produk; segmen belum diketahui tampil di kedua segmen produk itu) */
   const masuk = (d, seg) => (d.sg ? d.sg === seg : produk(seg).includes(d.pr));
@@ -166,7 +176,7 @@ const SEG = (() => {
 // ============================================================================
 //  APLIKASI
 // ============================================================================
-const VERSI_APP = '1.5.0';   // versi frontend (config.js milik Anda tidak perlu diubah)
+const VERSI_APP = '1.6.0';   // versi frontend (config.js milik Anda tidak perlu diubah)
 const App = (() => {
   const { $, $$, esc, ic } = U;
   let halaman = 'dashboard';
@@ -193,10 +203,22 @@ const App = (() => {
   }
   function hapusLokal() { Object.keys(localStorage).filter((k) => k.indexOf('fs_cache_') === 0).forEach((k) => localStorage.removeItem(k)); }
 
+  /** v1.6: produk yang ada di data tetapi belum ada di master produk (mis. BCM, SCF, OTHER) ikut ditampilkan. */
+  const PRODUK_TAMBAHAN = { BCM: ['BCM', '#0EA5E9'], SCF: ['SCF (Supply Chain Financing)', '#10B981'], OTHER: ['Other (Lainnya)', '#94A3B8'] };
+  function lengkapiProduk() {
+    if (!S.D) return;
+    const ada = new Set((S.produk || []).map((p) => p.kode)), baru = [];
+    S.D.forEach((d) => { if (d.pr && d.pr !== '-' && !ada.has(d.pr)) { ada.add(d.pr); baru.push(d.pr); } });
+    if (!baru.length) return;
+    const urutan = Object.keys(PRODUK_TAMBAHAN);
+    baru.sort((a, b) => ((urutan.indexOf(a) + 1 || 99) - (urutan.indexOf(b) + 1 || 99)) || a.localeCompare(b));
+    S.produk = (S.produk || []).concat(baru.map((k, i) => ({ kode: k, nama: (PRODUK_TAMBAHAN[k] || [k])[0], urut: 100 + i, warna: (PRODUK_TAMBAHAN[k] || [0, '#64748B'])[1] })));
+  }
   function terapkanData(ds) {
     S.ds = ds; S.ver = ds.ver;
-    S.prodMap = {}; S.produk.forEach((p) => { S.prodMap[p.kode] = p; });
     S.D = M.decode(ds);
+    lengkapiProduk();
+    S.prodMap = {}; S.produk.forEach((p) => { S.prodMap[p.kode] = p; });
     S.byId = {}; S.D.forEach((d) => { S.byId[d.id] = d; });
     M.reset();
     // bersihkan pilihan yang sudah tidak ada
@@ -695,6 +717,7 @@ const App = (() => {
 
   // ---------- Detail debitur (panel samping) ----------
   function detail(id) {
+    if (String(id).indexOf('G:') === 0) { const g = S.grupDeb && S.grupDeb[id]; if (g) return detailGrup(g); }
     const d = S.byId[id];
     if (!d) return U.toast('Debitur tidak ditemukan (mungkin sudah dihapus dari sheet).', 'warn');
     const util = d.pl ? d.bd / d.pl * 100 : 0;
@@ -710,7 +733,8 @@ const App = (() => {
       ${pmi ? `<h5 class="dt-sub">Detail KUR PMI ${d.sx ? `<span class="tag pos">${ic('link', 11)} Spreadsheet KUR PMI</span>` : '<span class="tag">Sheet Debitur</span>'}</h5>
       <div class="dt-grid dt-pmi">
         <div class="span2"><span>Nama</span><b>${esc(d.nm)}</b></div>
-        <div class="span2"><span>Nama perusahaan (PT)</span><b>${d.pt ? esc(UI.namaPt(d.pt)) : '<span class="muted">Belum diisi</span>'}</b></div>
+        <div class="span2"><span>Perusahaan</span><b>${d.pu ? esc(d.pu) : '<span class="muted">Belum diisi</span>'}</b></div>
+        <div class="span2"><span>Mitra KUR PMI (PT)</span><b>${d.pt ? esc(UI.namaPt(d.pt)) : '<span class="muted">Belum diisi</span>'}</b></div>
         <div><span>Jangka waktu</span><b>${d.jw ? esc(d.jw) : '<span class="muted">—</span>'}</b></div>
         <div><span>Batch</span><b>${d.bt ? esc(d.bt) : '<span class="muted">—</span>'}</b></div>
         <div class="span2"><span>Rek afiliasi (kunci)</span><b class="tnum">${d.ra ? esc(d.ra) : '<span class="muted">Belum diisi</span>'}</b></div>
@@ -747,6 +771,63 @@ const App = (() => {
     pasangHp(m, d);
   }
 
+  /** v1.6: Detail debitur SME dengan beberapa rekening pinjaman (CIF sama) — total + rincian tiap rekening. */
+  function detailGrup(g) {
+    const L = g.grup, d0 = g.utama;
+    const kunciLog = new Set(); L.forEach((d) => [d.id, d.rp, d.il].filter(Boolean).forEach((k) => kunciLog.add(String(k))));
+    const riw = S.log ? S.log.rows.filter((r) => kunciLog.has(String(r[5]))).slice(0, 10) : null;
+    const bisaWa = boleh('blast');
+    const util = g.pl ? g.bd / g.pl * 100 : 0;
+    const produk = Array.from(new Set(L.map((d) => d.pr)));
+    const rek = (d) => `<div class="dt-ln ${d.aktif ? '' : 'off'}">
+        <div class="dt-ln-h"><b class="tnum">${d.rek ? esc(d.rek) : '<span class="muted">Rek belum diisi</span>'}</b>${UI.prod(d.pr)}${d.aktif ? UI.kol(d.kol, true) : UI.status(d.st)}</div>
+        <div class="dt-grid dt-sm">
+          <div><span>Plafon</span><b class="tnum">${U.rp(d.pl)}</b></div>
+          <div><span>Baki debet</span><b class="tnum ${d.kol === 5 ? 'neg' : ''}">${U.rp(d.bd)}</b></div>
+          <div><span>Angsuran</span><b class="tnum">${U.rp(d.an)}</b></div>
+          <div><span>Jatuh tempo</span><b>${U.tgl(d.jt)}</b>${UI.jtInfo(d)}</div>
+          <div><span>Saldo blokir</span><b class="tnum ${d.fBlokir ? 'neg' : ''}">${d.sb === null || d.sb === undefined ? 'Kosong' : U.rp(d.sb)}</b></div>
+          <div><span>Saldo akhir</span><b class="tnum ${d.fSaldo ? 'neg' : ''}">${U.rp(d.sa)}</b></div>
+          <div><span>Kol. awal bulan</span><b>${d.kl ? 'Kol. ' + d.kl : '—'}</b>${d.mv ? `<small class="${d.mv > 0 ? 'neg' : 'pos'}">${d.mv > 0 ? 'Turun' : 'Naik'} ${Math.abs(d.mv)} tingkat</small>` : ''}</div>
+          <div><span>Tgl booking</span><b>${d.tb ? U.tgl(d.tb) : '<span class="muted">—</span>'}</b></div>
+          ${d.ra ? `<div class="span2"><span>Rek afiliasi</span><b class="tnum">${esc(d.ra)}</b></div>` : ''}
+        </div></div>`;
+    const body = `
+      <div class="dt-head"><span class="avatar lg" style="--c:${(S.prodMap[d0.pr] || {}).warna || '#64748B'}">${esc(U.inisial(g.nm))}</span>
+        <div><h4>${esc(g.nm)}</h4><div class="muted">CIF ${esc(g.cif)} • ${U.num(L.length)} rekening pinjaman</div>
+        <div class="dt-tags">${produk.map((p) => UI.prod(p)).join(' ')} ${UI.kol(g.kol)} ${UI.status(g.st)}</div></div></div>
+      ${g.risiko ? `<div class="alert alert-neg">${ic('alert', 16)}<div><b>Berisiko gagal bayar</b> — ${L.filter((d) => d.risiko).length} rekening dengan saldo kurang / blokir kosong. Kekurangan ${U.rp(g.kurang)}.</div></div>` : ''}
+      <h5 class="dt-sub">Total ${U.num(L.length)} rekening</h5>
+      <div class="dt-grid">
+        <div><span>Total plafon</span><b class="tnum">${U.rp(g.pl)}</b></div>
+        <div><span>Total baki debet</span><b class="tnum">${U.rp(g.bd)}</b></div>
+        <div class="span2"><span>Utilisasi plafon</span><div class="bar"><i style="width:${Math.min(100, util)}%"></i></div><small class="tnum">${U.pct(util)}</small></div>
+        <div><span>Total angsuran</span><b class="tnum">${U.rp(g.an)}</b></div>
+        <div><span>Jatuh tempo terdekat</span><b>${U.tgl(g.jt)}</b>${UI.jtInfo(g)}</div>
+        <div><span>Total saldo blokir</span><b class="tnum ${g.fBlokir ? 'neg' : ''}">${g.sb === null ? 'Kosong' : U.rp(g.sb)}</b></div>
+        <div><span>Total saldo akhir</span><b class="tnum ${g.fSaldo ? 'neg' : ''}">${U.rp(g.sa)}</b>${g.nRa > 1 ? `<small>${U.num(g.nRa)} rek afiliasi</small>` : ''}</div>
+        <div class="span2 dt-hp" id="dtHp"><span>No. HP debitur</span>${hpIsi(d0)}</div>
+        ${d0.pic ? `<div><span>Kontak (PIC)</span><b>${esc(d0.pic)}</b></div>` : ''}
+        ${d0.un ? `<div><span>Unit</span><b>${esc(SEG.namaUnit(d0.un))}</b></div>` : ''}
+        ${d0.sg ? `<div><span>Segmen</span><b>${esc(d0.sg)}</b></div>` : ''}
+        ${d0.rm || d0.np ? `<div class="span2"><span>RM pengelola</span><b>${esc(d0.rm || '—')}</b>${d0.np ? `<small class="tnum">NPP ${esc(d0.np)}</small>` : ''}</div>` : ''}
+      </div>
+      <h5 class="dt-sub">Rincian per rekening pinjaman</h5>
+      <div class="dt-lns">${L.map(rek).join('')}</div>
+      <h5 class="dt-sub">Riwayat WA (30 hari)</h5>
+      ${riw === null ? '<p class="muted">Riwayat sedang dimuat…</p>' : riw.length ? `<ul class="dt-log">${riw.map((r) => `<li>${UI.logStatus(r[9])}<span><b>${esc(r[8])}</b><small>${U.tglJam(r[2])} • oleh ${esc(r[4])}</small></span></li>`).join('')}</ul>` : '<p class="muted">Belum ada pesan WA.</p>'}`;
+    const kirim = L.filter((d) => d.aktif && d.wv && !d.oo).map((d) => d.id);
+    const m = U.modal({
+      title: 'Detail Debitur', body, size: 'drawer', cls: 'drawer',
+      footer: `<button class="btn btn-secondary" data-x="salin">${ic('copy', 16)} Salin No. Rek</button>${bisaWa ? `<button class="btn btn-primary" data-x="wa" ${kirim.length ? '' : 'disabled title="Nomor tidak valid / opt-out / lunas"'}>${ic('send', 16)} Kirim WA</button>` : ''}`
+    });
+    m.el.querySelectorAll('[data-x]').forEach((b) => b.onclick = () => {
+      if (b.dataset.x === 'salin') U.salin(L.map((d) => d.rek || d.ra).filter(Boolean).join(', '));
+      if (b.dataset.x === 'wa') { m.close(); blastKe(kirim, 'Detail debitur'); }
+    });
+    pasangHp(m, d0, L.map((d) => d.id));
+  }
+
   /** v1.5: No HP di Detail Debitur — semua peran hanya dapat menambah / mengganti No HP (data lain tetap dari base data). */
   function hpIsi(d, form) {
     if (form) return `<form class="hp-f" novalidate><input class="inp" id="hpIn" inputmode="tel" maxlength="16" placeholder="08xxxxxxxxxx" autocomplete="off" aria-label="Nomor HP debitur">
@@ -755,7 +836,8 @@ const App = (() => {
     return `<div class="hp-v">${d.wa ? `<b class="tnum">${esc(d.wa)}</b>${d.hm ? '<span class="tag">ditambahkan di aplikasi</span>' : ''}` : '<b class="muted">Belum ada</b>'}
       <button class="btn btn-secondary btn-sm" type="button" data-hp="ubah">${ic(d.wa ? 'edit' : 'plus', 14)} ${d.wa ? 'Ganti No. HP' : 'Tambah No. HP'}</button></div>`;
   }
-  function pasangHp(m, d) {
+  function pasangHp(m, d, ids) {
+    ids = ids && ids.length ? ids : [d.id];                    // v1.6: debitur SME per CIF → No HP disimpan ke semua rekeningnya
     const box = m.el.querySelector('#dtHp');
     if (!box) return;
     const gambar = (form) => {
@@ -768,7 +850,8 @@ const App = (() => {
         const v = box.querySelector('#hpIn').value.trim(), b = f.querySelector('[type="submit"]');
         if (!/^(\+?62|0)?8\d{7,12}$/.test(v.replace(/[\s.-]/g, ''))) return U.toast('Nomor HP tidak valid. Contoh: 081234567890.', 'warn');
         b.disabled = true; b.innerHTML = '<span class="spin"></span>';
-        const r = await Api.call('debitur.hp', { id: d.id, hp: v });
+        let r = null;
+        for (const id of ids) { r = await Api.call('debitur.hp', { id, hp: v }); if (!r.success) break; }
         if (!r.success) { b.disabled = false; b.innerHTML = ic('check', 14) + ' Simpan'; return U.toast(r.message, 'err'); }
         d.wa = r.data.wa; d.wv = 1; d.hm = 1;
         gambar(false);

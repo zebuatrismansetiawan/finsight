@@ -225,7 +225,7 @@ Pages.dashboard = {
       </div></section>`;
 
     // --- pita produk
-    h += `<section class="ribbon" style="--n:${pp.length}">${pp.map((x) => {
+    h += `<section class="ribbon" style="--n:${pp.length <= 6 ? pp.length : Math.ceil(pp.length / 2)}">${pp.map((x) => {
       const bp = B && B.pp ? B.pp[x.kode] : null;
       const icn = { BWU: 'store', CCC: 'card', KUR: 'building', 'KUR PMI': 'plane', KPP: 'factory' }[x.kode] || 'layers';
       return `<button class="card rb" data-act="prod" data-v="${esc(x.kode)}" style="--c:${x.warna}" title="${esc(x.nama)} — ${esc(U.rp(x.baki))}"><span class="rb-ic">${ic(icn, 18)}</span><span class="rb-t"><span class="rb-h"><b>${esc(x.kode)}</b>${bp ? UI.delta(M.delta(x.baki, bp.baki)) : ''}</span><b class="rb-v tnum">${U.rpS(x.baki)}</b><small class="tnum">${U.num(x.n)} debitur</small></span></button>`;
@@ -428,8 +428,49 @@ Pages.debitur = {
     else if (f.jt === 'bulan') L = L.filter((d) => d.jt && d.jt.slice(0, 7) === h.slice(0, 7));
     else if (f.jt === 'rentang') L = L.filter((d) => d.jt && (!f.dari || d.jt >= f.dari) && (!f.sampai || d.jt <= f.sampai));
     if (q) L = L.filter((d) => d.q.includes(q) || d.wa.replace(/\D/g, '').includes(q.replace(/\D/g, '') || '§'));
-    return UI.urut(L, f.sort, f.dir);
+    return UI.urut(this.kelompok(L, this.rute()), f.sort, f.dir);
   },
+  // ---------- v1.6: debitur SME dengan CIF sama & lebih dari 1 rekening pinjaman → 1 baris (total) ----------
+  /** Debitur termasuk SME? (halaman SME: semua; halaman Semua: segmen SME / produk khusus SME). */
+  isSme(d, r) { if (r.seg === 'SME') return true; return d.sg ? d.sg === 'SME' : SEG.produk('SME').includes(d.pr) && !SEG.produk('SBP').includes(d.pr); },
+  kelompok(L, r) {
+    S.grupDeb = {};
+    if (this.mode === 'pmi' || r.seg === 'SBP') return L;
+    const normCif = (v) => String(v || '').trim().toUpperCase().replace(/^0+(?=.)/, '');
+    const m = new Map(), out = [];
+    L.forEach((d) => {
+      const k = this.isSme(d, r) ? normCif(d.cif) : '';
+      if (!k) { out.push(d); return; }
+      const g = m.get(k);
+      if (g) g.push(d); else { const x = [d]; m.set(k, x); out.push(x); }
+    });
+    return out.map((x) => (Array.isArray(x) ? (x.length > 1 ? this.gabung(x, normCif(x[0].cif)) : x[0]) : x));
+  },
+  gabung(L, cif) {
+    const sum = (k) => L.reduce((s, d) => s + (+d[k] || 0), 0);
+    const urut = L.slice().sort((a, b) => (b.aktif - a.aktif) || (a.jt || '9999').localeCompare(b.jt || '9999') || String(a.rek).localeCompare(String(b.rek)));
+    const akt = urut.filter((d) => d.aktif), u = akt[0] || urut[0];
+    // Saldo akhir per rekening afiliasi (rekening yang sama tidak dijumlahkan dua kali)
+    const ra = new Map(); let nRa = 0;
+    L.forEach((d) => { const real = d.ra && !/^0+$/.test(d.ra); const k = real ? 'a' + d.ra : 'i' + d.id; if (real && !ra.has(k)) nRa++; ra.set(k, Math.max(ra.get(k) || 0, +d.sa || 0)); });
+    const sbAda = L.filter((d) => d.sb !== null && d.sb !== undefined);
+    const jtL = akt.filter((d) => d.jt).sort((a, b) => a.jt.localeCompare(b.jt));
+    const w = urut.find((d) => d.aktif && d.wv && !d.oo) || urut.find((d) => d.wv) || u;
+    const g = Object.assign({}, u, {
+      id: 'G:' + cif, grup: urut, utama: u, prs: Array.from(new Set(urut.map((d) => d.pr))), nRa,
+      pl: sum('pl'), bd: sum('bd'), an: sum('an'), kurang: sum('kurang'),
+      sb: sbAda.length ? sbAda.reduce((s, d) => s + (+d.sb || 0), 0) : null,
+      sa: Array.from(ra.values()).reduce((s, v) => s + v, 0),
+      jt: jtL.length ? jtL[0].jt : u.jt, dd: jtL.length ? jtL[0].dd : u.dd,
+      kol: akt.length ? Math.max(...akt.map((d) => d.kol)) : u.kol, st: akt.length ? 'Aktif' : u.st, aktif: akt.length > 0,
+      fBlokir: L.some((d) => d.fBlokir), fSaldo: L.some((d) => d.fSaldo), risiko: L.some((d) => d.risiko),
+      wa: w.wa, wv: w.wv, oo: w.oo, idWa: w.id, q: L.map((d) => d.q).join(' ')
+    });
+    S.grupDeb[g.id] = g;
+    return g;
+  },
+  /** ID rekening di balik 1 baris (grup CIF → semua rekeningnya). */
+  idsDari(d) { return d.grup ? d.grup.map((x) => x.id) : [d.id]; },
   labelFilter(f) {
     const jt = { lewat: 'Lewat jatuh tempo', 7: 'JT ≤ 7 hari', 30: 'JT ≤ 30 hari', bulan: 'JT bulan ini', rentang: `JT ${f.dari ? U.tgl(f.dari) : '…'} – ${f.sampai ? U.tgl(f.sampai) : '…'}` }[f.jt];
     const out = [];
@@ -483,7 +524,7 @@ Pages.debitur = {
     const item = [['', 'Semua PT', base.length]].concat(UI.daftarPt().map((x) => ['k:' + UI.normPt(x), x, n['k:' + UI.normPt(x)] || 0]));
     if (n.__lain) item.push(['__lain', 'PT lain (belum terdaftar)', n.__lain]);
     if (n.__kosong) item.push(['__kosong', 'PT belum diisi', n.__kosong]);
-    return `<div class="card pt-bar"><div class="pt-h"><span class="kpi-ic sm soft" style="--c:#7C3AED">${ic('building', 17)}</span><div><b>PT Penempatan</b><small>Kelompok debitur KUR PMI per PT mitra</small></div>
+    return `<div class="card pt-bar"><div class="pt-h"><span class="kpi-ic sm soft" style="--c:#7C3AED">${ic('building', 17)}</span><div><b>Mitra KUR PMI</b><small>Kelompok debitur KUR PMI per PT mitra</small></div>
       ${S.me.peran === 'Admin' ? `<a class="lnk-a" href="#/pengaturan" data-act="kelolaPt">${ic('settings', 14)} Kelola daftar PT</a>` : ''}</div>
       <div class="pt-chips">${item.map((x) => `<button class="pt-c ${f.pt === x[0] ? 'on' : ''} ${x[0] === '__lain' || x[0] === '__kosong' ? 'warn' : ''}" data-act="pt" data-v="${esc(x[0])}">${esc(x[1])}<em>${U.num(x[2])}</em></button>`).join('')}</div></div>`;
   },
@@ -498,7 +539,7 @@ Pages.debitur = {
       <button class="btn btn-primary" data-act="sync">${ic('refresh', 17)} Sinkronkan Google Sheets</button>`;
     const crumb = ['Portofolio Kredit', 'Daftar Debitur'].concat(pmi ? ['SBP', 'KUR PMI'] : r.seg ? [SEG.NAMA[r.seg]].concat(r.pr ? [r.pr] : []) : []);
     let h = UI.head({ crumb, title: judul,
-      sub: pmi ? 'Debitur KUR Pekerja Migran Indonesia, dikelompokkan per PT penempatan.' : r.seg ? `Segmen ${esc(SEG.NAMA[r.seg])}${r.pr ? ' — produk ' + esc(r.pr) : ' — produk ' + SEG.produk(r.seg).map(esc).join(', ')}. Pencarian, filter, dan ekspor data debitur.` : 'Pencarian, pemfilteran komprehensif, dan ekspor data debitur portofolio.', actions });
+      sub: pmi ? 'Debitur KUR Pekerja Migran Indonesia, dikelompokkan per mitra KUR PMI (PT). Perusahaan tempat kerja tampil di Detail Debitur.' : r.seg ? `Segmen ${esc(SEG.NAMA[r.seg])}${r.pr ? ' — produk ' + esc(r.pr) : ' — produk ' + SEG.produk(r.seg).map(esc).join(', ')}. Pencarian, filter, dan ekspor data debitur.` : 'Pencarian, pemfilteran komprehensif, dan ekspor data debitur portofolio.', actions });
     h += this.subNav();
     h += this.bannerKunci();
     if (pmi) h += this.infoSumber() + this.chipsPt(f);
@@ -531,7 +572,8 @@ Pages.debitur = {
     akt.forEach((d) => { if (d.kol === 1) k[1]++; else if (d.kol === 2) k[2]++; else k.npl++; });
     const pc = (n) => (akt.length ? U.pct(n / akt.length * 100) : '0%');
     const rows = UI.halaman(L, f);
-    const allSel = rows.length && rows.every((d) => S.sel.deb.has(d.id));
+    const terpilih = (d) => this.idsDari(d).every((id) => S.sel.deb.has(id));
+    const allSel = rows.length && rows.every(terpilih);
     const kirim = UI.bisaKirim(), pmi = this.mode === 'pmi';
     const area = document.getElementById('debArea');
     if (!area) return;
@@ -549,14 +591,14 @@ Pages.debitur = {
           ${kirim ? `<button class="btn btn-sm btn-secondary" data-act="blastSel" ${S.sel.deb.size ? '' : 'disabled'}>${ic('send', 14)} Blast terpilih (${U.num(S.sel.deb.size)})</button>` : ''}
           <button class="btn btn-sm btn-secondary" data-act="cetak">${ic('print', 14)} Cetak</button></div>
         ${L.length ? `<div class="tbl-wrap"><table class="tbl tbl-deb"><thead><tr>${kirim ? '<th class="c w1"><span class="sr">Pilih</span></th>' : ''}
-          ${UI.th('Nama Debitur', 'nm', f, 'stick-h')}${UI.th('Rek Pinjaman', 'rp', f)}${UI.th('Rek Afil', 'ra', f)}${pmi ? UI.th('PT Penempatan', 'pt', f) + UI.th('Batch', 'bt', f) + UI.th('Jangka Waktu', 'jw', f) : UI.th('Produk', 'pr', f, 'c')}${UI.th('Plafon', 'pl', f, 'num')}${UI.th('Baki Debet', 'bd', f, 'num')}${UI.th('Angsuran', 'an', f, 'num')}${UI.th('Saldo Blokir', 'sb', f, 'num')}${UI.th('Saldo Akhir', 'sa', f, 'num')}${UI.th('Jatuh Tempo', 'jt', f)}${UI.th('Kol', 'kol', f, 'c')}${UI.th('Status', 'st', f, 'c')}<th class="c">Aksi</th></tr></thead><tbody>
-          ${rows.map((d) => `<tr class="${d.aktif ? '' : 'row-off'} ${S.sel.deb.has(d.id) ? 'row-sel' : ''}">${kirim ? `<td class="c"><input type="checkbox" data-act="sel" data-id="${esc(d.id)}" ${S.sel.deb.has(d.id) ? 'checked' : ''} aria-label="Pilih ${esc(d.nm)}"></td>` : ''}
-            <td class="stick"><div class="ent"><span class="avatar xs" style="--c:${UI.warnaProd(d.pr)}">${esc(U.inisial(d.nm))}</span><div><button class="lnk" data-detail="${esc(d.id)}"><b>${esc(d.nm)}</b></button>${UI.kontak(d)}</div></div></td>
-            <td class="rek tnum">${d.rek ? esc(d.rek) : '<span class="muted">—</span>'}</td><td class="rek tnum">${esc(d.ra)}</td>
-            ${pmi ? `<td class="pt-cell"${d.pt && UI.namaPt(d.pt) !== d.pt ? ` title="Tertulis di data: ${esc(d.pt)}"` : ''}>${d.pt ? esc(UI.namaPt(d.pt)) : '<span class="muted">Belum diisi</span>'}</td><td class="nw">${d.bt ? esc(d.bt) : '<span class="muted">—</span>'}</td><td class="nw">${d.jw ? esc(d.jw) : '<span class="muted">—</span>'}</td>` : `<td class="c">${UI.prod(d.pr)}</td>`}<td class="num muted">${U.rpJ(d.pl)}</td><td class="num b ${d.kol === 5 ? 'neg' : ''}">${U.rpJ(d.bd)}</td><td class="num">${U.rpJ(d.an)}</td>
+          ${UI.th('Nama Debitur', 'nm', f, 'stick-h')}${UI.th('Rek Pinjaman', 'rp', f)}${UI.th('Rek Afil', 'ra', f)}${pmi ? UI.th('Batch', 'bt', f) + UI.th('Jangka Waktu', 'jw', f) : UI.th('Produk', 'pr', f, 'c')}${UI.th('Plafon', 'pl', f, 'num')}${UI.th('Baki Debet', 'bd', f, 'num')}${UI.th('Angsuran', 'an', f, 'num')}${UI.th('Saldo Blokir', 'sb', f, 'num')}${UI.th('Saldo Akhir', 'sa', f, 'num')}${UI.th('Jatuh Tempo', 'jt', f)}${UI.th('Kol', 'kol', f, 'c')}${UI.th('Status', 'st', f, 'c')}<th class="c">Aksi</th></tr></thead><tbody>
+          ${rows.map((d) => `<tr class="${d.aktif ? '' : 'row-off'} ${terpilih(d) ? 'row-sel' : ''} ${d.grup ? 'row-grup' : ''}">${kirim ? `<td class="c"><input type="checkbox" data-act="sel" data-id="${esc(this.idsDari(d).join('|'))}" ${terpilih(d) ? 'checked' : ''} aria-label="Pilih ${esc(d.nm)}"></td>` : ''}
+            <td class="stick"><div class="ent"><span class="avatar xs" style="--c:${UI.warnaProd(d.pr)}">${esc(U.inisial(d.nm))}</span><div><button class="lnk" data-detail="${esc(d.id)}"><b>${esc(d.nm)}</b></button>${d.grup ? `<span class="tag t-rek" title="CIF ${esc(d.cif)} memiliki ${d.grup.length} rekening pinjaman — klik nama untuk rinciannya">${d.grup.length} rekening</span>` : ''}${UI.kontak(d)}</div></div></td>
+            <td class="rek tnum">${d.rek ? esc(d.rek) : '<span class="muted">—</span>'}${d.grup ? `<small class="rek-more">+${d.grup.length - 1} rek</small>` : ''}</td><td class="rek tnum">${esc(d.ra)}${d.nRa > 1 ? `<small class="rek-more">+${d.nRa - 1}</small>` : ''}</td>
+            ${pmi ? `<td class="nw">${d.bt ? esc(d.bt) : '<span class="muted">—</span>'}</td><td class="nw">${d.jw ? esc(d.jw) : '<span class="muted">—</span>'}</td>` : `<td class="c">${d.prs ? d.prs.map((x) => UI.prod(x)).join(' ') : UI.prod(d.pr)}</td>`}<td class="num muted">${U.rpJ(d.pl)}</td><td class="num b ${d.kol === 5 ? 'neg' : ''}">${U.rpJ(d.bd)}</td><td class="num">${U.rpJ(d.an)}</td>
             <td class="num ${d.fBlokir ? 'neg b' : ''}">${d.sb === null || d.sb === undefined ? (d.aktif ? '<span class="neg">Kosong</span>' : '') : U.rpJ(d.sb)}</td><td class="num ${d.fSaldo ? 'neg b' : ''}">${U.rpJ(d.sa)}</td>
             <td><b class="dt">${U.tgl2(d.jt)}</b>${UI.jtInfo(d)}</td><td class="c">${d.aktif ? UI.kol(d.kol, true) : ''}</td><td class="c">${UI.status(d.st)}</td>
-            <td class="c"><div class="acts">${kirim && d.aktif ? `<button class="btn-icon sm pos" data-wa="${esc(d.id)}" title="Kirim WA" ${d.wv && !d.oo ? '' : 'disabled'}>${ic('chat', 15)}</button>` : ''}<button class="btn-icon sm" data-detail="${esc(d.id)}" title="Detail">${ic('eye', 15)}</button></div></td></tr>`).join('')}
+            <td class="c"><div class="acts">${kirim && d.aktif ? `<button class="btn-icon sm pos" data-wa="${esc(d.idWa || d.id)}" title="Kirim WA" ${d.wv && !d.oo ? '' : 'disabled'}>${ic('chat', 15)}</button>` : ''}<button class="btn-icon sm" data-detail="${esc(d.id)}" title="Detail">${ic('eye', 15)}</button></div></td></tr>`).join('')}
           </tbody></table></div>${UI.pager(L.length, f.hal, f.per)}` : App.kosong('search', 'Tidak ada debitur yang cocok', 'Ubah kata kunci atau reset filter.')}
       </div>`;
   },
@@ -604,7 +646,7 @@ Pages.debitur = {
     const filt = this.labelFilter(f).map((x) => x[0]).join('; ') || 'Semua debitur';
     const akt = L.filter((d) => d.aktif);
     return {
-      judul: pmi ? 'Debitur KUR PMI' : 'Daftar Debitur', sub: pmi ? (f.pt ? this.namaGrup(f.pt) : 'Semua PT penempatan') : (this.rute().seg ? 'Segmen ' + SEG.NAMA[this.rute().seg] + (this.rute().pr ? ' — ' + this.rute().pr : '') : 'Semua debitur'), satuan: 'debitur',
+      judul: pmi ? 'Debitur KUR PMI' : 'Daftar Debitur', sub: pmi ? (f.pt ? this.namaGrup(f.pt) : 'Semua mitra KUR PMI') : (this.rute().seg ? 'Segmen ' + SEG.NAMA[this.rute().seg] + (this.rute().pr ? ' — ' + this.rute().pr : '') : 'Semua debitur'), satuan: 'debitur',
       filter: filt, data: L, kolom: Laporan.kolomDebitur({ pt: pmi }),
       ringkasan: [['Jumlah debitur', U.num(L.length)], ['Total plafon', U.rpS(L.reduce((s, d) => s + d.pl, 0))], ['Total baki debet', U.rpS(L.reduce((s, d) => s + d.bd, 0))],
         ['Berisiko', U.num(akt.filter((d) => d.risiko).length)], ['NPL (Kol. 3–5)', U.num(akt.filter((d) => d.kol >= 3).length)]]
@@ -635,9 +677,9 @@ Pages.debitur = {
     sort: (el) => { const f = PD().f(); const k = el.dataset.k; f.dir = f.sort === k ? -f.dir : (['pl', 'bd', 'an', 'kol'].includes(k) ? -1 : 1); f.sort = k; PD().segar(); },
     hal: (el) => { PD().f().hal = +el.dataset.v; PD().segar(); document.getElementById('debArea').scrollIntoView({ block: 'start', behavior: 'smooth' }); },
     per: (el) => { const f = PD().f(); f.per = +el.value; f.hal = 1; PD().segar(); },
-    sel: (el) => { el.checked ? S.sel.deb.add(el.dataset.id) : S.sel.deb.delete(el.dataset.id); PD().segar(); },
-    selPage: (el) => { const f = PD().f(); UI.halaman(PD().data(f), f).forEach((d) => (el.checked ? S.sel.deb.add(d.id) : S.sel.deb.delete(d.id))); PD().segar(); },
-    selAll: () => { PD().data(PD().f()).forEach((d) => S.sel.deb.add(d.id)); PD().segar(); },
+    sel: (el) => { el.dataset.id.split('|').forEach((id) => (el.checked ? S.sel.deb.add(id) : S.sel.deb.delete(id))); PD().segar(); },
+    selPage: (el) => { const f = PD().f(); UI.halaman(PD().data(f), f).forEach((d) => PD().idsDari(d).forEach((id) => (el.checked ? S.sel.deb.add(id) : S.sel.deb.delete(id)))); PD().segar(); },
+    selAll: () => { PD().data(PD().f()).forEach((d) => PD().idsDari(d).forEach((id) => S.sel.deb.add(id))); PD().segar(); },
     selNone: () => { S.sel.deb.clear(); PD().segar(); },
     blastSel: () => App.blastKe(Array.from(S.sel.deb), (PD().mode === 'pmi' ? 'Debitur KUR PMI' : 'Daftar Debitur') + ' — pilihan'),
     cetak: () => PD().ekspor('cetak'),
@@ -1582,14 +1624,40 @@ Pages.pengaturan = {
         <dt>Versi aplikasi</dt><dd>${esc(si.versi)}</dd><dt>Versi data</dt><dd class="tnum">${esc(si.dataVer)}</dd><dt>Jumlah debitur</dt><dd class="tnum">${U.num(S.D.length)}</dd>
         <dt>Spreadsheet database</dt><dd><a href="${esc(si.spreadsheetUrl)}" target="_blank" rel="noopener">Buka Google Sheets ${ic('ext', 13)}</a></dd>
         <dt>Folder ekspor PDF</dt><dd>${si.folderEkspor ? `<a href="${esc(si.folderEkspor)}" target="_blank" rel="noopener">Buka di Drive ${ic('ext', 13)}</a>` : '—'}</dd>
-        <dt>Pemicu aktif</dt><dd>${si.pemicu.length ? si.pemicu.map((p) => `<span class="tag">${esc(p)}</span>`).join(' ') : '<span class="neg">Belum ada — jalankan setupAppEnvironment()</span>'}</dd></dl></div>`;
+        <dt>Pemicu aktif</dt><dd>${si.pemicu.length ? si.pemicu.map((p) => `<span class="tag">${esc(p)}</span>`).join(' ') : '<span class="neg">Belum ada — jalankan setupAppEnvironment()</span>'}</dd></dl></div>
+      ${this.kartuRekon()}`;
+  },
+  /** v1.6: rekonsiliasi per produk — bandingkan dengan pivot database (jumlah, plafon/makskrd, baki debet). */
+  kartuRekon() {
+    const { esc, ic } = U;
+    const R = S.ds && S.ds.rekon;
+    if (!R) return '';
+    const n = (x) => U.num(Math.round(x || 0));
+    const tot = (L, k) => L.reduce((s, x) => s + (x[k] || 0), 0);
+    const pindah = Object.keys(R.pindah || {}).filter((k) => R.pindah[k]);
+    return `<div class="card pad-l rekon"><h3>${ic('layers', 18)} Cek kecocokan data per produk (rekonsiliasi)</h3>
+      <p class="muted">Bandingkan angka di bawah dengan pivot database Anda: <b>Baris</b> = jumlah baris per nilai produk/flag di sheet Debitur, <b>Plafon</b> (makskrd) & <b>Baki debet</b> dijumlah penuh. Tabel kedua = yang tampil di aplikasi (1 rekening pinjaman = 1 baris; Daftar Debitur SME menggabungkan CIF yang sama).</p>
+      <h5 class="dt-sub">Sheet Debitur (sumber) — ${U.num(R.baris)} baris</h5>
+      <div class="tbl-wrap"><table class="tbl sm"><thead><tr><th>Produk di sheet</th><th>Dibaca sebagai</th><th class="num">Baris</th><th class="num">Plafon</th><th class="num">Baki debet</th><th class="num">Ganda (diabaikan)</th><th class="num">Tanpa kunci</th></tr></thead><tbody>
+        ${R.sumber.map((x) => `<tr><td><b>${esc(x.asli)}</b></td><td>${x.pr ? UI.prod(x.pr) : '<span class="muted">—</span>'}</td><td class="num tnum">${U.num(x.n)}</td><td class="num tnum">${n(x.pl)}</td><td class="num tnum">${n(x.bd)}</td><td class="num tnum ${x.dup ? 'warn' : 'muted'}">${U.num(x.dup)}</td><td class="num tnum ${x.tanpa ? 'neg' : 'muted'}">${U.num(x.tanpa)}</td></tr>`).join('')}
+        <tr class="tot"><td colspan="2"><b>Total</b></td><td class="num tnum"><b>${U.num(tot(R.sumber, 'n'))}</b></td><td class="num tnum"><b>${n(tot(R.sumber, 'pl'))}</b></td><td class="num tnum"><b>${n(tot(R.sumber, 'bd'))}</b></td><td class="num tnum">${U.num(tot(R.sumber, 'dup'))}</td><td class="num tnum">${U.num(tot(R.sumber, 'tanpa'))}</td></tr></tbody></table></div>
+      <h5 class="dt-sub">Tampil di aplikasi</h5>
+      <div class="tbl-wrap"><table class="tbl sm"><thead><tr><th>Produk</th><th class="num">Rekening</th><th class="num">Aktif</th><th class="num">CIF unik</th><th class="num">Plafon</th><th class="num">Baki debet</th></tr></thead><tbody>
+        ${R.tampil.map((x) => `<tr><td>${UI.prod(x.pr)}</td><td class="num tnum">${U.num(x.n)}</td><td class="num tnum">${U.num(x.aktif)}</td><td class="num tnum">${U.num(x.cif)}</td><td class="num tnum">${n(x.pl)}</td><td class="num tnum">${n(x.bd)}</td></tr>`).join('')}
+        <tr class="tot"><td><b>Total</b></td><td class="num tnum"><b>${U.num(tot(R.tampil, 'n'))}</b></td><td class="num tnum">${U.num(tot(R.tampil, 'aktif'))}</td><td class="num tnum">${U.num(tot(R.tampil, 'cif'))}</td><td class="num tnum"><b>${n(tot(R.tampil, 'pl'))}</b></td><td class="num tnum"><b>${n(tot(R.tampil, 'bd'))}</b></td></tr></tbody></table></div>
+      <ul class="rekon-ket muted sm">
+        <li><b>Ganda</b>: baris dengan Rek Pinjaman yang sama hanya dihitung 1×. <b>Tanpa kunci</b>: baris tanpa Rek Pinjaman / Rek Afil / CIF tidak ditampilkan.</li>
+        ${pindah.length ? `<li><b>Pindah ke KUR PMI</b> (cocok dengan sheet PT mitra): ${pindah.map((k) => `${esc(k)} ${U.num(R.pindah[k])}`).join(', ')} rekening.</li>` : ''}
+        ${R.pmiBaru ? `<li><b>${U.num(R.pmiBaru)}</b> debitur KUR PMI hanya ada di sheet PT (ditambahkan).</li>` : ''}
+        ${R.pmiSembunyi ? `<li><b>${U.num(R.pmiSembunyi)}</b> debitur KUR PMI di sheet Debitur tidak ada di sheet PT mana pun (disembunyikan).</li>` : ''}
+        <li>Produk "Dibaca sebagai" mengikuti kode aplikasi, mis. <b>KPP DEMAND → KPP</b>, <b>OTHERS → OTHER</b>.</li></ul></div>`;
   },
   // ---------- v1.4: Import dari spreadsheet lain dengan pemetaan kolom kustom ----------
   FIELD_IMP: {
     umum: [['nm', 'Nama Debitur'], ['pic', 'Kontak (PIC)'], ['wa', 'No. WA / HP'], ['cif', 'CIF'], ['rp', 'Rek Pinjaman (kunci)'], ['ra', 'Rek Afil'], ['pr', 'Produk'],
       ['pl', 'Plafon'], ['bd', 'Baki Debet'], ['an', 'Angsuran'], ['sb', 'Saldo Blokir'], ['sa', 'Saldo Akhir'], ['jt', 'Jatuh Tempo'], ['tb', 'Tgl Booking'], ['kol', 'Kol'], ['st', 'Status'],
       ['un', 'Unit (kode kantor)'], ['rm', 'RM'], ['np', 'NPP RM'], ['sg', 'Segmen (SME / SBP)'], ['oo', 'Opt-out WA']],
-    pmi: [['nm', 'Nama Debitur'], ['rp', 'Rek Pinjaman (kunci)'], ['ra', 'Rek Afil'], ['wa', 'No. WA / HP'], ['cif', 'CIF'], ['pt', 'PT Penempatan'], ['pl', 'Plafon'], ['bd', 'Baki Debet'], ['an', 'Angsuran'],
+    pmi: [['nm', 'Nama Debitur'], ['rp', 'Rek Pinjaman (kunci)'], ['ra', 'Rek Afil'], ['wa', 'No. WA / HP'], ['cif', 'CIF'], ['pt', 'Mitra KUR PMI (PT)'], ['pl', 'Plafon'], ['bd', 'Baki Debet'], ['an', 'Angsuran'],
       ['sb', 'Saldo Blokir'], ['sa', 'Saldo Akhir'], ['jt', 'Jatuh Tempo'], ['tb', 'Tgl Booking'], ['kol', 'Kol'], ['st', 'Status'], ['un', 'Unit (kode kantor)'], ['rm', 'RM'], ['np', 'NPP RM'], ['oo', 'Opt-out WA']]
   },
   impState() {

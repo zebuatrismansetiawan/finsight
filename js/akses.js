@@ -10,7 +10,7 @@
 (() => {
   const P = Pages.pengaturan;
   const { esc, ic } = U;
-  const FIELD_PT = [['nm', 'Nama Debitur'], ['ra', 'Rek Afil'], ['rp', 'Rek Pinjaman'], ['cif', 'CIF'], ['wa', 'No. HP'], ['pic', 'Kontak (PIC)'],
+  const FIELD_PT = [['nm', 'Nama Debitur'], ['pu', 'Perusahaan (tempat kerja)'], ['ra', 'Rek Afil'], ['rp', 'Rek Pinjaman'], ['cif', 'CIF'], ['wa', 'No. HP'], ['pic', 'Kontak (PIC)'],
     ['pl', 'Plafon'], ['bd', 'Baki Debet'], ['an', 'Angsuran'], ['sb', 'Saldo Blokir'], ['sa', 'Saldo Akhir'], ['jt', 'Jatuh Tempo'], ['tb', 'Tgl Booking'],
     ['kol', 'Kol'], ['st', 'Status'], ['bt', 'Batch'], ['jw', 'Jangka Waktu'], ['un', 'Unit'], ['np', 'NPP RM']];
   const KUNCI_PT = [['auto', 'Otomatis (Rek Afil → Rek Pinjaman → CIF)'], ['ra', 'Rek Afil'], ['rp', 'Rek Pinjaman'], ['cif', 'CIF']];
@@ -62,11 +62,11 @@
               <label class="fld sm w-baris"><span>Baris judul</span><input class="inp" type="number" min="1" max="50" data-act="ptBaris" data-k="${esc(nama)}" value="${esc(p.baris)}"></label>
               <label class="fld sm"><span>Dicocokkan lewat</span><select class="sel" data-act="ptKunci" data-k="${esc(nama)}">${KUNCI_PT.map((k) => `<option value="${k[0]}" ${p.kunci === k[0] ? 'selected' : ''}>${esc(k[1])}</option>`).join('')}</select></label>
               <button class="btn btn-secondary btn-sm" data-act="ptBuka" data-k="${esc(nama)}">${ic('sliders', 15)} Atur kolom${nPeta ? ` <span class="tag">${nPeta}</span>` : ''}</button></div></div>
-          ${buka ? `<div class="imp-peta">${p.judul ? `<p class="muted sm">${ic('info', 13)} Kolom dibaca dari baris judul ${esc(p.baris)} sheet <b>${esc(p.sheet)}</b>. <b>Otomatis</b> = judul dikenali (mis. Nama Deb, Rek Afil, Batch); bila tidak ada, diambil dari base data (sheet Debitur). <b>Dari base data</b> = abaikan kolom sheet PT.</p>`
+          ${buka ? `<div class="imp-peta">${p.judul ? `<p class="muted sm">${ic('info', 13)} Kolom dibaca dari baris judul ${esc(p.baris)} sheet <b>${esc(p.sheet)}</b>. <b>Otomatis</b> = judul dikenali (mis. Nama Deb, Perusahaan, Rek Afil, Batch); bila tidak ada, diambil dari base data (sheet Debitur). <b>Dari base data</b> = abaikan kolom sheet PT.</p>`
               : `<p class="muted sm">${ic('info', 13)} Pilih sheet & baris judul, lalu klik <b>Baca kolom</b> agar huruf & judul kolom bisa dipilih.</p>`}
             <div class="row-g"><button class="btn btn-secondary btn-sm" data-act="ptBacaKolom" data-k="${esc(nama)}">${ic('search', 14)} Baca kolom</button>${p.judul ? `<span class="muted sm">${U.num(p.judul.length)} kolom terbaca.</span>` : ''}</div>
             <div class="tbl-wrap"><table class="tbl sm imp-tbl"><thead><tr><th>Data di Daftar Debitur KUR PMI</th><th>Ambil dari sheet ${esc(p.sheet || 'PT')}</th><th>Contoh</th></tr></thead><tbody>
-              <tr><td><b>PT Penempatan</b></td><td><span class="pill pill-grey">${esc(nama)} (nama PT)</span></td><td></td></tr>
+              <tr><td><b>Mitra KUR PMI</b></td><td><span class="pill pill-grey">${esc(nama)} (nama PT)</span></td><td></td></tr>
               <tr><td><b>Produk</b></td><td><span class="pill pill-grey">KUR PMI (otomatis)</span></td><td></td></tr>
               ${FIELD_PT.map((f) => `<tr><td><b>${esc(f[1])}</b></td><td class="imp-sel">${P.pilihKolom(p.kolom[f[0]], p.judul, i + '.' + f[0], 'pt', { auto: 'Otomatis (judul / base data)', skip: '— Dari base data —' })}</td><td class="muted"><small>${esc(P.contohNilai(p.kolom[f[0]], p.judul) || (!p.kolom[f[0]] && p.pakai && p.pakai[f[0]] ? 'otomatis: ' + p.pakai[f[0]] : ''))}</small></td></tr>`).join('')}
             </tbody></table></div></div>` : ''}</div>`;
@@ -106,6 +106,29 @@
       this._akAsli = this.akD ? JSON.stringify(this.akD) : undefined;
       if (App.halaman === 'pengaturan' && (S.f.set || {}).tab === 'akses') App.render({ tetap: true });
     },
+    /** v1.6: Cek NPP — cocokkan NPP login dengan NPP RM pengelola di database (Super Admin). */
+    kartuCekNpp() {
+      const R = this.akCekR, nppIsi = this.akCekNpp || '';
+      const rp = (n) => U.rpJ(n);
+      const tabel = (L) => `<div class="tbl-wrap"><table class="tbl sm"><thead><tr><th>Produk</th><th class="num">Rekening</th><th class="num">CIF</th><th class="num">Plafon</th><th class="num">Baki debet</th><th class="num">SME</th><th class="num">SBP</th></tr></thead><tbody>
+        ${L.map((x) => `<tr><td>${UI.prod(x.pr)}</td><td class="num tnum">${U.num(x.n)}</td><td class="num tnum">${U.num(x.cif)}</td><td class="num tnum">${rp(x.pl)}</td><td class="num tnum">${rp(x.bd)}</td><td class="num tnum">${U.num(x.sme)}</td><td class="num tnum">${U.num(x.sbp)}</td></tr>`).join('')}
+        <tr class="tot"><td><b>Total</b></td><td class="num tnum"><b>${U.num(L.reduce((s, x) => s + x.n, 0))}</b></td><td class="num tnum">${U.num(L.reduce((s, x) => s + x.cif, 0))}</td><td class="num tnum"><b>${rp(L.reduce((s, x) => s + x.pl, 0))}</b></td><td class="num tnum"><b>${rp(L.reduce((s, x) => s + x.bd, 0))}</b></td><td></td><td></td></tr></tbody></table></div>`;
+      let isi = '';
+      if (R && R.galat) isi = `<div class="alert alert-neg mt">${ic('alertc', 16)}<div>${esc(R.galat)}</div></div>`;
+      else if (R) {
+        const u = R.pengguna, l = R.lihat;
+        isi = `<div class="cek-npp mt">
+          <div class="src-st ${R.n ? 'ok' : 'bad'}">${ic(R.n ? 'ok' : 'alertc', 18)}<div><b>NPP ${esc(R.npp)} — ${U.num(R.n)} rekening di database</b><small>Kolom NPP RM di sheet Debitur: <b>${esc(R.kolom || 'NPP_RM')}</b>${R.adaNpp ? '' : ' (belum berisi data — filter NPP belum berlaku)'} • total ${U.num(R.total)} rekening.</small></div></div>
+          <div class="src-st">${ic('user', 18)}<div><b>${u ? esc(u.nama) + ' • ' + esc(App.labelPeran(u.peran)) + (u.status !== 'Aktif' ? ' • Nonaktif' : '') : 'NPP ini belum terdaftar sebagai pengguna'}</b>
+            <small>${l ? `Setelah login menerima <b>${U.num(l.n)}</b> debitur — ${l.nppAktif ? 'filter NPP aktif (NPP = kunci)' : l.filterNpp ? 'filter NPP dicentang, tetapi kolom NPP RM belum berisi data' : l.segmen ? 'segmen ' + esc(l.segmen) + ' saja, tanpa filter NPP' : 'seluruh portofolio'}.${l.filterNpp ? '' : ` <span class="warn">Centang "Hanya debitur dengan NPP RM sendiri" untuk peran ini agar yang tampil sama dengan ${U.num(R.n)} rekening di atas.</span>`}` : 'Tambahkan di menu Pengguna & Peran dengan NPP yang sama.'}</small></div></div>
+          ${R.produk.length ? tabel(R.produk) : `<div class="alert alert-warn">${ic('info', 16)}<div><b>Tidak ada debitur dengan NPP RM ${esc(R.npp)}.</b> Periksa kolom NPP RM yang dipetakan (Import Data → Atur kolom → NPP RM, atau kartu "Filter NPP RM" di atas). Nilai NPP terbanyak di data: ${R.contoh.map((c) => `<code>${esc(c.npp)}</code> (${U.num(c.n)}${c.nama ? ' — ' + esc(c.nama) : ''})`).join(', ')}.</div></div>`}
+        </div>`;
+      }
+      return `<div class="card pad-l" id="akCek"><h3>${ic('search', 18)} Cek NPP — cocokkan NPP login dengan NPP RM pengelola</h3>
+        <p class="muted">Masukkan NPP pengguna (mis. 67221) untuk melihat berapa debitur di database yang NPP RM pengelolanya sama, per produk, dan apa yang akan ia lihat setelah login. Gunakan untuk mencocokkan jumlah dengan pivot database.</p>
+        <div class="row-g"><input class="inp w-npp" id="akCekNpp" inputmode="numeric" maxlength="7" placeholder="NPP, mis. 67221" value="${esc(nppIsi)}" autocomplete="off" aria-label="NPP">
+          <button class="btn btn-secondary" type="button" data-act="akCek">${ic('search', 15)} Cek NPP</button></div>${isi}</div>`;
+    },
     tab_akses() {
       const A = this.ak, D = this.akD;
       if (!A) { if (!this._akMuat) setTimeout(() => this.muatAkses(), 0); return `<div class="card pad"><span class="spin"></span> Memuat pengaturan akses data…</div>`; }
@@ -122,11 +145,13 @@
           ${peran.map((p) => `<tr><td><b>${esc(App.labelPeran(p))}</b></td><td><select class="sel" data-act="akSeg" data-k="${esc(p)}">${[['', 'Semua (SME & SBP)'], ['SME', 'SME saja'], ['SBP', 'SBP saja']].map((o) => `<option value="${o[0]}" ${(D.peran[p].s || '') === o[0] ? 'selected' : ''}>${o[1]}</option>`).join('')}</select></td>
             <td class="c"><label class="sw-cell"><input type="checkbox" data-act="akNpp" data-k="${esc(p)}" ${D.peran[p].n ? 'checked' : ''} aria-label="Hanya NPP sendiri"><i></i></label></td></tr>`).join('')}
           </tbody></table></div>
-          <p class="muted sm">${ic('info', 13)} Bawaan: <b>RM</b> = SME + NPP sendiri; <b>PRM / ARM</b> = SBP; Business Banking Manager, Branch Manager, SME Credit Risk = semua. Peran baru diatur di menu Pengguna & Peran.</p></div>
+          <p class="muted sm">${ic('info', 13)} Bawaan: <b>RM</b> = SME + NPP sendiri; <b>PRM / ARM</b> = SBP + NPP sendiri; Business Banking Manager, Branch Manager, SME Credit Risk = semua. Peran baru diatur di menu Pengguna & Peran.</p>
+          <p class="muted sm">${ic('key', 13)} <b>NPP = kunci.</b> Bila "Hanya debitur dengan NPP RM sendiri" dicentang dan kolom NPP RM sudah berisi data, pengguna menerima <b>semua</b> debitur yang NPP RM pengelolanya sama dengan NPP login-nya — apa pun segmen/produknya. Segmen hanya menyaring peran yang tidak memakai filter NPP.</p></div>
         <div class="card pad-l"><h3>${ic('user', 18)} Filter NPP RM</h3>
           <p class="muted">Kolom di sheet Debitur (database) yang berisi NPP RM pengelola. Peran yang dicentang "Hanya debitur dengan NPP RM sendiri" hanya menerima debitur dengan NPP yang sama dengan NPP login-nya. Isi kolom ini lewat <b>Import Data → Atur kolom → NPP RM</b>.</p>
           <div class="form-g g2"><label class="fld"><span>Kolom NPP RM</span>${kolSel('np', 'NPP_RM')}</label>
             <div class="src-st ${A.kolom.np ? 'ok' : ''}">${ic(A.kolom.np ? 'ok' : 'info', 18)}<div><b>${A.kolom.np ? U.num(A.hitung.np) + ' dari ' + U.num(A.total) + ' debitur punya NPP RM' : 'Kolom NPP RM belum ada'}</b><small>${A.kolom.np ? 'Filter NPP aktif untuk peran yang dicentang.' : 'Selama kolom belum ada, filter NPP belum diterapkan (peran tetap melihat seluruh segmennya).'}</small></div></div></div></div>
+        ${this.kartuCekNpp()}
         <div class="card pad-l"><h3>${ic('layers', 18)} Segmen SME & SBP</h3>
           <p class="muted">Produk tiap segmen menjadi sub menu Daftar Debitur. Produk yang ada di kedua segmen (mis. CCC) ditentukan dari <b>kolom Segmen</b> base data; bila kosong, ikut segmen peran RM pengelola (NPP RM).</p>
           <div class="form-g g2">${['SME', 'SBP'].map((g) => `<div class="fld"><span>Produk ${g}</span><div class="ak-prod">${prodAll.map((k) => `<label class="chk sm"><input type="checkbox" data-act="akProd" data-g="${g}" data-k="${esc(k)}" ${D.seg[g].includes(k) ? 'checked' : ''}><span>${esc(k)}</span></label>`).join('')}</div></div>`).join('')}
@@ -208,8 +233,18 @@
     akUnitTambah: () => { P.akD.unit.push({ k: '', n: '' }); ulang(); setTimeout(() => { const x = document.querySelectorAll('[data-act="akUnit"][data-f="k"]'); if (x.length) x[x.length - 1].focus(); }, 30); },
     akUnitBawaan: () => { P.akD.unit = JSON.parse(JSON.stringify(P.ak.bawaan.unit)); ulang(); },
     akBatal: () => { P.akD = JSON.parse(P._akAsli); ulang(); },
+    akCek: async (el) => {
+      const i = document.getElementById('akCekNpp'), v = (i && i.value || '').trim();
+      if (!v) return U.toast('Isi NPP dulu, mis. 67221.', 'warn');
+      P.akCekNpp = v; el.disabled = true; const l = el.innerHTML; el.innerHTML = '<span class="spin"></span> Memeriksa…';
+      const r = await Api.call('akses.cek', { npp: v }, { timeout: 90000 });
+      el.disabled = false; el.innerHTML = l;
+      P.akCekR = r.success ? r.data : { galat: r.message };
+      const k = document.getElementById('akCek'); if (k) k.outerHTML = P.kartuCekNpp(); else ulang();
+    },
     akSimpan: async (el) => {
       const D = P.akD;
+      D.segV = 2;                                     // v1.6: format segmen terbaru (SCF & Other sudah dikenal)
       D.unit = D.unit.filter((u) => u.k || u.n);
       el.disabled = true; const l = el.innerHTML; el.innerHTML = '<span class="spin"></span> Menyimpan…';
       const r = await Api.call('akses.simpan', { akses: D }, { timeout: 120000 });
