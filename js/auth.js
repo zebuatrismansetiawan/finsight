@@ -174,7 +174,7 @@ const Auth = (() => {
   }
 
   function formGanti() {
-    return `${stepper()}<h2>Ganti kata sandi</h2><p class="lg-sub">Halo <b>${esc(st.nama)}</b>, demi keamanan Anda wajib membuat kata sandi baru${st.pertama ? ' sebelum memakai aplikasi' : ''}.</p>${pesan()}
+    return `${stepper()}<h2>${st.kedaluwarsa ? 'Kata sandi kedaluwarsa' : 'Ganti kata sandi'}</h2><p class="lg-sub">Halo <b>${esc(st.nama)}</b>, demi keamanan Anda wajib membuat kata sandi baru${st.pertama ? ' sebelum memakai aplikasi' : ''}. Kata sandi berlaku 30 hari dan tidak boleh sama dengan yang pernah dipakai.</p>${pesan()}
       <form id="fGanti" novalidate>
         <input type="text" name="username" value="${esc(st.npp)}" autocomplete="username" hidden>
         <label class="fld"><span>Kata sandi baru</span><div class="inp-ic">${ic('key', 17)}<input id="iBaru" type="password" autocomplete="new-password" placeholder="Minimal 8 karakter, huruf + angka" autofocus required><button type="button" class="eye" data-eye="iBaru" aria-label="Tampilkan sandi">${ic('eye', 17)}</button></div></label>
@@ -346,7 +346,12 @@ const Auth = (() => {
     }
     const d = r.data;
     st.tiket = d.tiket || st.tiket; st.nama = d.nama || st.nama;
-    if (d.langkah === 'GANTI_SANDI') { st.langkah = 'GANTI_SANDI'; st.pertama = d.pertama; st.alurPertama = true; st.pesan = d.pertama ? 'Login pertama berhasil. Silakan buat kata sandi baru.' : 'Admin meminta Anda mengganti kata sandi.'; st.jenis = 'ok'; }
+    if (d.langkah === 'GANTI_SANDI') {
+      st.langkah = 'GANTI_SANDI'; st.pertama = d.pertama; st.kedaluwarsa = !!d.kedaluwarsa; st.alurPertama = !d.kedaluwarsa;
+      // v1.7: sandi berlaku 30 hari → wajib membuat sandi baru yang belum pernah dipakai
+      st.pesan = d.pertama ? 'Login pertama berhasil. Silakan buat kata sandi baru.' : d.kedaluwarsa ? 'Kata sandi Anda sudah berlaku ' + (d.hari || 30) + ' hari. Wajib membuat kata sandi baru (tidak boleh sama dengan sandi yang pernah dipakai).' : 'Admin meminta Anda mengganti kata sandi.';
+      st.jenis = d.kedaluwarsa ? 'warn' : 'ok';
+    }
     else if (d.langkah === 'SETUP_2FA') { st.langkah = 'SETUP_2FA'; st.data = d; st.qrSampai = Date.now() + (Number(d.berlakuDetik) || 180) * 1000; st.alurPertama = true; st.pesan = r.message || ''; st.jenis = 'ok'; }
     else if (d.langkah === 'OTP') { st.langkah = 'OTP'; st.pesan = r.message || ''; st.jenis = 'ok'; }
     else if (d.langkah === 'SELESAI') {

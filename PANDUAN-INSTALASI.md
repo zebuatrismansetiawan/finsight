@@ -1,10 +1,80 @@
-# Panduan Instalasi FinSight v1.6.0
+# Panduan Instalasi FinSight v1.7.0
 
 Monitoring Portofolio Kredit & Penagihan — Google Apps Script (backend REST API) + frontend PWA (GitHub Pages / Vercel) + Cloudflare (opsional, disarankan)
 
 ---
 
-## ⬆️ Upgrade dari v1.5.0 ke v1.6.0 (aplikasi yang sudah berjalan)
+## ⬆️ Upgrade dari v1.6.0 ke v1.7.0 (aplikasi yang sudah berjalan)
+
+Data, akun, kata sandi, authenticator, token Fonnte, logo, URL `/exec`, **Cloudflare Worker, `GATEWAY_SECRET`, dan `js/config.js` Anda tidak berubah.** Kolom & sheet baru dibuat otomatis (lihat langkah A). Fitur lain di luar 10 poin di bawah tidak diubah.
+
+**Yang berubah di v1.7.0**
+
+| # | Perubahan |
+|---|---|
+| 1 | **Kebijakan kata sandi (semua akun)**: berlaku **30 hari** lalu wajib membuat sandi baru • sandi yang **pernah dipakai ditolak** (pengguna diberi tahu) • sandi **tidak boleh mengandung NPP** login • salah **5× → dikunci 15 menit**, **7× → 30 menit**, **10× → DIBLOKIR** (hanya Super Admin yang dapat membuka) • **Super Admin hanya 1** — peran Super Admin tidak bisa diberikan ke pengguna lain |
+| 2 | **Upliner & downliner**: Super Admin memilih **Upliner (atasan langsung)** tiap pengguna dari daftar pengguna terdaftar (**Pengguna & Peran → Edit**). Data Dashboard, Kualitas Kredit, Daftar Debitur & Penagihan untuk **Business Banking Manager, SME Credit Risk & Branch Manager** mengikuti seluruh bawahannya (rekursif, sesuai NPP RM pengelola). Diatur per peran di **Pengaturan → Akses Data → kolom "Data bawahan (downliner)"** |
+| 3 | Tombol **Sinkronkan Google Sheets** hanya tampil (dan hanya diizinkan server) untuk **Super Admin** |
+| 4 | **Produk tetap**: SME = **BCM, CCC, SCF, KPP SUPPLY** • SBP = **BWU, CCC, KUR, KPP DEMAND, KUR PMI**. Tulisan produk di database dikenali (`KPP SUP…` → KPP SUPPLY; `KPP DEM…` atau `KPP` saja → KPP DEMAND; `SCF …` → SCF). Produk di luar daftar (mis. OTHERS / LAINNYA) **tidak ditampilkan** di menu, Dashboard, Daftar Debitur, Detail, Penagihan & laporan — jumlahnya dilaporkan di **Sinkronisasi & Data → Cek kecocokan data per produk** |
+| 5 | **Dashboard**: grafik *Performa per Produk Kredit* menggabungkan seluruh produk SME (BCM, CCC SME, SCF, KPP SUPPLY) menjadi **BCM**; pita produk berurutan **BCM, SCF, KPP SUPPLY, CCC, BWU, KUR, KPP DEMAND, KUR PMI**; tabel **Prioritas Tindakan** memakai satuan **Jt / M** seperti Penagihan & Daftar Debitur |
+| 6 | **Jangka Waktu**: kolom baru `Jangka_Waktu` di sheet Debitur & pemetaan **Import Data** (Debitur Umum & KUR PMI) — KUR PMI tidak lagi kosong; Jangka Waktu juga tampil di **Detail Debitur SME & SBP** |
+| 7 | **Tanggal Base Data**: kolom baru `Tgl_Data` (petakan di **Import Data → Atur kolom → Tanggal Base Data**; format `25/11/2026`, `2026-11-25`, `20261125`, `25 Nov 2026`, tanggal Excel dikenali). Satu rekening disimpan **per tanggal**. Dashboard, Kualitas Kredit, Daftar Debitur & Penagihan **otomatis menampilkan tanggal terbaru** ("Ringkasan … per <tanggal terbaru>") |
+| 8 | Tombol **Posisi data** (mencolok, berlabel *TERBARU*) di Dashboard, Kualitas Kredit, Daftar Debitur & Penagihan untuk memilih tanggal lain yang ada di database. Saat melihat tanggal lama tampil banner oranye + tautan **Kembali ke data terbaru**. Super Admin dapat menghapus 1 tanggal di **Import Data → Tanggal Base Data** |
+| 9 | **Analisa → tab baru "Format Excel"**: sheet **INPUT, CALL MEMO & BNI 105** digabung jadi 1 format yang sama dengan Excel (font, ukuran, lebar kolom, tinggi baris, margin, skala, pemisah halaman), rumus Excel dihitung otomatis dari data sheet **BATCH** & **No Surat** Anda, **link interaktif** (klik sel → kolom data sumbernya disorot; ubah data → format dihitung ulang & tersimpan; mode **Edit teks** untuk mengubah isi sel langsung), **Cetak / PDF A4**, dan **simulasi angsuran metode anuitas** |
+| 10 | **Menu baru Pipeline** dengan sub halaman **Pipeline SME (RM)** dan **Pipeline SBP (PRM / ARM)** + mini dashboard **Total nominal pipeline** & **Total baki debet** RM/PRM/ARM yang ada di pipeline (dari base data tanggal terbaru) |
+
+> ⚠️ **Sebelum upgrade — hanya boleh 1 Super Admin.** Buka sheet `Pengguna`. Bila ada lebih dari 1 baris berperan *Super Admin*, ubah dulu yang lain ke peran lain (mis. *Manager*). Bila tidak diubah, yang dipertahankan adalah Super Admin di **baris teratas** sheet `Pengguna`; Super Admin lainnya **tidak dapat masuk** sampai Super Admin memberinya peran lain di **Pengguna & Peran**.
+
+**A. Backend (Apps Script)** — ganti **8 berkas** + buat **1 berkas baru**
+
+1. Buka proyek Apps Script FinSight. Ganti **seluruh isi** berkas **`Kode`, `Auth`, `Data`, `Akses`, `Migrasi`, `Analisa`, `Setup`, `Keamanan`** dengan berkas baru dari paket.
+2. Buat berkas skrip baru (ikon **+** → *Skrip*) bernama persis **`Pipeline`** → hapus isi bawaannya → tempel isi `Pipeline.gs`.
+   (`Blast`, `Ekspor`, `appsscript.json` **tidak berubah**.)
+3. Simpan (Ctrl+S). Pilih fungsi **`setupAppEnvironment`** → **▶ Jalankan** (aman diulang, tidak menimpa data/sandi). Setup v1.7 otomatis:
+   - menambah kolom **`Upliner`** di sheet `Pengguna`, kolom **`Jangka_Waktu`** & **`Tgl_Data`** di sheet `Debitur`, dan sheet baru **`Pipeline`**;
+   - menambahkan menu **Pipeline** ke peran yang sudah punya Dashboard/Daftar Debitur (sekali saja; bisa dicabut di **Peran & Hak Akses Menu**);
+   - mengunci **1 Super Admin**.
+   > Bila lupa menjalankan setup, langkah yang sama berjalan sendiri lewat pemicu `warmupCache` (±5 menit).
+4. **Deploy → Kelola deployment → ✏️ Edit → Versi: Versi baru → Deploy.** (URL `/exec` tetap sama.)
+
+**B. Frontend (Vercel / GitHub Pages)**
+
+1. Ekstrak `finsight-frontend-v1.7.0.zip` ke folder baru → **pilih semua isinya** (Ctrl+A) → salin (Ctrl+C) → buka folder repository `finsight` → tempel (Ctrl+V) → pilih **"Replace the files in the destination / Ganti file di tujuan"** (**jangan Skip**). ZIP tidak berisi `js/config.js`.
+2. Dari terminal di folder repository, pastikan berkas benar-benar terganti:
+   ```bash
+   git status
+   ```
+   Harus muncul **modified** antara lain `index.html`, `sw.js`, `css/style.css`, `js/app.js`, `js/pages.js`, dan berkas **baru** (*untracked*) `js/pipeline.js`, `js/xlkur.js`, `js/xlkur-data.js`. Lalu:
+   ```bash
+   git add .
+   git commit -m "FinSight v1.7.0"
+   git push
+   ```
+3. Tunggu Vercel **Ready** → buka **https://finsightbbjba.vercel.app/sw.js** harus tertulis `finsight-v1.7.0` → buka aplikasi → **Ctrl+Shift+R** → footer **v1.7.0**.
+
+**C. Setelah upgrade (Super Admin)**
+
+| # | Tugas | Di mana |
+|---|---|---|
+| 1 | Petakan **Jangka Waktu** & **Tanggal Base Data** lalu import ulang | **Pengaturan → Import Data → Atur kolom** (Debitur Umum & Debitur KUR PMI) → *Jangka Waktu* ← kolom jangka waktu/tenor database, *Tanggal Base Data* ← kolom tanggal posisi data → **Pindai** → **Jalankan import**. Import tanggal berikutnya menambah posisi baru tanpa menimpa tanggal lama |
+| 2 | Isi **Upliner** tiap pengguna | **Pengguna & Peran → ✏️ Edit → Upliner (atasan langsung)** — mis. RM/PRM/ARM → BBM / Branch Manager; BBM → Branch Manager. Atau isi kolom `Upliner` (NPP atasan) di sheet `Pengguna` |
+| 3 | Pastikan peran atasan memakai data bawahan | **Pengaturan → Akses Data → Cakupan data per peran** → centang **Data bawahan (downliner)** untuk Business Banking Manager, SME Credit Risk, Branch Manager (bawaan sudah tercentang bila nama perannya mengandung kata tersebut) → **Simpan** |
+| 4 | Penanda tangan **Format Excel** | **Analisa → Perangkat Analisa KUR PMI → Atur format → Penanda tangan → Komite Kredit — anggota (format Excel)** |
+| 5 | Uji **Format Excel** | **Analisa → Format Excel → Import data Excel** → pilih file Excel Anda yang berisi sheet **BATCH** (+ **No Surat**) → isi nomor batch bila hanya sebagian → **Import** |
+| 6 | Uji kebijakan sandi | Login dengan sandi lama setelah 30 hari, atau coba ganti dengan sandi yang pernah dipakai → ditolak dengan pesan |
+
+> **Catatan v1.7**
+> - **Sandi lama sebelum upgrade** mulai dihitung 30 hari sejak login pertama setelah upgrade. Riwayat sandi yang dicek: 24 sandi terakhir (disimpan sebagai *hash*, tidak bisa dibaca siapa pun).
+> - **Akun diblokir** (10× salah): Super Admin → **Pengguna & Peran → Reset akses → Buka kunci / blokir akun**. Bila yang diblokir **Super Admin sendiri**: editor Apps Script → jalankan `bukaBlokirAkun('NPP_ANDA')` (ganti dengan NPP Super Admin).
+> - **Memindahkan peran Super Admin** ke orang lain (hanya 1): editor Apps Script → jalankan `pindahkanSuperAdmin('NPP_BARU', 'Manager')` — NPP baru menjadi Super Admin, Super Admin lama menjadi peran *Manager* (ganti sesuai kebutuhan).
+> - **Upliner** hanya bisa diubah Super Admin, harus pengguna terdaftar, tidak boleh dirinya sendiri, dan tidak boleh melingkar (atasan tidak boleh bawahannya sendiri). Bila peran atasan belum punya bawahan, datanya kembali mengikuti segmen perannya.
+> - **Tanggal Base Data**: baris lama tanpa tanggal tetap tampil di semua tanggal sampai digantikan baris bertanggal (rekening yang sama tidak dihitung ganda). Kirim WA & penagihan selalu memakai data terbaru. Baseline *Kol awal bulan* diambil dari posisi tanggal terakhir bulan sebelumnya bila ada.
+> - **Format Excel**: sheet **No Surat** dan **BATCH** di file Anda adalah database — aplikasi hanya membacanya saat import (file tidak diunggah ke server, hanya datanya). Nomor surat (kolom AM) diambil dari sheet No Surat (kolom A, dicocokkan dengan nama di kolom C) bila kosong; kurs dari sel **AO1**, tanggal surat dari **AP1**; Gaji Rupiah (AI) = Gaji Yen × kurs. Template import (.xlsx) = susunan sheet BATCH (judul baris 2, data mulai baris 3).
+> - Huruf **Calibri** dipakai seperti Excel. Di perangkat tanpa Calibri, browser memakai pengganti dengan ukuran setara (Carlito); cetak dari laptop Windows/Mac agar identik 100%.
+
+<details>
+<summary><b>Riwayat: upgrade dari v1.5.0 ke v1.6.0</b></summary>
+
 
 Data, akun, kata sandi, authenticator, token Fonnte, logo, URL `/exec`, **Cloudflare Worker, `GATEWAY_SECRET`, dan `js/config.js` Anda tidak berubah.** Tidak ada kolom/sheet baru yang wajib dibuat. Fitur lain di luar 5 poin di bawah tidak diubah.
 
@@ -54,6 +124,8 @@ Data, akun, kata sandi, authenticator, token Fonnte, logo, URL `/exec`, **Cloudf
 > - **Jumlah debitur SME** di Daftar Debitur dihitung **per CIF** (rekening ganda digabung); Dashboard, Kualitas Kredit & Penagihan tetap per rekening pinjaman.
 > - **Saldo Akhir** total per CIF dijumlah per **rekening afiliasi** (rekening afiliasi yang sama tidak dihitung dua kali).
 > - Pengaturan segmen yang disimpan di v1.5 otomatis mendapat **SCF & OTHER** di SME; bisa diubah di Akses Data.
+
+</details>
 
 <details>
 <summary><b>Riwayat: upgrade dari v1.4.0 ke v1.5.0</b></summary>
@@ -347,17 +419,18 @@ HP / Laptop  →  Vercel / GitHub Pages (frontend PWA)  ──fetch JSON──�
 |---|---|---|
 | `Kode.gs` | Apps Script | Router API, hak akses per menu & peran (dicek tiap panggilan), audit log |
 | `Akses.gs` *(v1.5)* | Apps Script | Cakupan data per peran (segmen SME/SBP, filter NPP RM, unit), No HP debitur, sumber KUR PMI per PT |
-| `Auth.gs` | Apps Script | Login NPP, ganti sandi wajib, 2FA Microsoft Authenticator (TOTP), sesi 1 perangkat, ganti NPP |
+| `Auth.gs` | Apps Script | Login NPP, ganti sandi wajib, 2FA Microsoft Authenticator (TOTP), sesi 1 perangkat, ganti NPP, kebijakan sandi 30 hari & riwayat sandi, penguncian bertingkat, 1 Super Admin, upliner/downliner *(v1.7)* |
 | `Data.gs` | Apps Script | Baca Sheets, cache berlapis, dataset debitur, snapshot kolektibilitas, pengaturan, peran & Mitra KUR PMI |
 | `Blast.gs` | Apps Script | Template WA, antrean WA blast (Fonnte), log |
 | `Ekspor.gs` | Apps Script | Laporan PDF (tampilan sama dengan aplikasi) ke folder Drive |
 | `Migrasi.gs` | Apps Script | Import data dari spreadsheet lain (dry-run, aman diulang, pemetaan kolom per data) |
 | `Setup.gs` | Apps Script | Instalasi otomatis, data contoh, fungsi darurat |
 | `Keamanan.gs` | Apps Script | Gerbang Cloudflare, Turnstile, blokir per IP, masa berlaku sandi awal, pemeriksaan keamanan (`cekKeamanan`, `matikanTurnstile`, `matikanGerbang`) |
-| `Analisa.gs` | Apps Script | Perangkat Analisa KUR PMI (format, penanda tangan, data import massal) & format surat Word (Drive) |
+| `Analisa.gs` | Apps Script | Perangkat Analisa KUR PMI (format, penanda tangan, data import massal), Format Excel *(v1.7)* & format surat Word (Drive) |
+| `Pipeline.gs` *(v1.7)* | Apps Script | Pipeline SME (RM) & SBP (PRM/ARM): simpan, hak lihat sesuai cakupan, total baki debet RM/PRM/ARM |
 | `worker.js` (+ `wrangler.toml` opsional) | **Cloudflare Workers — bukan Apps Script** | Gerbang API (lihat Bagian 6b). Jangan ditempel ke editor Apps Script |
 | `appsscript.json` | Apps Script | Zona waktu Asia/Jakarta & setelan Web App |
-| `finsight-frontend-v1.6.0.zip` | GitHub Pages / Vercel | Isi folder ini = isi repository (index.html di root). Tidak berisi `js/config.js` — instalasi baru: buat `js/config.js` sesuai langkah 3.2 |
+| `finsight-frontend-v1.7.0.zip` | GitHub Pages / Vercel | Isi folder ini = isi repository (index.html di root). Tidak berisi `js/config.js` — instalasi baru: buat `js/config.js` sesuai langkah 3.2 |
 
 > **Mode demo.** Sebelum backend terpasang, frontend otomatis berjalan dengan data fiktif. Buka `index.html` lewat server lokal atau GitHub Pages lalu login dengan NPP `10001` (Super Admin), `20001` (RM), atau `30001` (Manager). Kata sandi pertama = NPP. Kode authenticator demo ditampilkan di layar.
 
@@ -369,7 +442,7 @@ Gunakan **akun Google yang akan memiliki data** (sebaiknya akun kerja yang diset
 
 1. Buka <https://script.google.com> → **Proyek baru**. Beri nama `FinSight API`.
 2. Di **⚙️ Setelan Proyek**: centang **Tampilkan file manifes "appsscript.json"**. Pastikan **Zona waktu = (GMT+07:00) Jakarta**.
-3. Buat 10 berkas skrip (ikon **+** → *Skrip*) dengan nama persis: `Kode`, `Auth`, `Data`, `Blast`, `Ekspor`, `Migrasi`, `Setup`, `Keamanan`, `Analisa`, `Akses`. Hapus isi bawaan, lalu tempel isi berkas `.gs` yang sesuai.
+3. Buat 11 berkas skrip (ikon **+** → *Skrip*) dengan nama persis: `Kode`, `Auth`, `Data`, `Blast`, `Ekspor`, `Migrasi`, `Setup`, `Keamanan`, `Analisa`, `Akses`, `Pipeline`. Hapus isi bawaan, lalu tempel isi berkas `.gs` yang sesuai.
 4. Buka `appsscript.json`, ganti seluruh isinya dengan berkas `appsscript.json` dari paket.
 5. Buka `Setup.gs`, **ganti NPP admin awal** dengan NPP Anda (5 digit):
    ```js
@@ -378,8 +451,8 @@ Gunakan **akun Google yang akan memiliki data** (sebaiknya akun kerja yang diset
 6. Simpan semua (Ctrl+S). Pilih fungsi **`setupAppEnvironment`** di toolbar → **▶ Jalankan** → **Tinjau izin** → pilih akun → **Izinkan**.
 7. Buka **Log eksekusi**. Harus muncul `✅ Setup selesai` beserta tautan spreadsheet. Setup membuat:
    - Folder Drive `📁 FinSight` berisi spreadsheet `🗃️ FinSight — Database` dan folder `📂 Ekspor Laporan`.
-   - Sheet: `Debitur`, `Produk`, `Template_WA`, `Log_Blast`, `Pengguna`, `Snapshot_Kol`, `Snapshot_Debitur`, `Pengaturan`, `Audit_Log`, `AppConfig`, `Template_Surat`, `Data_Analisa`, `Kontak_Debitur`.
-   - 3 template WA awal, 5 produk, akun Super Admin awal, serta 4 pemicu otomatis (lihat bagian 7).
+   - Sheet: `Debitur`, `Produk`, `Template_WA`, `Log_Blast`, `Pengguna`, `Snapshot_Kol`, `Snapshot_Debitur`, `Pengaturan`, `Audit_Log`, `AppConfig`, `Template_Surat`, `Data_Analisa`, `Kontak_Debitur`, `Pipeline` *(v1.7)*.
+   - 3 template WA awal, 8 produk (BCM, SCF, KPP SUPPLY, CCC, BWU, KUR, KPP DEMAND, KUR PMI), akun Super Admin awal, serta 4 pemicu otomatis (lihat bagian 7).
    > Setup **aman dijalankan ulang**: tidak menimpa data, sandi, atau rahasia yang sudah ada.
 8. *(Opsional, untuk UAT)* Jalankan **`isiDataContoh`** → 150 debitur fiktif (CIF berawalan `DEMO`, sebagian KUR PMI lengkap dengan PT). Hapus nanti dengan **`hapusDataContoh`**.
 9. **Deploy** → **Deployment baru** → ikon roda gigi → **Aplikasi web**:
@@ -406,7 +479,7 @@ Data debitur **diedit langsung di Google Sheets** (aplikasi bersifat monitoring)
 | `Rek_Afiliasi` *(wajib untuk KUR PMI)* | No. rekening afiliasi/autodebet (format **teks**) — pencocokan data KUR PMI | Rek Afil, Rekening Afiliasi, Rek Tabungan, Rek Autodebet |
 | `Nama` | Nama debitur | Nama Debitur, Nama Deb, Nama Nasabah |
 | `No_WA` | 08xx / 62xx (format **teks**) | No HP, WA, Telepon |
-| `Produk` | BWU / CCC / KUR / KUR PMI / KPP | Jenis Produk |
+| `Produk` | **v1.7 — hanya 8 produk**: SME = BCM, CCC, SCF, KPP SUPPLY • SBP = BWU, CCC, KUR, KPP DEMAND, KUR PMI (tulisan seperti `KPP SUP`, `KPP DEMAND`, `SCF DISTRIBUTOR` dikenali). Produk lain tidak ditampilkan | Jenis Produk |
 | `Plafon`, `Baki_Debet` | Angka | Plafond, OS, Outstanding |
 | `Tgl_Jatuh_Tempo` | Tanggal | Jatuh Tempo |
 | `Status` | Aktif / Lunas | — |
@@ -420,6 +493,8 @@ Data debitur **diedit langsung di Google Sheets** (aplikasi bersifat monitoring)
 | `Unit` *(v1.5)* | Kode unit 5 digit (mis. `31102`) atau nama kantor (mis. *KC Cikarang*) — otomatis jadi kode | Kode Unit, Kode Cabang, Cabang, Uker |
 | `NPP_RM` *(v1.5)* | NPP RM pengelola (5 digit) — dipakai filter NPP peran RM | NPP RM, NPP, NPP Pengelola, NPP AO |
 | `Segmen` *(v1.5)* | `SME` atau `SBP` (boleh "SBP - Small Business"). Kosong = ditentukan dari produk / peran RM pengelola | Segment, Segmentasi, LOB |
+| `Jangka_Waktu` *(v1.7)* | Jangka waktu / tenor kredit (mis. `36` atau `36 bulan`) — tampil di Detail Debitur SME, SBP & KUR PMI | Jangka Waktu, JW, Tenor, Lama Kredit |
+| `Tgl_Data` *(v1.7)* | **Tanggal Base Data** (posisi data). Satu rekening boleh punya beberapa baris dengan tanggal berbeda — aplikasi menampilkan tanggal terbaru dan bisa memilih tanggal lain | Tanggal Data, Tgl Posisi, Posisi Data, Tanggal Base Data |
 | `ID_Debitur` | *Opsional (data lama)*. Dipakai sementara bila CIF / Rek Afil / Rek Pinjaman kosong | ID, No Pinjaman |
 
 **B. Menu Import** (Super Admin → Pengaturan → Import Data): tempel URL spreadsheet lama → **Pindai (dry-run)** → **Jalankan import**. Sumber hanya dibaca, kunci `Rek_Pinjaman` (1 rekening pinjaman = 1 debitur; bila kosong → Rek Afil → CIF) mencegah baris ganda — **CIF yang sama dengan Rek Pinjaman berbeda diimpor sebagai pinjaman terpisah** dan didaftar di hasil pindai, teks berawalan `=`/`+`/`-`/`@` disimpan sebagai teks (bukan rumus), nomor WA diperbaiki (angka 0 di depan yang hilang dipulihkan), dan rumus di sheet tujuan dipertahankan. Import aman diulang sebelum *go-live* untuk menangkap data terbaru (delta).
@@ -428,7 +503,7 @@ Data debitur **diedit langsung di Google Sheets** (aplikasi bersifat monitoring)
 
 1. Tempel URL / ID spreadsheet sumber → **Baca spreadsheet**. Muncul daftar sheet beserta jumlah barisnya.
 2. Ada 2 kartu: **Debitur Umum** (kunci Rek Pinjaman) dan **Debitur KUR PMI** (produk otomatis *KUR PMI*). Bila kedua kartu membaca **sheet yang sama**, cukup centang *Debitur Umum* (aplikasi memberi peringatan). Centang yang ingin diimpor, pilih **Sheet sumber** (mis. `JBA`) dan **Baris judul** (baris tempat judul kolom berada, biasanya 1).
-3. Klik **Atur kolom** → untuk setiap data di Daftar Debitur (Nama Debitur, Kontak, No. WA, CIF, Rek Pinjaman, Rek Afil, Produk, Plafon, Baki Debet, Angsuran, Saldo Blokir, Saldo Akhir, Jatuh Tempo, Kol, Status, RM, Opt-out WA, **Tgl Booking, Unit, NPP RM, Segmen**; KUR PMI juga PT Penempatan) pilih asalnya:
+3. Klik **Atur kolom** → untuk setiap data di Daftar Debitur (Nama Debitur, Kontak, No. WA, CIF, Rek Pinjaman, Rek Afil, Produk, Plafon, Baki Debet, Angsuran, Saldo Blokir, Saldo Akhir, Jatuh Tempo, Kol, Status, RM, Opt-out WA, **Tgl Booking, Unit, NPP RM, Segmen**, ***Jangka Waktu*, *Tanggal Base Data*** *(v1.7)*; KUR PMI juga PT Penempatan) pilih asalnya:
    - **Otomatis (judul dikenali)** — bawaan; judul seperti Nama, CIF, OS, Plafond, No HP dikenali sendiri;
    - **kolom sumber** — tampil sebagai huruf + judul, mis. `A · Nama Deb`. Pilihan disimpan berdasarkan **judul**, jadi tetap benar walau kolom di sumber digeser; kolom tanpa judul disimpan berdasarkan **huruf**;
    - **Isi tetap…** — satu nilai untuk semua baris (mis. RM = `Andi`);
@@ -491,6 +566,8 @@ Sheet `Debitur` gaya lama (1 sheet campuran) tetap bisa dipakai: centang *Debitu
 **Super Admin awal:**
 1. Buka situs → NPP = NPP admin di `Setup.gs`, kata sandi = **NPP yang sama** (sandi awal berlaku 72 jam sejak setup; bila lewat, jalankan `resetAksesAdminAwal`).
 2. Wajib **membuat kata sandi baru** (min. 8 karakter, huruf + angka, tidak memuat NPP).
+
+   **Kebijakan sandi (v1.7, semua akun):** berlaku **30 hari** lalu wajib diganti • tidak boleh sama dengan sandi yang **pernah dipakai** • tidak boleh mengandung **NPP login** • salah sandi/kode **5× → dikunci 15 menit**, **7× → 30 menit**, **10× → diblokir** (hanya Super Admin yang dapat membuka). Hitungan salah kembali 0 setelah login berhasil.
 3. Muncul **kode QR** (berlaku 3 menit, sekali pakai). Di HP: pasang **Microsoft Authenticator** → **+** → **Akun lainnya (Google, Facebook, dll.)** → **Pindai kode QR**. (Google Authenticator/Authy juga bisa.) Bila waktu habis, klik **Buat QR baru**.
 4. Masukkan kode 6 digit → masuk ke dashboard. Setelah ini QR hangus dan tidak dapat ditampilkan lagi.
 
@@ -500,7 +577,11 @@ Sheet `Debitur` gaya lama (1 sheet campuran) tetap bisa dipakai: centang *Debitu
 
 **Login berikutnya:** NPP + kata sandi → kode 6 digit dari aplikasi authenticator.
 
-**Menambah pengguna:** menu **Pengguna & Peran** → *Tambah Pengguna* (NPP, nama, peran Super Admin/RM/Manager/peran buatan sendiri). Pengguna baru mengikuti alur yang sama (sandi awal = NPP).
+**Menambah pengguna:** menu **Pengguna & Peran** → *Tambah Pengguna* (NPP, nama, peran RM/Manager/peran buatan sendiri, **Upliner**). Pengguna baru mengikuti alur yang sama (sandi awal = NPP).
+
+**Super Admin hanya 1 (v1.7):** peran Super Admin tidak dapat diberikan ke pengguna lain (lewat menu maupun import). Untuk memindahkannya, jalankan `pindahkanSuperAdmin('NPP_BARU', 'Manager')` di editor Apps Script.
+
+**Upliner & downliner (v1.7):** **✏️ Edit** pengguna → **Upliner (atasan langsung)** — dipilih dari pengguna terdaftar (tanpa dirinya sendiri & bawahannya). Tabel pengguna menampilkan kolom **Upliner** dan jumlah **Downliner**. Peran dengan **Data bawahan (downliner)** (bawaan: Business Banking Manager, SME Credit Risk, Branch Manager) melihat data dirinya + seluruh bawahannya di Dashboard, Kualitas Kredit, Daftar Debitur, Penagihan & Pipeline.
 
 **Peran & menu:** tab **Peran & Hak Akses Menu** — centang menu yang boleh dibuka tiap peran, atau **+ Tambah Peran**. Menu yang tidak dicentang hilang dari sidebar & bottom bar dan ditolak server.
 
@@ -508,10 +589,10 @@ Sheet `Debitur` gaya lama (1 sheet campuran) tetap bisa dipakai: centang *Debitu
 
 | Bagian | Isi |
 |---|---|
-| Cakupan data per peran | **Segmen** Daftar Debitur (Semua / SME saja / SBP saja) dan **Hanya debitur dengan NPP RM sendiri** per peran. Bawaan: RM → SME + NPP sendiri; PRM / ARM → SBP + NPP sendiri (v1.6); Business Banking Manager, Branch Manager, SME Credit Risk & peran lain → semua. Super Admin selalu melihat semua. **NPP = kunci (v1.6)**: bila filter NPP aktif & kolom NPP RM berisi data, pengguna menerima semua debitur dengan NPP RM = NPP login-nya, apa pun segmennya |
+| Cakupan data per peran | **Segmen** Daftar Debitur (Semua / SME saja / SBP saja), **Hanya debitur dengan NPP RM sendiri**, dan **Data bawahan (downliner)** *(v1.7)* per peran. Bawaan: RM → SME + NPP sendiri; PRM / ARM → SBP + NPP sendiri (v1.6); Business Banking Manager, Branch Manager, SME Credit Risk & peran lain → semua. Super Admin selalu melihat semua. **NPP = kunci (v1.6)**: bila filter NPP aktif & kolom NPP RM berisi data, pengguna menerima semua debitur dengan NPP RM = NPP login-nya, apa pun segmennya |
 | Cek NPP (v1.6) | Ketik NPP → jumlah rekening/CIF/plafon/baki per produk dengan NPP RM itu, pemilik NPP (nama & peran), dan jumlah debitur yang ia terima setelah login. Bila 0, tampil nilai NPP terbanyak di data untuk memeriksa format kolom |
 | Kolom di sheet Debitur | Kolom yang dibaca sebagai **Unit**, **NPP RM**, **Segmen** (bawaan: dikenali otomatis dari judulnya) |
-| Produk per segmen | SME: BCM, CCC, SCF, OTHER • SBP: BWU, CCC, KUR, KPP, KUR PMI (bisa diubah) |
+| Produk per segmen | **v1.7:** SME: BCM, CCC, SCF, KPP SUPPLY • SBP: BWU, CCC, KUR, KPP DEMAND, KUR PMI (daftar produk tetap) |
 | Daftar unit | 15 kantor bawaan (31100 KCU Jababeka … 31166 KC Delta Mas) — **Tambah unit**, ubah nama, hapus, atau **Kembalikan bawaan** |
 
 Penyaringan dilakukan di **server** sebelum data dikirim ke perangkat, jadi debitur di luar cakupan tidak pernah sampai ke HP/laptop pengguna tersebut. **Simpan** → pengguna terkait memuat ulang data otomatis.
@@ -524,9 +605,9 @@ Penyaringan dilakukan di **server** sebelum data dikirim ke perangkat, jadi debi
 |---|---|
 | Lupa kata sandi | **Reset sandi & 2FA** → login lagi dengan sandi = NPP |
 | Ganti/hilang HP | **Reset 2FA saja** → QR baru (sekali pakai) muncul saat login berikutnya |
-| Salah sandi 5x (terkunci 15 menit) | **Buka kunci akun** |
+| Salah sandi 5× (dikunci 15 menit), 7× (30 menit), **10× (diblokir)** | **Buka kunci / blokir akun** |
 
-**Super Admin sendiri terkunci/lupa sandi:** buka editor Apps Script → jalankan **`resetAksesAdminAwal`**.
+**Super Admin sendiri terkunci/lupa sandi:** buka editor Apps Script → jalankan **`resetAksesAdminAwal`** (sandi kembali = NPP & blokir dibuka). Hanya membuka blokir: **`bukaBlokirAkun('NPP')`**.
 
 ---
 
@@ -632,7 +713,7 @@ Pindahkan DNS domain ke Cloudflare (awan oranye / *Proxied*), arahkan subdomain 
 
 ## 6c. Halaman Analisa
 
-Halaman Analisa punya 2 tab: **Perangkat Analisa KUR PMI** (v1.4, tab bawaan) dan **Format Word** (v1.3). Sejak v1.5, format Perangkat Analisa juga bisa diedit langsung di Google Docs (**Bagian C**).
+Halaman Analisa punya 3 tab: **Perangkat Analisa KUR PMI** (v1.4, tab bawaan), **Format Excel** (v1.7, Bagian D) dan **Format Word** (v1.3). Sejak v1.5, format Perangkat Analisa juga bisa diedit langsung di Google Docs (**Bagian C**).
 
 ### A. Perangkat Analisa KUR PMI
 
@@ -688,6 +769,46 @@ File format surat disimpan di folder Drive `📂 Template Surat`; mengganti/meng
 
 > Tata letak 8 halaman (kop, tabel, posisi tanda tangan) tetap diatur aplikasi agar hasil cetak selalu rapi; yang diedit di dokumen adalah **isi teks** formatnya.
 
+### D. Format Excel (v1.7)
+
+Format bank dalam berkas Excel KUR PMI — sheet **INPUT** (Perangkat Analisa Kredit + Struktur Fasilitas Kredit), **CALL MEMO** (2 halaman) dan **BNI 105** (Check List) — dijadikan **1 format** di aplikasi. Tata letaknya diambil langsung dari berkas Excel: jenis & ukuran huruf, tebal/miring/garis bawah, warna isian, garis tabel, lebar kolom, **tinggi baris**, sel gabungan, baris/kolom tersembunyi, **margin kiri-kanan-atas-bawah**, skala cetak (INPUT 95%), dan pemisah halaman. Rumus Excel di format (VLOOKUP ke BATCH, CONCATENATE, terbilang, angsuran anuitas, rasio kewajiban, tanggal) **dihitung otomatis** di aplikasi.
+
+**Data = database Anda** (tidak perlu format contoh):
+
+| Sheet di file Excel Anda | Dibaca sebagai |
+|---|---|
+| **BATCH** | 1 baris = 1 debitur, kolom **A–AQ** (judul di baris 2, data mulai baris 3: NO, NAMA, Perusahaan, Kumiai, NIK, … Plafond Pinjaman, Usia, Keluarga, Alamat, Gaji Rupiah, Pasangan, No Surat, Kewajiban Bank Lain, …). **AO1** = kurs Yen, **AP1** = tanggal (jadi tanggal surat) |
+| **No Surat** | Nomor surat (kolom A) dicocokkan dengan nama debitur (kolom C) — mengisi kolom AM bila kosong, sama dengan rumus `INDEX/MATCH` di BATCH |
+
+Langkah:
+
+1. **Analisa → tab Format Excel → Import data Excel** → pilih file `.xlsx` Anda (yang berisi sheet BATCH & No Surat). File hanya dibaca di browser; yang dikirim ke server hanya data barisnya.
+2. Periksa ringkasan (jumlah debitur, kurs AO1, tanggal AP1, jumlah No Surat terbaca). Isi **Nomor batch** bila hanya sebagian yang diimpor (mis. `221-230, 245`). Centang **Ganti semua** bila ingin mengganti data lama → **Import**.
+3. Klik nama debitur → format terisi. Kolom turunan dihitung seperti rumus BATCH: **Gaji Rupiah (AI) = Gaji Yen × kurs**, **teks tanggal berangkat (AQ)**.
+4. **Link interaktif** (tombol di atas pratinjau):
+   - **Tautan** — klik sel mana pun di format → kolom data sumbernya (mis. *Plafond Pinjaman*, *Jangka Waktu* untuk sel angsuran) **disorot** di formulir *Data debitur* di bawahnya. Ubah isian → format **dihitung ulang langsung** dan **tersimpan otomatis** (±1 detik).
+   - **Edit teks** — klik sel lalu ketik untuk mengubah isi sel langsung (mis. kalimat khusus 1 debitur). Sel yang diubah berlatar kuning, tersimpan per debitur, dan bisa **dikembalikan** ke rumus/format semula.
+5. **Simulasi anuitas** (centang) menambah halaman jadwal angsuran bulan ke-1 s.d. ke-n: angsuran = Plafond × *r* ÷ (1 − (1 + *r*)<sup>−n</sup>), *r* = bunga sel H31 ÷ 12 — sama dengan rumus sel **H34** di sheet INPUT.
+6. **Cetak / PDF** → di dialog cetak pilih **Simpan sebagai PDF**, ukuran **A4**, margin **Default/Tidak ada**, skala **100%**, matikan *Header & footer*. Centang beberapa debitur → **Cetak terpilih**.
+7. **Template import (.xlsx)** = susunan sheet BATCH (judul baris 2, rumus AI & AQ) + sheet No Surat — untuk menyiapkan data baru bila belum punya file.
+
+> Nama penanda tangan di format Excel memakai **Analisa → Perangkat Analisa KUR PMI → Atur format → Penanda tangan** (Dipersiapkan oleh, Mengetahui, Keputusan Komite, COP, dan *Komite Kredit — anggota (format Excel)*), serta profil penyelenggara (kontak & narasumber Call Memo).
+
+---
+
+## 6d. Pipeline (v1.7)
+
+Menu **Pipeline** punya 2 sub halaman. Data tersimpan di sheet `Pipeline`.
+
+| Sub halaman | Diisi oleh | Kolom |
+|---|---|---|
+| **Pipeline SME** | RM | Nama Debitur / Bidang Usaha • Nama RM • Sifat Kredit (Baru / Tambahan) • Jenis Kredit • Maks Kredit Saat Ini • Maks. Menjadi • Rencana Pencairan • Spoke (unit) • Progress **W1–W5** • PHR Tabungan • PHR Kartu Kredit • PHR Payroll |
+| **Pipeline SBP** | PRM / ARM | Nama Debitur / Bidang Usaha • Nama PRM/ARM • Sifat Kredit (Baru / Tambahan) • Jenis Kredit (BWU Prima, BWU Reguler, BWU Pandu, CCC, KUR, KPP, KUR PMI) • Fasilitas (KI / KMK) • Outstanding Saat Ini (bila Tambahan) • Nominal Pengajuan • **Net Baki Debet = Nominal Pengajuan − Outstanding** (otomatis) • Kewenangan (AH & SBX / AH / BM) • Rencana Booking (W1–W5) |
+
+**Mini dashboard** tiap sub halaman: jumlah pipeline (baru/tambahan), **Total nominal pipeline** (SME = Σ Rencana Pencairan; SBP = Σ Nominal Pengajuan), total maks. menjadi / net baki debet, dan **Total baki debet** portofolio RM/PRM/ARM yang ada di pipeline (dari base data **tanggal terbaru**, semua produk aktif), lalu rincian per RM/PRM/ARM.
+
+**Hak akses:** RM / PRM / ARM hanya mengisi & melihat pipeline **atas namanya sendiri**; peran dengan data bawahan (BBM, Branch Manager, SME Credit Risk) melihat pipeline dirinya & **seluruh bawahannya**; Super Admin melihat semua. Pilihan *Nama RM / PRM/ARM* diambil dari pengguna aktif berperan RM atau PRM/ARM. **Unduh Excel** mengikuti filter (periode, RM, kata kunci).
+
 ---
 
 ## 7. Sinkronisasi hampir real-time & pemicu otomatis
@@ -731,14 +852,24 @@ Browser memeriksa versi data setiap 30 detik (Pengaturan → `POLLING_DETIK`, 15
 | Nominal (v1.5) | Debitur dengan baki Rp 999.568.274 | Tabel: Rp 999,56 Jt; Detail: Rp 999.568.274 |
 | Edit di Word (v1.5) | Edit di Word → ubah 1 kalimat di Google Docs → buka lagi Perangkat Analisa | Kalimat baru tampil di pratinjau |
 | Detail di HP (v1.6) | Buka Detail Debitur di HP | Kotak 2 kolom ringkas, tidak memanjang |
-| Perusahaan KUR PMI (v1.6) | Atur kolom PT → Perusahaan ← "Perusahaan" → buka Detail debitur KUR PMI | Perusahaan sesuai database (mis. Abdul Majid → Fuji Co., Ltd.); daftar tanpa kolom PT |
+| Perusahaan KUR PMI (v1.6) | Atur kolom PT → Perusahaan ← "Perusahaan" → buka Detail debitur KUR PMI | Perusahaan sesuai database (mis. debitur contoh → Fuji Co., Ltd.); daftar tanpa kolom PT |
 | SME per CIF (v1.6) | Debitur BCM dengan 2 Rek Pinjaman (CIF sama) | 1 baris "2 rekening" dengan total; Detail menampilkan kedua rekening |
 | NPP = kunci (v1.6) | Login ARM/PRM 67221 | BWU, KUR, KPP dengan NPP RM 67221 tampil; jumlah = Cek NPP 67221 |
 | Rekonsiliasi (v1.6) | Sinkronisasi & Data → Cek kecocokan data | Baris, Plafon, Baki per produk = pivot database (KPP DEMAND → KPP) |
 | Login | NPP baru, sandi = NPP | Wajib ganti sandi → QR → kode 6 digit |
 | QR sekali pakai | Buka QR di 2 jendela, biarkan 3 menit, login ulang setelah aktif | QR lama ditolak; QR kedaluwarsa wajib dibuat ulang; QR tidak tampil lagi setelah aktif |
 | Keluar otomatis | Diamkan aplikasi 5 menit | Peringatan 30 detik → kembali ke halaman masuk |
-| Keamanan | Salah sandi 5x | Akun terkunci 15 menit |
+| Keamanan (v1.7) | Salah sandi 5×, 7×, 10× | Dikunci 15 menit, 30 menit, lalu **diblokir** (Super Admin → Reset akses → Buka kunci / blokir akun) |
+| Riwayat sandi (v1.7) | Ganti sandi dengan sandi yang pernah dipakai / mengandung NPP | Ditolak dengan pesan yang jelas |
+| Masa berlaku sandi (v1.7) | Sandi berumur > 30 hari | Setelah login diminta membuat sandi baru |
+| 1 Super Admin (v1.7) | Edit pengguna lain | Tidak ada pilihan Super Admin; server menolak |
+| Upliner (v1.7) | Isi Upliner RM = NPP BBM, login sebagai BBM | Dashboard, Daftar Debitur, Penagihan & Pipeline = data BBM + seluruh bawahannya |
+| Sinkronkan (v1.7) | Login sebagai RM | Tombol *Sinkronkan Google Sheets* tidak tampil |
+| Produk (v1.7) | Sub menu SME & SBP, Dashboard | SME: BCM, CCC, SCF, KPP SUPPLY • SBP: BWU, CCC, KUR, KPP DEMAND, KUR PMI; grafik produk: BCM = gabungan SME |
+| Tanggal Base Data (v1.7) | Import 2 tanggal berbeda → pilih tanggal lama di tombol *Posisi data* | Angka mengikuti tanggal itu + banner oranye; *Kembali ke data terbaru* |
+| Jangka Waktu (v1.7) | Detail Debitur BCM, KUR & KUR PMI | Jangka waktu terisi |
+| Format Excel (v1.7) | Import file Excel (BATCH + No Surat) → klik sel G6 → ubah Plafond → Cetak / PDF | Kolom Nama disorot; angsuran & rasio berubah; PDF A4 sama dengan cetak Excel |
+| Pipeline (v1.7) | RM tambah pipeline SME; PRM tambah pipeline SBP Tambahan | Nama RM terkunci ke akunnya; Net Baki Debet = Nominal − Outstanding; total di mini dashboard |
 | Akurasi | Bandingkan KPI dengan SUM/COUNT di Sheets | Sama (uji sampel per produk) |
 | Sinkronisasi | Ubah, tambah, hapus baris Debitur | Tampil di web ≤ 60 detik |
 | WA Blast | Nomor tidak valid, opt-out, kirim ganda, 200+ penerima | Dilewati / peringatan / terkirim bertahap |
@@ -784,7 +915,14 @@ Browser memeriksa versi data setiap 30 detik (Pengaturan → `POLLING_DETIK`, 15
 | "Aksi tidak dikenal" setelah upgrade v1.5 | Backend belum v1.5 / belum *Versi baru* / berkas `Akses` belum dibuat | Lakukan langkah **Upgrade A** lengkap → Deploy → Kelola deployment → Edit → **Versi baru** |
 | Jumlah debitur / baki di aplikasi beda dengan pivot database (v1.6) | Rek Pinjaman ganda, baris tanpa kunci, rekening KUR pindah ke KUR PMI, atau sheet Debitur belum di-import ulang | Pengaturan → Sinkronisasi & Data → **Cek kecocokan data per produk**; import ulang dari database terbaru |
 | RM / PRM / ARM tidak melihat debiturnya (v1.6) | NPP login ≠ NPP RM pengelola di kolom NPP, filter NPP belum dicentang, atau kolom NPP salah | Akses Data → **Cek NPP**; centang "Hanya debitur dengan NPP RM sendiri"; petakan kolom NPP RM yang benar |
-| Sub menu SCF / OTHER kosong (v1.6) | Nilai produk di database berbeda (mis. "SCF DISTRIBUTOR") | Normal bila diawali SCF; lainnya atur di Akses Data → Produk SME |
+| Sub menu SCF / KPP SUPPLY kosong (v1.7) | Nilai produk di database berbeda | Diawali `SCF` → SCF; diawali `KPP SUP` → KPP SUPPLY. Cek **Sinkronisasi & Data → Cek kecocokan data per produk** (baris *Tidak ditampilkan*) |
+| "Akun DIBLOKIR" (v1.7) | 10× salah sandi / kode | Super Admin → Pengguna & Peran → Reset akses → **Buka kunci / blokir akun**; Super Admin sendiri: `bukaBlokirAkun('NPP')` di editor |
+| "Kata sandi ini pernah Anda gunakan" (v1.7) | Sandi baru = salah satu sandi lama | Buat sandi lain yang belum pernah dipakai |
+| Super Admin kedua tidak bisa masuk (v1.7) | Hanya 1 Super Admin yang berlaku | Ubah perannya di Pengguna & Peran, atau pindahkan Super Admin dengan `pindahkanSuperAdmin` |
+| Dashboard BBM / Branch Manager kosong atau masih semua data (v1.7) | Upliner bawahan belum diisi, atau *Data bawahan* tidak dicentang untuk perannya | Isi Upliner di Pengguna & Peran; Akses Data → centang **Data bawahan (downliner)** |
+| Tombol *Posisi data* tidak bisa dipilih (v1.7) | Kolom `Tgl_Data` belum dipetakan / kosong | Import Data → Atur kolom → **Tanggal Base Data** → import ulang |
+| Format Excel: "Judul kolom BATCH tidak ditemukan" (v1.7) | Sheet BATCH tidak punya judul NO / NAMA di kolom A/B | Pakai sheet BATCH dari file format KUR PMI, atau **Template import (.xlsx)** |
+| Pipeline: "Anda hanya dapat mengisi pipeline atas nama …" (v1.7) | RM/PRM mengisi untuk orang lain | Normal — atasan (BBM/Branch Manager) atau Super Admin yang dapat mengisi untuk bawahan |
 | Data baru tidak muncul | Pemicu belum terpasang | Pengaturan → Sinkronisasi → *Pemicu aktif* harus 4; bila kosong jalankan setup lagi |
 | Tren Kol kosong | Snapshot baru 1 bulan | Normal — tren terisi otomatis tiap akhir bulan |
 | Pesan WA "Antre" terus | Mode Fonnte tanpa token / kuota habis | Isi token, cek kuota di menu Gateway |

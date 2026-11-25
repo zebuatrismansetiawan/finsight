@@ -20,7 +20,10 @@ js/auth.js        halaman masuk, login NPP + ganti sandi + QR Microsoft Authenti
 js/qr.js          pembuat QR lokal (rahasia TOTP tidak dikirim ke layanan luar)
 js/laporan.js     tampilan laporan seragam untuk Excel, PDF & Cetak
 js/surat.js       mesin surat Word (.docx): penanda {{…}}, pratinjau, import .xlsx/.csv
-js/analisa.js     halaman Analisa
+js/analisa.js     halaman Analisa (Perangkat Analisa KUR PMI, Format Excel, Format Word)
+js/xlkur.js       Format Excel KUR PMI (INPUT + CALL MEMO + BNI 105): mesin rumus, tata letak sama dengan Excel, cetak, simulasi anuitas
+js/xlkur-data.js  tata letak Format Excel (lebar kolom, tinggi baris, font, margin) — dibuat dari berkas Excel format bank
+js/pipeline.js    halaman Pipeline SME (RM) & SBP (PRM/ARM)
 js/xlsx.js        pembuat Excel bergaya di browser   js/charts.js  grafik SVG   js/icons.js  ikon Lucide (ISC)
 js/demo.js        backend tiruan, hanya dimuat di mode demo
 icons/            ikon PWA

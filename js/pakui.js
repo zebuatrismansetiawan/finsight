@@ -86,7 +86,7 @@ const PAKUI = {
     const k = PKU.k, t = k.ttd || {}, ka = k.kantor || {}, kr = k.kredit || {};
     const isi = [];
     const add = (kode, label, grup, nilai) => isi.push({ kode, label, grup, nilai: nilai === undefined || nilai === null ? '' : String(nilai) });
-    [['prm', 'Dipersiapkan oleh (ARM / PRM)'], ['bbm', 'Mengetahui'], ['bm', 'Keputusan Komite / Pemutus'], ['cop', 'Check List — kolom ketiga']].forEach((x) => {
+    [['prm', 'Dipersiapkan oleh (ARM / PRM)'], ['bbm', 'Mengetahui'], ['bm', 'Keputusan Komite / Pemutus'], ['cop', 'Check List — kolom ketiga'], ['kbbm', 'Komite Kredit — anggota (format Excel)']].forEach((x) => {
       add(`ttd.${x[0]}.nama`, x[1] + ' — Nama', 'Penanda tangan', (t[x[0]] || {}).nama);
       add(`ttd.${x[0]}.jabatan`, x[1] + ' — Jabatan', 'Penanda tangan', (t[x[0]] || {}).jabatan);
       if (x[0] === 'prm') add('ttd.prm.panjang', x[1] + ' — Jabatan lengkap (tabel verifikasi)', 'Penanda tangan', (t.prm || {}).panjang);
@@ -282,7 +282,7 @@ const PAKUI = {
   // ---------------- Atur format (Super Admin) ----------------
   atur() {
     const E = PKU.edit = JSON.parse(JSON.stringify(PKU.k));
-    E.ttd = E.ttd || {}; ['prm', 'bbm', 'bm', 'cop'].forEach((r) => { E.ttd[r] = E.ttd[r] || { nama: '', jabatan: '' }; });
+    E.ttd = E.ttd || {}; ['prm', 'bbm', 'bm', 'cop', 'kbbm'].forEach((r) => { E.ttd[r] = E.ttd[r] || { nama: '', jabatan: '' }; });
     E.kantor = E.kantor || {}; E.kredit = E.kredit || { bunga: 6, batas: 60 }; E.pt = E.pt || []; E.kolom = E.kolom || []; E.teks = E.teks || {};
     PKU.tab = PKU.tab || 'ttd';
     const m = U.modal({ title: 'Atur format Perangkat Analisa KUR PMI', size: 'xl', cls: 'pk-atur', body: '<div id="pkAturB"></div>',
@@ -315,7 +315,8 @@ const PAKUI = {
         <h4 class="pk-h4">Dipersiapkan oleh (ARM / PRM)</h4><div class="form-g g3">${inp('ttd.prm.nama', 'Nama', t.prm.nama)}${inp('ttd.prm.jabatan', 'Jabatan (singkat)', t.prm.jabatan, 'PRM')}${inp('ttd.prm.panjang', 'Jabatan (lengkap, tabel verifikasi)', t.prm.panjang, 'Program Relationship Manager')}</div>
         <h4 class="pk-h4">Mengetahui</h4><div class="form-g g2">${inp('ttd.bbm.nama', 'Nama', t.bbm.nama)}${inp('ttd.bbm.jabatan', 'Jabatan', t.bbm.jabatan, 'Business Banking Manager')}</div>
         <h4 class="pk-h4">Keputusan Komite / Pemutus</h4><div class="form-g g2">${inp('ttd.bm.nama', 'Nama', t.bm.nama)}${inp('ttd.bm.jabatan', 'Jabatan', t.bm.jabatan, 'Branch Manager')}</div>
-        <h4 class="pk-h4">Check List — kolom ketiga</h4><div class="form-g g2">${inp('ttd.cop.nama', 'Nama', t.cop.nama)}${inp('ttd.cop.jabatan', 'Jabatan', t.cop.jabatan, 'COP')}</div>`;
+        <h4 class="pk-h4">Check List — kolom ketiga</h4><div class="form-g g2">${inp('ttd.cop.nama', 'Nama', t.cop.nama)}${inp('ttd.cop.jabatan', 'Jabatan', t.cop.jabatan, 'COP')}</div>
+        <h4 class="pk-h4">Komite Kredit — anggota (format Excel, baris "JABATAN")</h4><div class="form-g g2">${inp('ttd.kbbm.nama', 'Nama', (t.kbbm || {}).nama)}${inp('ttd.kbbm.jabatan', 'Jabatan', (t.kbbm || {}).jabatan, 'BBM')}</div>`;
     } else if (PKU.tab === 'kantor') {
       const ka = E.kantor, kr = E.kredit;
       b = `<h4 class="pk-h4">Kantor</h4><div class="form-g g3">${inp('kantor.bank', 'Nama bank (kop Call Memo)', ka.bank)}${inp('kantor.cabang', 'Kantor cabang (kop Call Memo)', ka.cabang)}${inp('kantor.unit', 'Sebutan unit ("BNI …" di Call Memo)', ka.unit)}

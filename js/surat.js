@@ -555,11 +555,15 @@ const Surat = (() => {
   //  Import data: .xlsx / .csv
   // ========================================================================
   function kolKeIndeks(ref) { const m = String(ref).match(/^([A-Z]+)/); let n = 0; if (m) for (const ch of m[1]) n = n * 26 + ch.charCodeAt(0) - 64; return n - 1; }
-  async function bacaXlsx(buf) {
-    const m = await unzip(buf);
+  /** v1.7: namaSheet (opsional) = baca sheet tertentu (tanpa beda huruf besar/kecil); bawaan sheet pertama. m = hasil unzip (opsional). */
+  async function bacaXlsx(buf, namaSheet, mz) {
+    const m = mz || await unzip(buf);
     const NS = 'http://schemas.openxmlformats.org/spreadsheetml/2006/main';
     const wb = xml(teks(m, 'xl/workbook.xml'));
-    const sh0 = wb.getElementsByTagNameNS(NS, 'sheet')[0];
+    const semua = Array.from(wb.getElementsByTagNameNS(NS, 'sheet'));
+    const cari = namaSheet ? semua.find((x) => String(x.getAttribute('name') || '').trim().toLowerCase() === String(namaSheet).trim().toLowerCase()) : null;
+    if (namaSheet && !cari) return null;
+    const sh0 = cari || semua[0];
     if (!sh0) throw new Error('Workbook tidak berisi sheet.');
     const rid = sh0.getAttributeNS(R_NS, 'id') || sh0.getAttribute('r:id');
     let path = 'xl/worksheets/sheet1.xml';
@@ -728,6 +732,12 @@ ${par(run('Dokumen internal — RAHASIA', '<w:i/><w:sz w:val="16"/><w:color w:va
     return btoa(s);
   }
 
-  return { unzip, zip, daftarPenanda, buatDocx, gabungDocx, pratinjau, bacaImport, bacaXlsx, bacaCsv, templateImport, contohDocx, zipSurat,
+  /** v1.7: daftar nama sheet di workbook (.xlsx). */
+  async function daftarSheet(buf, mz) {
+    const m = mz || await unzip(buf);
+    const NS = 'http://schemas.openxmlformats.org/spreadsheetml/2006/main';
+    return Array.from(xml(teks(m, 'xl/workbook.xml')).getElementsByTagNameNS(NS, 'sheet')).map((x) => x.getAttribute('name') || '');
+  }
+  return { unzip, zip, daftarPenanda, buatDocx, gabungDocx, pratinjau, bacaImport, bacaXlsx, daftarSheet, bacaCsv, templateImport, contohDocx, zipSurat,
     format, terbilang, normField, b64ke, keB64, FORMAT, MIME_DOCX };
 })();

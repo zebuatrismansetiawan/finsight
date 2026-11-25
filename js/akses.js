@@ -135,17 +135,19 @@
       if (A.galat) return `<div class="alert alert-neg">${ic('alertc', 16)}<div>${esc(A.galat)}</div></div>`;
       const kolSel = (f, label) => `<select class="sel" data-act="akKol" data-k="${f}"><option value="" ${!D.kol[f] ? 'selected' : ''}>Otomatis (${esc(label)})</option>${A.header.map((h) => `<option value="hdr:${esc(h)}" ${D.kol[f] === 'hdr:' + h ? 'selected' : ''}>${esc(h)}</option>`).join('')}<option value="skip" ${D.kol[f] === 'skip' ? 'selected' : ''}>— Tidak dipakai —</option></select>`;
       const peran = Object.keys(D.peran).sort();
-      const prodAll = Array.from(new Set(S.produk.map((p) => p.kode).concat(D.seg.SME, D.seg.SBP)));
+      const prodAll = S.produk.map((p) => p.kode);            // v1.7: hanya 8 produk terdaftar
       const nUnit = A.perUnit || {};
       const ubah = JSON.stringify(D) !== this._akAsli;
       return `<div class="card pad-l"><h3>${ic('shield', 18)} Cakupan data per peran</h3>
           <p class="muted">Menentukan sub menu Daftar Debitur (SME / SBP) yang tampil dan debitur yang dikirim ke perangkat tiap peran. Disaring di <b>server</b> — berlaku di Dashboard, Kualitas Kredit, Daftar Debitur, Penagihan, WA Blast, dan pencarian. Super Admin selalu melihat semua.</p>
           ${S.ds && S.ds.kolom && !S.ds.kolom.np ? `<div class="alert alert-warn mt">${ic('info', 16)}<div>Kolom <b>NPP RM</b> di sheet Debitur belum berisi data, jadi filter <i>Hanya debitur dengan NPP RM sendiri</i> <b>belum berlaku</b> (peran tersebut melihat semua debitur segmennya). Isi kolom <code>NPP_RM</code> atau petakan lewat <b>Import Data → Atur kolom → NPP RM</b>.</div></div>` : ''}
-          <div class="tbl-wrap"><table class="tbl sm ak-tbl"><thead><tr><th>Peran</th><th>Segmen Daftar Debitur</th><th class="c">Hanya debitur dengan NPP RM sendiri</th></tr></thead><tbody>
+          <div class="tbl-wrap"><table class="tbl sm ak-tbl"><thead><tr><th>Peran</th><th>Segmen Daftar Debitur</th><th class="c">Hanya debitur dengan NPP RM sendiri</th><th class="c">Data bawahan (downliner)</th></tr></thead><tbody>
           ${peran.map((p) => `<tr><td><b>${esc(App.labelPeran(p))}</b></td><td><select class="sel" data-act="akSeg" data-k="${esc(p)}">${[['', 'Semua (SME & SBP)'], ['SME', 'SME saja'], ['SBP', 'SBP saja']].map((o) => `<option value="${o[0]}" ${(D.peran[p].s || '') === o[0] ? 'selected' : ''}>${o[1]}</option>`).join('')}</select></td>
-            <td class="c"><label class="sw-cell"><input type="checkbox" data-act="akNpp" data-k="${esc(p)}" ${D.peran[p].n ? 'checked' : ''} aria-label="Hanya NPP sendiri"><i></i></label></td></tr>`).join('')}
+            <td class="c"><label class="sw-cell"><input type="checkbox" data-act="akNpp" data-k="${esc(p)}" ${D.peran[p].n ? 'checked' : ''} aria-label="Hanya NPP sendiri"><i></i></label></td>
+            <td class="c"><label class="sw-cell"><input type="checkbox" data-act="akDown" data-k="${esc(p)}" ${D.peran[p].d ? 'checked' : ''} aria-label="Data mengikuti bawahan (downliner)"><i></i></label></td></tr>`).join('')}
           </tbody></table></div>
-          <p class="muted sm">${ic('info', 13)} Bawaan: <b>RM</b> = SME + NPP sendiri; <b>PRM / ARM</b> = SBP + NPP sendiri; Business Banking Manager, Branch Manager, SME Credit Risk = semua. Peran baru diatur di menu Pengguna & Peran.</p>
+          <p class="muted sm">${ic('info', 13)} Bawaan: <b>RM</b> = SME + NPP sendiri; <b>PRM / ARM</b> = SBP + NPP sendiri; <b>Business Banking Manager, Branch Manager, SME Credit Risk</b> = data bawahan (downliner). Peran baru diatur di menu Pengguna & Peran.</p>
+          <p class="muted sm">${ic('users', 13)} <b>Data bawahan (downliner):</b> pengguna peran ini melihat debitur milik seluruh bawahannya (rekursif, sesuai NPP RM pengelola). Upliner/downliner diatur Super Admin di <b>Pengguna & Peran → Edit → Upliner</b>. Bila bawahannya belum diatur, cakupan kembali ke segmen peran.</p>
           <p class="muted sm">${ic('key', 13)} <b>NPP = kunci.</b> Bila "Hanya debitur dengan NPP RM sendiri" dicentang dan kolom NPP RM sudah berisi data, pengguna menerima <b>semua</b> debitur yang NPP RM pengelolanya sama dengan NPP login-nya — apa pun segmen/produknya. Segmen hanya menyaring peran yang tidak memakai filter NPP.</p></div>
         <div class="card pad-l"><h3>${ic('user', 18)} Filter NPP RM</h3>
           <p class="muted">Kolom di sheet Debitur (database) yang berisi NPP RM pengelola. Peran yang dicentang "Hanya debitur dengan NPP RM sendiri" hanya menerima debitur dengan NPP yang sama dengan NPP login-nya. Isi kolom ini lewat <b>Import Data → Atur kolom → NPP RM</b>.</p>
@@ -226,6 +228,7 @@
     // --- akses data
     akSeg: (el) => { P.akD.peran[el.dataset.k].s = el.value; ulang(); },
     akNpp: (el) => { P.akD.peran[el.dataset.k].n = el.checked ? 1 : 0; ulang(); },
+    akDown: (el) => { P.akD.peran[el.dataset.k].d = el.checked ? 1 : 0; ulang(); },     // v1.7
     akKol: (el) => { if (el.value) P.akD.kol[el.dataset.k] = el.value; else delete P.akD.kol[el.dataset.k]; ulang(); },
     akProd: (el) => { const l = P.akD.seg[el.dataset.g], k = el.dataset.k; if (el.checked) { if (!l.includes(k)) l.push(k); } else l.splice(l.indexOf(k), 1); ulang(); },
     akUnit: (el) => { P.akD.unit[+el.dataset.i][el.dataset.f] = el.value.trim(); const b = document.querySelector('[data-act="akSimpan"]'); if (b) b.disabled = false; },
@@ -244,7 +247,7 @@
     },
     akSimpan: async (el) => {
       const D = P.akD;
-      D.segV = 2;                                     // v1.6: format segmen terbaru (SCF & Other sudah dikenal)
+      D.segV = 3;                                     // v1.7: daftar produk segmen terbaru (KPP SUPPLY / KPP DEMAND)
       D.unit = D.unit.filter((u) => u.k || u.n);
       el.disabled = true; const l = el.innerHTML; el.innerHTML = '<span class="spin"></span> Menyimpan…';
       const r = await Api.call('akses.simpan', { akses: D }, { timeout: 120000 });

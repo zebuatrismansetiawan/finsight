@@ -19,7 +19,7 @@ Pages.analisa = {
   /** v1.4: tab jenis format — Perangkat Analisa KUR PMI (bawaan) | Format Word (v1.3). */
   tabJenis() {
     const { ic } = U;
-    return `<div class="an-jenis" role="tablist"><button role="tab" class="${AN.jenis === 'pak' ? 'on' : ''}" data-act="jenis" data-v="pak">${ic('pdf', 16)} Perangkat Analisa KUR PMI</button><button role="tab" class="${AN.jenis === 'word' ? 'on' : ''}" data-act="jenis" data-v="word">${ic('upload', 16)} Format Word</button></div>`;
+    return `<div class="an-jenis" role="tablist"><button role="tab" class="${AN.jenis === 'pak' ? 'on' : ''}" data-act="jenis" data-v="pak">${ic('pdf', 16)} Perangkat Analisa KUR PMI</button><button role="tab" class="${AN.jenis === 'xl' ? 'on' : ''}" data-act="jenis" data-v="xl">${ic('xls', 16)} Format Excel</button><button role="tab" class="${AN.jenis === 'word' ? 'on' : ''}" data-act="jenis" data-v="word">${ic('upload', 16)} Format Word</button></div>`;
   },
   render() {
     const { esc, ic } = U;
@@ -28,6 +28,9 @@ Pages.analisa = {
       const actions = PKU.k ? `<button class="btn btn-secondary" data-act="pkTemplate">${ic('xls', 17, 'pos')} Template import (.xlsx)</button>
         <button class="btn btn-primary" data-act="pkImport">${ic('upload', 17)} Import data</button>` : '';
       return UI.head({ crumb: ['Portofolio Kredit', 'Analisa'], title: 'Analisa', sub: 'Perangkat Analisa KUR PMI: import data massal, pratinjau, dan cetak dokumen sesuai format bank.', actions }) + this.tabJenis() + PAKUI.render(admin);
+    }
+    if (AN.jenis === 'xl') {                                  // v1.7: Format Excel (INPUT + CALL MEMO + BNI 105)
+      return UI.head({ crumb: ['Portofolio Kredit', 'Analisa'], title: 'Analisa', sub: 'Format Excel KUR PMI: data BATCH → INPUT, CALL MEMO & BNI 105 sama persis dengan Excel, bisa diubah langsung, cetak / PDF.' }) + this.tabJenis() + XLUI.render(admin);
     }
     const t = this.t();
     const actions = t ? `<button class="btn btn-secondary" data-act="tplImport">${ic('xls', 17, 'pos')} Template import (.xlsx)</button>
@@ -68,6 +71,7 @@ Pages.analisa = {
   async mount(root) {
     pasangAksi(root, this);
     if (AN.jenis === 'pak') { await PAKUI.mount(); return; }
+    if (AN.jenis === 'xl') { await XLUI.mount(); return; }
     if (!AN.list && !AN.muat) { await this.muatList(); return; }
     if (this.t()) { this.segarData(); if (!AN.data[AN.tpl]) this.muatData(); this.pratinjau(); }
     if (!AN.muat && Date.now() - (AN.ts || 0) > 60000) this.muatList();      // segarkan bila data dari pengguna lain berubah
@@ -366,4 +370,5 @@ Pages.analisa = {
   }
 };
 Object.assign(Pages.analisa.act, PAKUI.act);       // v1.4: aksi tab Perangkat Analisa KUR PMI
-window.addEventListener('resize', U.debounce(() => { if (App.halaman !== 'analisa') return; if (AN.jenis === 'pak') { if (PAKUI._pas) PAKUI._pas(); } else if (Pages.analisa._pas) Pages.analisa._pas(); }, 150));
+Object.assign(Pages.analisa.act, XLUI.act);        // v1.7: aksi tab Format Excel
+window.addEventListener('resize', U.debounce(() => { if (App.halaman !== 'analisa') return; if (AN.jenis === 'pak') { if (PAKUI._pas) PAKUI._pas(); } else if (AN.jenis === 'xl') { const a = document.activeElement; if (!XLU.zoom && !(a && a.closest && a.closest('#xlPrev,#xlForm'))) XLUI.pratinjau(); } else if (Pages.analisa._pas) Pages.analisa._pas(); }, 150));

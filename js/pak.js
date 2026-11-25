@@ -85,7 +85,7 @@ const PAK = (() => {
   const CONTOH = {
     nama: 'Perangkat Analisa KUR PMI',
     kolom: KOLOM,
-    ttd: { prm: { nama: 'Andi Pratama', jabatan: 'PRM', panjang: 'Program Relationship Manager' }, bbm: { nama: 'Sari Wulandari', jabatan: 'Business Banking Manager' }, bm: { nama: 'Budi Santoso', jabatan: 'Branch Manager' }, cop: { nama: 'Rudi', jabatan: 'COP' } },
+    ttd: { prm: { nama: 'Andi Pratama', jabatan: 'PRM', panjang: 'Program Relationship Manager' }, bbm: { nama: 'Sari Wulandari', jabatan: 'Business Banking Manager' }, bm: { nama: 'Budi Santoso', jabatan: 'Branch Manager' }, cop: { nama: 'Rudi', jabatan: 'COP' }, kbbm: { nama: 'Yusuf Hidayat', jabatan: 'BBM' } },
     kantor: { bank: 'PT. BANK NEGARA INDONESIA (Persero) Tbk.', cabang: 'Kantor Cabang Contoh', unit: 'Contoh', booking: 'KCU Contoh', kota: 'Bekasi', formulir: 'BNI - 115 C' },
     kredit: { bunga: 6, perihal: 'KUR PMI Aflopend', keperluan: 'Kredit Usaha Rakyat untuk Pembiayaan Pekerja Magang', jenis: 'BNI Kredit Usaha Rakyat – PMI', negara: 'Jepang', batas: 60, propisi: 'Tidak dikenakan', admin: 'Tidak dikenakan' },
     pt: [{ nama: 'PT. Minori', kata: 'minori', lpk: 'LPK Minori', kontak: 'Hendra', jabatan: 'General Manager', telp: '08xx-xxxx-xxxx', narasumber: ['Narasumber Satu', 'Hendra', 'Narasumber Tiga'] }],

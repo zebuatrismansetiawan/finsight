@@ -10,20 +10,20 @@
 
 const S = {
   me: null, akses: null, setting: {}, produk: [], prodMap: {}, ds: null, D: [], byId: {}, snap: [], tpl: [], tplAll: null, gw: null,
-  ver: '', lver: '', sver: '', periodeIni: '', hariIni: '', periode: '',
+  ver: '', lver: '', sver: '', periodeIni: '', hariIni: '', periode: '', tglPilih: '',      // v1.7: tglPilih = tanggal base data dipilih ('' = terbaru)
   log: null, logQ: null, users: null, adminSet: null, devStatus: null,
   lastSync: 0, online: true, syncing: false, perluRender: false,
   f: {}, sel: { deb: new Set(), risk: new Set() }, blast: { ids: [], sumber: '', tplId: '', step: 1 }, batchAktif: null
 };
 
 // v1.2: akses menu diatur Super Admin per peran (server = sumber kebenaran, lihat S.akses).
-const MENU_PERAN = ['dashboard', 'kualitas', 'debitur', 'risiko', 'blast', 'template', 'log', 'analisa'];
-const LABEL_MENU = { dashboard: 'Dashboard', kualitas: 'Kualitas Kredit', debitur: 'Daftar Debitur', risiko: 'Penagihan', blast: 'WA Blast', template: 'Template WA', log: 'Log Blast', analisa: 'Analisa' };
+const MENU_PERAN = ['dashboard', 'kualitas', 'debitur', 'risiko', 'blast', 'template', 'log', 'analisa', 'pipeline'];
+const LABEL_MENU = { dashboard: 'Dashboard', kualitas: 'Kualitas Kredit', debitur: 'Daftar Debitur', risiko: 'Penagihan', blast: 'WA Blast', template: 'Template WA', log: 'Log Blast', analisa: 'Analisa', pipeline: 'Pipeline' };
 const RUTE_INDUK = { 'debitur-pmi': 'debitur' };              // sub-page mengikuti hak akses induknya
 const labelPeran = (p) => (p === 'Admin' ? 'Super Admin' : p === 'RM' ? 'RM - Relationship Manager' : p || '');
 const MENU = [
   ['dashboard', 'Dashboard', 'dashboard'], ['kualitas', 'Kualitas Kredit (Kol. 1-5)', 'pie'], ['debitur', 'Daftar Debitur', 'users'],
-  ['risiko', 'Penagihan', 'alert'], ['blast', 'WA Blast', 'send'], ['template', 'Template WA', 'template'],
+  ['risiko', 'Penagihan', 'alert'], ['pipeline', 'Pipeline', 'kanban'], ['blast', 'WA Blast', 'send'], ['template', 'Template WA', 'template'],
   ['log', 'Log Blast', 'history'], ['analisa', 'Analisa', 'scroll'], ['pengguna', 'Pengguna & Peran', 'shield'], ['pengaturan', 'Pengaturan', 'settings']
 ];
 const KOL = {
@@ -144,7 +144,7 @@ const M = (() => {
 //  v1.5 — Segmen (SME / SBP), unit & cakupan data
 // ============================================================================
 const SEG = (() => {
-  const BAWAAN = { SME: ['BCM', 'CCC', 'SCF', 'OTHER'], SBP: ['BWU', 'CCC', 'KUR', 'KPP', 'KUR PMI'] };   // v1.6: SME + SCF & Other
+  const BAWAAN = { SME: ['BCM', 'CCC', 'SCF', 'KPP SUPPLY'], SBP: ['BWU', 'CCC', 'KUR', 'KPP DEMAND', 'KUR PMI'] };   // v1.7: daftar produk tetap
   const NAMA = { SME: 'SME', SBP: 'SBP' };
   const UNIT_BAWAAN = [['31100', 'KCU Jababeka'], ['31102', 'KC Cikarang'], ['31105', 'KC Mutiara Gading'], ['31107', 'KC Tambun'], ['31160', 'KC RE Martadinata'], ['31162', 'KC Cibitung'],
     ['31106', 'KC Cikarang Baru'], ['31161', 'KC MM2100'], ['31163', 'KC Grandwisata'], ['31165', 'KC Wisma Asri'], ['31101', 'KC Bulak Kapal'], ['31103', 'KC Lippo Cikarang'], ['31104', 'KC Kalimas'],
@@ -152,10 +152,8 @@ const SEG = (() => {
   function akses() {
     let a = null; try { a = JSON.parse(S.setting.AKSES_DATA || 'null'); } catch (e) { a = null; }
     a = a && typeof a === 'object' ? a : {};
-    let seg = a.seg && a.seg.SME ? { SME: a.seg.SME.slice(), SBP: (a.seg.SBP || []).slice() } : BAWAAN;
-    if (a.seg && a.segV !== 2) {            // v1.6: pengaturan lama (v1.5) belum mengenal SCF & Other — sama dengan server
-      ['SME', 'SBP'].forEach((g) => BAWAAN[g].forEach((p) => { if (!seg.SME.includes(p) && !seg.SBP.includes(p)) seg[g].push(p); }));
-    }
+    // v1.7: pengaturan segmen lama (segV < 3) memakai daftar produk baru — sama dengan server
+    const seg = a.seg && a.seg.SME && Number(a.segV) >= 3 ? { SME: a.seg.SME.slice(), SBP: (a.seg.SBP || []).slice() } : { SME: BAWAAN.SME.slice(), SBP: BAWAAN.SBP.slice() };
     return { seg, unit: Array.isArray(a.unit) ? a.unit : UNIT_BAWAAN, peran: a.peran || {} };
   }
   /** Segmen yang boleh dibuka pengguna ini (server = sumber kebenaran, lihat S.cakupan).
@@ -176,7 +174,7 @@ const SEG = (() => {
 // ============================================================================
 //  APLIKASI
 // ============================================================================
-const VERSI_APP = '1.6.0';   // versi frontend (config.js milik Anda tidak perlu diubah)
+const VERSI_APP = '1.7.0';   // versi frontend (config.js milik Anda tidak perlu diubah)
 const App = (() => {
   const { $, $$, esc, ic } = U;
   let halaman = 'dashboard';
@@ -185,6 +183,7 @@ const App = (() => {
   // ---------- Penyimpanan lokal (SWR) ----------
   const kunciCache = () => 'fs_cache_' + (Api.DEMO ? 'demo_' : '') + ((S.me && S.me.npp) || (Api.sesi && Api.sesi.me && Api.sesi.me.npp) || 'x');
   function simpanLokal() {
+    if (S.tglPilih) return;                    // v1.7: data tanggal lama tidak disimpan (buka ulang = tanggal terbaru)
     try {
       localStorage.setItem(kunciCache(), JSON.stringify({ t: Date.now(), ver: S.ver, ds: S.ds, snap: S.snap, produk: S.produk, setting: S.setting, tpl: S.tpl, gw: S.gw, me: S.me, akses: S.akses, periodeIni: S.periodeIni, cakupan: S.cakupan || null }));
     } catch (e) { /* kuota penuh → abaikan */ }
@@ -204,7 +203,7 @@ const App = (() => {
   function hapusLokal() { Object.keys(localStorage).filter((k) => k.indexOf('fs_cache_') === 0).forEach((k) => localStorage.removeItem(k)); }
 
   /** v1.6: produk yang ada di data tetapi belum ada di master produk (mis. BCM, SCF, OTHER) ikut ditampilkan. */
-  const PRODUK_TAMBAHAN = { BCM: ['BCM', '#0EA5E9'], SCF: ['SCF (Supply Chain Financing)', '#10B981'], OTHER: ['Other (Lainnya)', '#94A3B8'] };
+  const PRODUK_TAMBAHAN = { BCM: ['BCM', '#0EA5E9'], SCF: ['SCF (Supply Chain Financing)', '#10B981'], 'KPP SUPPLY': ['KPP Supply', '#6366F1'], 'KPP DEMAND': ['KPP Demand', '#14B8A6'] };
   function lengkapiProduk() {
     if (!S.D) return;
     const ada = new Set((S.produk || []).map((p) => p.kode)), baru = [];
@@ -231,7 +230,7 @@ const App = (() => {
     if (d.cakupan) S.cakupan = d.cakupan;                       // v1.5: cakupan data peran (segmen & NPP)
     if (!S.periode || S.periode > S.periodeIni) S.periode = S.periodeIni;
     if (d.tpl) S.tpl = d.tpl;
-    if (d.ds) terapkanData(d.ds);
+    if (d.ds) { S.tglPilih = ''; terapkanData(d.ds); }
     else { S.prodMap = {}; S.produk.forEach((p) => { S.prodMap[p.kode] = p; }); M.reset(); }
     S.lastSync = Date.now();
   }
@@ -377,7 +376,7 @@ const App = (() => {
   }
 
   function navIsi() {
-    return MENU.filter((m) => boleh(m[0])).map((m) => m[0] === 'debitur' ? navDebitur(m) : `<a href="#/${m[0]}" data-nav="${m[0]}" class="nav-i" title="${esc(m[1])}">${ic(m[2], 19)}<span class="nav-t">${esc(m[1])}</span>${m[0] === 'blast' ? '<span class="nav-badge">Baru</span>' : ''}${m[0] === 'risiko' ? '<span class="nav-cnt" id="navRisk"></span>' : ''}</a>`).join('');
+    return MENU.filter((m) => boleh(m[0])).map((m) => m[0] === 'debitur' ? navDebitur(m) : m[0] === 'pipeline' ? navPipeline(m) : `<a href="#/${m[0]}" data-nav="${m[0]}" class="nav-i" title="${esc(m[1])}">${ic(m[2], 19)}<span class="nav-t">${esc(m[1])}</span>${m[0] === 'blast' ? '<span class="nav-badge">Baru</span>' : ''}${m[0] === 'risiko' ? '<span class="nav-cnt" id="navRisk"></span>' : ''}</a>`).join('');
   }
   /** Bangun ulang menu samping (mis. setelah produk segmen / cakupan berubah). */
   function segarNav() { const n = $('.side .nav'); if (n) { n.innerHTML = navIsi(); tandaiNav(); } }
@@ -399,13 +398,19 @@ const App = (() => {
       <button type="button" class="nav-tg" data-g="navtg" data-k="deb" aria-label="Buka/ciutkan Daftar Debitur" aria-expanded="false">${ic('down', 15)}</button></div>
       <div class="nav-sub">${segs.map(grup).join('')}</div></div>`;
   }
+  /** v1.7: menu Pipeline dengan sub halaman SME (RM) & SBP (PRM/ARM). */
+  function navPipeline(m) {
+    return `<div class="nav-g akar" data-grp="pip"><div class="nav-r"><a href="#/pipeline" data-nav="pipeline" class="nav-i" title="${esc(m[1])}">${ic(m[2], 19)}<span class="nav-t">${esc(m[1])}</span><span class="nav-badge">Baru</span></a>
+      <button type="button" class="nav-tg" data-g="navtg" data-k="pip" aria-label="Buka/ciutkan Pipeline" aria-expanded="false">${ic('down', 15)}</button></div>
+      <div class="nav-sub">${['SME', 'SBP'].map((g) => `<a href="#/pipeline?seg=${g}" class="nav-s" data-sub="pipeline|${g}|">${ic(g === 'SME' ? 'building' : 'store', 15)}<span>Pipeline ${g} <small class="muted">${g === 'SME' ? 'RM' : 'PRM/ARM'}</small></span></a>`).join('')}</div></div>`;
+  }
   /** Parameter rute (#/debitur?seg=SME&pr=CCC). */
   function param() { const q = (location.hash || '').split('?')[1] || ''; const o = {}; q.split('&').forEach((x) => { const [k, v] = x.split('='); if (k) o[k] = decodeURIComponent(v || ''); }); return o; }
   function bukaNav() {
     const p = param(), aktif = halaman === 'debitur' || halaman === 'debitur-pmi';
     $$('.nav-g[data-grp]').forEach((g) => {
       const k = g.dataset.grp;
-      const paksa = aktif && (k === 'deb' || (halaman === 'debitur' && p.seg === k) || (halaman === 'debitur-pmi' && k === 'SBP'));
+      const paksa = (aktif && (k === 'deb' || (halaman === 'debitur' && p.seg === k) || (halaman === 'debitur-pmi' && k === 'SBP'))) || (halaman === 'pipeline' && k === 'pip');
       const buka = navBuka[k] === undefined ? paksa : navBuka[k] || paksa;
       g.classList.toggle('open', !!buka);
       const b = g.querySelector(':scope > .nav-r > .nav-tg'); if (b) b.setAttribute('aria-expanded', buka ? 'true' : 'false');
@@ -440,10 +445,10 @@ const App = (() => {
 
   function tandaiNav() {
     const induk = RUTE_INDUK[halaman] || halaman;
-    const p = param(), kunci = halaman + '|' + (halaman === 'debitur' ? (p.seg || '') + '|' + (p.seg ? p.pr || '' : '') : '|');
-    $$('.nav-i').forEach((a) => a.classList.toggle('on', a.dataset.nav === induk && (induk !== 'debitur' || kunci === 'debitur||')));
+    const p = param(), kunci = halaman + '|' + (halaman === 'debitur' ? (p.seg || '') + '|' + (p.seg ? p.pr || '' : '') : halaman === 'pipeline' ? (Pages.pipeline && Pages.pipeline.seg ? Pages.pipeline.seg() : p.seg || '') + '|' : '|');
+    $$('.nav-i').forEach((a) => a.classList.toggle('on', a.dataset.nav === induk && (induk !== 'debitur' || kunci === 'debitur||') && induk !== 'pipeline'));
     $$('.nav-s, .nav-s2').forEach((a) => a.classList.toggle('on', a.dataset.sub === kunci));
-    $$(".nav-g.akar").forEach((g) => g.classList.toggle('on', induk === 'debitur'));
+    $$(".nav-g.akar").forEach((g) => g.classList.toggle('on', (g.dataset.grp === 'deb' && induk === 'debitur') || (g.dataset.grp === 'pip' && induk === 'pipeline')));
     bukaNav();
     $$('.bn-i[data-bn]').forEach((a) => a.classList.toggle('on', a.dataset.bn === induk));
     const bm = $('.bn-menu');
@@ -507,7 +512,7 @@ const App = (() => {
         if (!r.success) { if (r.code !== 'AUTH') setOnline(false); return; }
         setOnline(true);
         const d = r.data;
-        if (d.ver !== S.ver) await muatData(true);
+        if (d.ver !== String(S.ver).split('@')[0]) await muatData(true);   // v1.7: versi data tanggal lain = <versi>@<tanggal>
         if (d.sver !== S.sver) { const awal = !S.sver; S.sver = d.sver; if (!awal) await muatMeta(); }
         if (d.lver !== S.lver) { S.lver = d.lver; await muatLog(); }
         S.lastSync = Date.now();
@@ -526,10 +531,11 @@ const App = (() => {
 
   async function muatData(beritahu) {
     S.syncing = true; updatePill();
-    const r = await Api.call('data.debitur', { ver: S.ver });
+    const r = await Api.call('data.debitur', { ver: S.ver, tgl: S.tglPilih || '' });
     S.syncing = false;
     if (r.success && r.data.ds) {
       if (r.data.produk) S.produk = r.data.produk;
+      if (S.tglPilih && r.data.ds.tgl !== S.tglPilih) S.tglPilih = '';       // tanggal yang dipilih sudah tidak ada → terbaru
       terapkanData(r.data.ds);
       simpanLokal();
       notifikasi();
@@ -539,6 +545,50 @@ const App = (() => {
     updatePill();
     return r;
   }
+  // ---------- v1.7: Tanggal Base Data (default terbaru, filter sesuai tanggal di database) ----------
+  const tglTerbaru = () => { const t = S.ds && S.ds.tgls; return t && t.length ? t[0].t : ''; };
+  const tglAktif = () => (S.ds && S.ds.tgl) || '';
+  async function pilihTgl(t) {
+    t = String(t || '');
+    if (t === tglTerbaru()) t = '';
+    if (t === S.tglPilih && S.ds && (S.ds.tgl === t || !t)) return;
+    const lama = S.tglPilih;
+    S.tglPilih = t; S.syncing = true; updatePill();
+    $$('.tgl-btn').forEach((b) => b.classList.add('busy'));
+    const r = await Api.call('data.debitur', { tgl: t }, { timeout: 120000 });
+    S.syncing = false; updatePill();
+    if (!r.success || !r.data.ds) { S.tglPilih = lama; $$('.tgl-btn').forEach((b) => b.classList.remove('busy')); return U.toast(r.message || 'Gagal memuat data tanggal itu.', 'err'); }
+    if (r.data.produk) S.produk = r.data.produk;
+    terapkanData(r.data.ds);
+    if (!t) simpanLokal();
+    render({ tetap: true });
+    U.toast(t ? 'Menampilkan posisi data ' + U.tgl(r.data.ds.tgl, true) + '.' : 'Kembali ke data terbaru' + (r.data.ds.tgl ? ' (' + U.tgl(r.data.ds.tgl, true) + ')' : '') + '.', 'info', 2600);
+  }
+  /** Tombol filter tanggal base data (Dashboard, Kualitas Kredit, Daftar Debitur, Penagihan). */
+  function tglChip() {
+    const L = (S.ds && S.ds.tgls) || [], t = tglAktif();
+    if (!L.length) return `<span class="tgl-btn statis" title="Tanggal base data belum diisi — petakan kolom Tanggal Base Data di Pengaturan → Import Data">${ic('calendar', 16)}<span class="tgl-t"><small>Posisi data</small><b>${esc(U.tgl(S.hariIni))}</b></span></span>`;
+    const baru = !S.tglPilih || t === L[0].t;
+    return `<button type="button" class="tgl-btn ${baru ? '' : 'lama'}" data-g="tgl" aria-haspopup="true" title="Pilih tanggal base data"><span class="tgl-ic">${ic('calendar', 17)}</span>
+      <span class="tgl-t"><small>Posisi data</small><b class="tnum">${esc(U.tgl(t))}</b></span><em class="tgl-b">${baru ? 'Terbaru' : 'Riwayat'}</em><span class="tgl-n">${U.num(L.length)} tgl</span>${ic('down', 14)}</button>`;
+  }
+  /** Banner saat melihat tanggal lama. */
+  function bannerTgl() {
+    const L = (S.ds && S.ds.tgls) || [];
+    if (!S.tglPilih || !L.length || tglAktif() === L[0].t) return '';
+    return `<div class="alert alert-warn tgl-banner">${ic('calendar', 16)}<div>Menampilkan <b>posisi data ${esc(U.tgl(tglAktif(), true))}</b> — bukan data terbaru (${esc(U.tgl(L[0].t, true))}). Kirim WA &amp; penagihan tetap memakai data terbaru. <a href="#" data-tgl-baru="1">Kembali ke data terbaru</a></div></div>`;
+  }
+  function popTgl(btn) {
+    const L = (S.ds && S.ds.tgls) || [], t = tglAktif();
+    const grup = {};
+    L.forEach((x) => { const k = x.t.slice(0, 7); (grup[k] = grup[k] || []).push(x); });
+    const el = popover(btn, `<div class="pop-h">Tanggal base data <span class="muted">${U.num(L.length)}</span></div><div class="pop-tgl">` +
+      Object.keys(grup).map((k) => `<div class="pt-m">${esc(U.periodeLabel(k, true))}</div>` + grup[k].map((x, i) =>
+        `<button class="pop-i ${x.t === t ? 'on' : ''}" data-t="${esc(x.t)}">${ic('calendar', 15)}<span class="tnum">${esc(U.tgl(x.t))}</span>${x.t === L[0].t ? '<em class="pos">terbaru</em>' : `<em>${U.num(x.n)} baris</em>`}</button>`).join('')).join('') +
+      `</div><div class="pop-f">Data mengikuti <b>Tanggal Base Data</b> di database (Import Data). Bawaan selalu tanggal terbaru.</div>`, 'pop-per pop-tglw');
+    el.querySelectorAll('[data-t]').forEach((b) => b.onclick = () => { tutupPopover(); pilihTgl(b.dataset.t); });
+  }
+
   async function muatMeta() {
     const r = await Api.call('boot', { ver: S.ver });
     if (r.success) { terapkanBoot(r.data); simpanLokal(); segarBrand(); segarNav(); renderAman(); }
@@ -752,6 +802,7 @@ const App = (() => {
         <div><span>Saldo akhir</span><b class="tnum ${d.fSaldo ? 'neg' : ''}">${U.rp(d.sa)}</b></div>
         <div><span>Kol. awal bulan</span><b>${d.kl ? 'Kol. ' + d.kl : '—'}</b>${d.mv ? `<small class="${d.mv > 0 ? 'neg' : 'pos'}">${d.mv > 0 ? 'Turun' : 'Naik'} ${Math.abs(d.mv)} tingkat</small>` : ''}</div>
         <div><span>Tgl booking</span><b>${d.tb ? U.tgl(d.tb) : '<span class="muted">—</span>'}</b></div>
+        ${pmi ? '' : `<div><span>Jangka waktu</span><b>${d.jw ? esc(d.jw) : '<span class="muted">—</span>'}</b></div>`}
         <div class="span2 dt-hp" id="dtHp"><span>No. HP debitur</span>${hpIsi(d)}</div>
         ${d.pic ? `<div><span>Kontak (PIC)</span><b>${esc(d.pic)}</b></div>` : ''}
         ${d.un ? `<div><span>Unit</span><b>${esc(SEG.namaUnit(d.un))}</b></div>` : ''}
@@ -790,7 +841,8 @@ const App = (() => {
           <div><span>Saldo akhir</span><b class="tnum ${d.fSaldo ? 'neg' : ''}">${U.rp(d.sa)}</b></div>
           <div><span>Kol. awal bulan</span><b>${d.kl ? 'Kol. ' + d.kl : '—'}</b>${d.mv ? `<small class="${d.mv > 0 ? 'neg' : 'pos'}">${d.mv > 0 ? 'Turun' : 'Naik'} ${Math.abs(d.mv)} tingkat</small>` : ''}</div>
           <div><span>Tgl booking</span><b>${d.tb ? U.tgl(d.tb) : '<span class="muted">—</span>'}</b></div>
-          ${d.ra ? `<div class="span2"><span>Rek afiliasi</span><b class="tnum">${esc(d.ra)}</b></div>` : ''}
+          <div><span>Jangka waktu</span><b>${d.jw ? esc(d.jw) : '<span class="muted">—</span>'}</b></div>
+          ${d.ra ? `<div class="${d.jw ? '' : 'span2'}"><span>Rek afiliasi</span><b class="tnum">${esc(d.ra)}</b></div>` : ''}
         </div></div>`;
     const body = `
       <div class="dt-head"><span class="avatar lg" style="--c:${(S.prodMap[d0.pr] || {}).warna || '#64748B'}">${esc(U.inisial(g.nm))}</span>
@@ -907,6 +959,7 @@ const App = (() => {
         else if (a === 'side-open') { $('#side').classList.add('open'); document.body.classList.add('side-open'); }
         else if (a === 'side-close') { $('#side').classList.remove('open'); document.body.classList.remove('side-open'); }
         else if (a === 'periode') popPeriode(g);
+        else if (a === 'tgl') popTgl(g);
         else if (a === 'notif') popNotif(g);
         else if (a === 'profil') popProfil(g);
         else if (a === 'sync-now') { S.syncing = true; updatePill(); await Sync.tick(true); S.syncing = false; updatePill(); }
@@ -920,6 +973,8 @@ const App = (() => {
       if (gi) { $('#gsDrop').classList.remove('show'); detail(gi.dataset.id); return; }
       if (e.target.closest('.gs-all')) { S.f.deb = Object.assign(S.f.deb || {}, { q: $('#gsearch').value, hal: 1 }); $('#gsDrop').classList.remove('show'); go('debitur'); return; }
       if (!e.target.closest('.gsearch')) { const dr = $('#gsDrop'); if (dr) dr.classList.remove('show'); }
+      const tb = e.target.closest('[data-tgl-baru]');
+      if (tb) { e.preventDefault(); pilihTgl(''); return; }
       const pi = e.target.closest('[data-per-ini]');
       if (pi) { e.preventDefault(); S.periode = S.periodeIni; updatePeriode(); render({ tetap: true }); return; }
       const det = e.target.closest('[data-detail]');
@@ -976,7 +1031,7 @@ const App = (() => {
     } else mulai();
   }
 
-  return { init, mulai, render, go, detail, blastKe, param, segarNav, eksporXlsx, eksporPdf, cetak, kosong, muatData, muatLog, simpanLokal, terapkanBoot, hapusLokal, tutupPopover, get halaman() { return halaman; }, logoSvg, logoHtml, brand, simpanBrand, segarBrand, pasangFavicon, aksesKu, boleh, labelPeran, keluarPaksa, aktif: () => Idle.reset(), Sync: () => Sync };
+  return { init, mulai, render, go, detail, blastKe, param, segarNav, pilihTgl, tglChip, bannerTgl, tglTerbaru, tglAktif, eksporXlsx, eksporPdf, cetak, kosong, muatData, muatLog, simpanLokal, terapkanBoot, hapusLokal, tutupPopover, get halaman() { return halaman; }, logoSvg, logoHtml, brand, simpanBrand, segarBrand, pasangFavicon, aksesKu, boleh, labelPeran, keluarPaksa, aktif: () => Idle.reset(), Sync: () => Sync };
 })();
 
 document.addEventListener('DOMContentLoaded', App.init);

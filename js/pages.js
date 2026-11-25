@@ -182,11 +182,13 @@ Pages.dashboard = {
     const jh = Number(S.setting.JT_HARI) || 30;
     const prodNama = f.pr === 'ALL' ? `Semua Produk (${S.produk.length})` : f.pr;
     const actions = `
+      ${App.tglChip()}
       <label class="sel-wrap">${ic('layers', 16)}<select class="sel plain" data-act="pr"><option value="ALL">Semua Produk (${S.produk.length})</option>${S.produk.map((x) => `<option value="${esc(x.kode)}" ${f.pr === x.kode ? 'selected' : ''}>${esc(x.nama)}</option>`).join('')}</select></label>
       ${UI.bisaKirim() ? `<a class="btn btn-primary" href="#/blast">${ic('send', 17)} Kirim WA Blast</a>` : ''}`;
     const pre = this.salam() + `<div class="ph-tags"><span class="tag">Portofolio ${esc(p.slice(0, 4))}</span><span class="live-t"><i></i>${live ? 'Terhubung — hampir real-time' : 'Snapshot ' + U.periodeLabel(p)}</span></div>`;
-    let h = UI.head({ pre, title: 'Dashboard', sub: `Ringkasan kondisi portofolio kredit & performa ${S.produk.length} produk per ${live ? U.tgl(S.hariIni, true) : 'akhir ' + U.periodeLabel(p, true)}`, actions });
-    h += UI.snapBanner();
+    // v1.7: "per <tanggal>" = tanggal base data terbaru di database (atau tanggal yang dipilih)
+    let h = UI.head({ pre, title: 'Dashboard', sub: `Ringkasan kondisi portofolio kredit & performa ${S.produk.length} produk per ${live ? U.tgl(App.tglAktif() || S.hariIni, true) : 'akhir ' + U.periodeLabel(p, true)}`, actions });
+    h += App.bannerTgl() + UI.snapBanner();
     if (!A) return h + App.kosong('calendar', 'Belum ada snapshot untuk periode ini', 'Snapshot dibuat otomatis setiap malam oleh pemicu harian.');
 
     const pl = U.rpParts(A.plafon), bk = U.rpParts(A.baki);
@@ -203,16 +205,17 @@ Pages.dashboard = {
     // --- grafik per produk & donut
     const pp = live ? M.perProduk() : S.produk.map((x) => Object.assign({ kode: x.kode, nama: x.nama, warna: x.warna }, (A.pp && A.pp[x.kode]) || { n: 0, plafon: 0, baki: 0 }));
     const totBaki = pp.reduce((s, x) => s + x.baki, 0), totPl = pp.reduce((s, x) => s + x.plafon, 0);
-    const cats = pp.map((x) => f.mode === 'n'
+    const ppG = this.gabungSme(pp, live);          // v1.7: segmen SME (BCM, CCC, SCF, KPP SUPPLY) digabung jadi BCM
+    const cats = ppG.map((x) => f.mode === 'n'
       ? { label: x.kode, color: x.warna, a: x.n, b: live ? x.aktif : x.n, extra: live ? `Berisiko: ${U.num(x.risiko)}` : '' }
-      : { label: x.kode, color: x.warna, a: x.plafon, b: x.baki, extra: `${U.num(x.n)} debitur` });
+      : { label: x.kode, color: x.warna, a: x.plafon, b: x.baki, extra: `${U.num(x.n)} debitur${x.isi ? ' • ' + x.isi : ''}` });
     const bar = f.mode === 'n'
       ? Chart.barGroup({ cats, la: 'Total debitur', lb: 'Debitur aktif', fmt: (v) => U.num(v) + ' deb.', fmtAxis: (v) => U.num(v) })
       : Chart.barGroup({ cats, la: 'Plafon disetujui', lb: 'Baki debet berjalan', fmt: U.rpS, fmtAxis: (v) => U.rpS(v) });
     const nRisk = K ? K.risiko : 0;
     h += `<section class="grid g12 eq">
       <div class="card c8 pad-l">
-        <div class="card-h"><div><h3><span class="sq"></span>Performa per Produk Kredit</h3><p>${f.mode === 'n' ? 'Total debitur vs debitur aktif per produk' : 'Plafon disetujui vs baki debet berjalan per produk'}</p></div>
+        <div class="card-h"><div><h3><span class="sq"></span>Performa per Produk Kredit</h3><p>${f.mode === 'n' ? 'Total debitur vs debitur aktif per produk' : 'Plafon disetujui vs baki debet berjalan per produk'} • <b>BCM</b> = seluruh segmen SME (BCM, CCC, SCF, KPP Supply)</p></div>
           <div class="seg"><button class="${f.mode !== 'n' ? 'on' : ''}" data-act="mode" data-v="rp">Nominal</button><button class="${f.mode === 'n' ? 'on' : ''}" data-act="mode" data-v="n">Debitur</button></div></div>
         <div class="chart-wrap">${bar}</div>
         <div class="card-f"><div class="legend"><span><i class="lg-a"></i>${f.mode === 'n' ? 'Total debitur' : 'Plafon disetujui'}</span><span><i class="lg-b"></i>${f.mode === 'n' ? 'Debitur aktif' : 'Baki debet berjalan'}</span></div>
@@ -227,7 +230,7 @@ Pages.dashboard = {
     // --- pita produk
     h += `<section class="ribbon" style="--n:${pp.length <= 6 ? pp.length : Math.ceil(pp.length / 2)}">${pp.map((x) => {
       const bp = B && B.pp ? B.pp[x.kode] : null;
-      const icn = { BWU: 'store', CCC: 'card', KUR: 'building', 'KUR PMI': 'plane', KPP: 'factory' }[x.kode] || 'layers';
+      const icn = { BCM: 'briefcase', SCF: 'link2', 'KPP SUPPLY': 'truck', CCC: 'card', BWU: 'store', KUR: 'building', 'KPP DEMAND': 'factory', 'KUR PMI': 'plane' }[x.kode] || 'layers';
       return `<button class="card rb" data-act="prod" data-v="${esc(x.kode)}" style="--c:${x.warna}" title="${esc(x.nama)} — ${esc(U.rp(x.baki))}"><span class="rb-ic">${ic(icn, 18)}</span><span class="rb-t"><span class="rb-h"><b>${esc(x.kode)}</b>${bp ? UI.delta(M.delta(x.baki, bp.baki)) : ''}</span><b class="rb-v tnum">${U.rpS(x.baki)}</b><small class="tnum">${U.num(x.n)} debitur</small></span></button>`;
     }).join('')}</section>`;
 
@@ -238,12 +241,36 @@ Pages.dashboard = {
         <div class="card-h pad"><div><h3>${ic('alert', 19, 'neg')} Prioritas Tindakan: Debitur Berisiko Menunggak</h3><p>Kekurangan saldo terbesar pada rekening autodebet menjelang jatuh tempo angsuran</p></div>
         <div class="row-g">${UI.bisaKirim() && nRisk ? `<button class="btn btn-soft" data-act="blastRisk">${ic('send', 16)} Kirim pengingat massal (${U.num(nRisk)})</button>` : ''}</div></div>
         ${top.length ? `<div class="tbl-wrap"><table class="tbl"><thead><tr><th class="c">#</th><th>Nama Debitur / Rek</th><th>Produk</th><th>Kolektibilitas</th><th class="num">Baki Debet</th><th class="num">Angsuran / Bln</th><th class="num">Saldo Rekening</th><th class="num">Kekurangan Saldo</th><th class="c">Aksi</th></tr></thead><tbody>
-        ${top.map((d, i) => `<tr><td class="c muted">${i + 1}</td><td class="stick"><button class="lnk" data-detail="${esc(d.id)}"><b>${esc(d.nm)}</b></button><small class="muted">${esc(d.rek)} • ${d.dd === null ? '-' : d.dd < 0 ? 'Lewat ' + -d.dd + ' hr' : 'H-' + d.dd} jatuh tempo</small></td><td>${UI.prod(d.pr)}</td><td>${UI.kol(d.kol)}</td>${UI.uang(d.bd)}${UI.uang(d.an, 'muted')}${UI.uang(d.sa, 'warn b')}<td class="num"><span class="short">-Rp ${U.num(d.kurang)}</span></td>
+        ${top.map((d, i) => `<tr><td class="c muted">${i + 1}</td><td class="stick"><button class="lnk" data-detail="${esc(d.id)}"><b>${esc(d.nm)}</b></button><small class="muted">${esc(d.rek)} • ${d.dd === null ? '-' : d.dd < 0 ? 'Lewat ' + -d.dd + ' hr' : 'H-' + d.dd} jatuh tempo</small></td><td>${UI.prod(d.pr)}</td><td>${UI.kol(d.kol)}</td><td class="num b">${U.rpJ(d.bd)}</td><td class="num muted">${U.rpJ(d.an)}</td><td class="num warn b">${U.rpJ(d.sa)}</td><td class="num"><span class="short">-${U.rpJ(d.kurang)}</span></td>
           <td class="c">${UI.bisaKirim() ? `<button class="btn btn-sm btn-secondary" data-wa="${esc(d.id)}" ${d.wv && !d.oo ? '' : 'disabled title="Nomor tidak valid / opt-out"'}>${ic('chat', 15, 'pink')} Kirim WA</button>` : `<button class="btn btn-sm btn-secondary" data-detail="${esc(d.id)}">${ic('eye', 15)} Detail</button>`}</td></tr>`).join('')}
         </tbody></table></div>` : App.kosong('ok', 'Tidak ada debitur berisiko', 'Semua debitur aktif memiliki saldo cukup untuk angsuran.')}
         <div class="card-f pad"><span class="muted">Menampilkan ${top.length} dari ${U.num(nRisk)} debitur berisiko</span><a href="#/risiko" class="lnk-a">Lihat semua debitur berisiko ${ic('arrowright', 15)}</a></div></section>`;
     }
     return h;
+  },
+  /** v1.7: Performa per Produk — produk segmen SME (BCM, CCC, SCF, KPP SUPPLY) digabung menjadi BCM. */
+  gabungSme(pp, live) {
+    const SME_KODE = ['BCM', 'SCF', 'KPP SUPPLY'];
+    const bcm = pp.find((x) => x.kode === 'BCM') || { kode: 'BCM', nama: 'BCM', warna: UI.warnaProd('BCM') };
+    const g = { kode: 'BCM', nama: 'BCM (SME)', warna: bcm.warna, n: 0, aktif: 0, plafon: 0, baki: 0, risiko: 0, isi: 'SME: BCM, CCC, SCF, KPP Supply' };
+    const out = [g];
+    if (live) {
+      const sme = (d) => d.sg === 'SME' || (!d.sg && SME_KODE.includes(d.pr));
+      const ccc = { n: 0, aktif: 0, plafon: 0, baki: 0, risiko: 0 };
+      S.D.forEach((d) => {
+        if (!sme(d) && d.pr !== 'CCC') return;
+        const t = sme(d) ? g : ccc;
+        t.n++; t.plafon += d.pl; t.baki += d.bd; if (d.aktif) t.aktif++; if (d.risiko) t.risiko++;
+      });
+      pp.forEach((x) => { if (x.kode === 'CCC') out.push(Object.assign({}, x, ccc, { isi: 'CCC segmen SBP' })); else if (!SME_KODE.includes(x.kode)) out.push(x); });
+      return out;
+    }
+    pp.forEach((x) => {
+      if (SME_KODE.includes(x.kode)) { g.n += x.n || 0; g.plafon += x.plafon || 0; g.baki += x.baki || 0; g.aktif += x.aktif || x.n || 0; }
+      else out.push(x);
+    });
+    g.isi = 'SME: BCM, SCF, KPP Supply';
+    return out;
   },
   mount(root) { pasangAksi(root, this); },
   act: {
@@ -270,10 +297,10 @@ Pages.kualitas = {
     const f = S.f.kual || (S.f.kual = { pr: 'ALL', donut: 'n', tren: 'n', q: '', mv: '', hal: 1, per: 10 });
     const p = S.periode, live = p === S.periodeIni, prev = U.periodeGeser(p, -1);
     const A = M.agregat(p, f.pr), B = M.agregat(prev, f.pr);
-    const actions = `<button class="btn btn-secondary" data-act="unduh">${ic('download', 17)} Unduh Ringkasan</button>
+    const actions = `${App.tglChip()}<button class="btn btn-secondary" data-act="unduh">${ic('download', 17)} Unduh Ringkasan</button>
       ${UI.bisaKirim() && live ? `<button class="btn btn-primary" data-act="tindak">${ic('send', 17)} Buat Tindak Lanjut Kol</button>` : ''}`;
-    let h = UI.head({ crumb: ['Pengawasan Kredit', 'Kolektibilitas OJK'], title: 'Kualitas Kredit', sub: 'Komposisi dan pergerakan kolektibilitas kredit (Kolektibilitas 1 sampai 5) — debitur aktif', actions });
-    h += UI.snapBanner();
+    let h = UI.head({ crumb: ['Pengawasan Kredit', 'Kolektibilitas OJK'], title: 'Kualitas Kredit', sub: 'Komposisi dan pergerakan kolektibilitas kredit (Kolektibilitas 1 sampai 5) — debitur aktif' + (live && App.tglAktif() ? ' • posisi data ' + esc(U.tgl(App.tglAktif(), true)) : ''), actions });
+    h += App.bannerTgl() + UI.snapBanner();
     const nAll = live ? M.kol('ALL').n : (M.agregat(p, 'ALL') || { aktif: 0 }).aktif;
     const K = A ? A.kol : null;
     const tot = K ? [1, 2, 3, 4, 5].reduce((s, k) => s + K[k].n, 0) : 0;
@@ -326,7 +353,7 @@ Pages.kualitas = {
     const rows = UI.halaman(L, f);
     const adaBase = S.ds && S.ds.adaBaseline !== false;
     h += `<section class="card tbl-card"><div class="card-h pad"><div><h3>Pergerakan Kolektibilitas Debitur <span class="tag pink">${U.num(nTurun + nNaik)} perubahan bulan ini</span></h3>
-        <p>Debitur yang mengalami kenaikan (upgrade) atau penurunan (downgrade) kol. dibanding awal ${U.periodeLabel(S.periodeIni, true)} — ${U.num(nTurun)} turun, ${U.num(nNaik)} naik.</p></div>
+        <p>Debitur yang mengalami kenaikan (upgrade) atau penurunan (downgrade) kol. dibanding ${S.ds && S.ds.tglBase ? 'posisi ' + esc(U.tgl(S.ds.tglBase, true)) : 'awal ' + U.periodeLabel(App.tglAktif() ? App.tglAktif().slice(0, 7) : S.periodeIni, true)} — ${U.num(nTurun)} turun, ${U.num(nNaik)} naik.</p></div>
       <div class="row-g"><div class="inp-ic sm">${ic('search', 16)}<input type="search" data-act="q" placeholder="Cari nama, ID, CIF…" value="${esc(f.q)}"></div>
       <select class="sel" data-act="mv"><option value="">Semua pergerakan</option><option value="turun" ${f.mv === 'turun' ? 'selected' : ''}>Hanya downgrade (perburukan)</option><option value="naik" ${f.mv === 'naik' ? 'selected' : ''}>Hanya upgrade (pemulihan)</option></select></div></div>
       <div id="kualTbl">${this.tabel(rows, L.length, f, adaBase)}</div></section>`;
@@ -534,12 +561,14 @@ Pages.debitur = {
     const kunciRute = this.mode + '|' + r.seg + '|' + r.pr;
     if (this._rute !== kunciRute) { if (this._rute !== undefined) { f.hal = 1; if (r.pr || r.seg) f.pr = ''; } this._rute = kunciRute; }
     const judul = pmi ? 'Debitur KUR PMI' : r.pr ? 'Debitur ' + r.pr : r.seg ? 'Debitur ' + SEG.NAMA[r.seg] : 'Daftar Debitur';
-    const actions = `<button class="btn btn-secondary" data-act="xlsx">${ic('xls', 17, 'pos')} Unduh Excel (.xlsx)</button>
+    // v1.7: tombol "Sinkronkan Google Sheets" hanya untuk Super Admin; filter tanggal base data untuk semua
+    const actions = `${App.tglChip()}<button class="btn btn-secondary" data-act="xlsx">${ic('xls', 17, 'pos')} Unduh Excel (.xlsx)</button>
       <button class="btn btn-secondary" data-act="pdf">${ic('pdf', 17, 'neg')} Unduh PDF Laporan</button>
-      <button class="btn btn-primary" data-act="sync">${ic('refresh', 17)} Sinkronkan Google Sheets</button>`;
+      ${S.me.peran === 'Admin' ? `<button class="btn btn-primary" data-act="sync">${ic('refresh', 17)} Sinkronkan Google Sheets</button>` : ''}`;
     const crumb = ['Portofolio Kredit', 'Daftar Debitur'].concat(pmi ? ['SBP', 'KUR PMI'] : r.seg ? [SEG.NAMA[r.seg]].concat(r.pr ? [r.pr] : []) : []);
     let h = UI.head({ crumb, title: judul,
       sub: pmi ? 'Debitur KUR Pekerja Migran Indonesia, dikelompokkan per mitra KUR PMI (PT). Perusahaan tempat kerja tampil di Detail Debitur.' : r.seg ? `Segmen ${esc(SEG.NAMA[r.seg])}${r.pr ? ' — produk ' + esc(r.pr) : ' — produk ' + SEG.produk(r.seg).map(esc).join(', ')}. Pencarian, filter, dan ekspor data debitur.` : 'Pencarian, pemfilteran komprehensif, dan ekspor data debitur portofolio.', actions });
+    h += App.bannerTgl();
     h += this.subNav();
     h += this.bannerKunci();
     if (pmi) h += this.infoSumber() + this.chipsPt(f);
@@ -686,6 +715,7 @@ Pages.debitur = {
     xlsx: () => PD().ekspor('xlsx'),
     pdf: (el) => PD().ekspor('pdf', el),
     sync: async (el) => {
+      if (S.me.peran !== 'Admin') return;
       el.disabled = true; el.innerHTML = `<span class="spin"></span> Menyinkronkan…`;
       const r = await Api.call('cache.refresh', {});
       if (r.success && r.data.berubah) await App.muatData(false);
@@ -724,7 +754,7 @@ Pages.risiko = {
     const sel = S.sel.risk;
     let h = `<section class="card hero">
       <div><div class="ph-tags"><span class="tag neg"><i class="pulse"></i>Deteksi hampir real-time saldo rekening</span><span class="tag violet">${ic('shield', 13)} ${kirim ? 'Mode ' + App.labelPeran(S.me.peran) + ': akses penuh penagihan' : 'Mode ' + App.labelPeran(S.me.peran) + ': lihat saja'}</span></div>
-        <h1>Penagihan</h1><p>Deteksi dini debitur berisiko sebelum jatuh tempo (saldo blokir kosong atau saldo akhir &lt; angsuran).</p></div>
+        <h1>Penagihan</h1><p>Deteksi dini debitur berisiko sebelum jatuh tempo (saldo blokir kosong atau saldo akhir &lt; angsuran).</p><div class="hero-tgl">${App.tglChip()}</div></div>
       ${kirim ? `<div class="hero-a"><button class="btn btn-soft" data-act="semua">${ic('zap', 16)} Pilih semua berisiko (${U.num(this.data(f).length)})</button>
         <button class="btn btn-primary" data-act="lanjut" ${sel.size ? '' : 'disabled'}>${ic('chat', 17)} Lanjut ke WA Blast (${U.num(sel.size)} dipilih)</button></div>` : ''}</section>`;
     // v1.2: kartu ringkas yang rapi di HP — nilai, satuan, tanggal-bulan-tahun selalu 1 baris & sejajar
@@ -748,7 +778,7 @@ Pages.risiko = {
         ${App.boleh('template') ? `<div class="card-f"><span class="muted">${ic('check', 14, 'pos')} Template dapat disesuaikan di menu Template WA</span><a class="lnk-a" href="#/template">Kelola template ${ic('arrowright', 14)}</a></div>` : ''}</div>
       <div class="card c4 pad-l">${Pages.risiko.gw()}</div></section>`;
     if (kirim) h += `<aside class="floatbar ${sel.size ? 'show' : ''}" id="floatbar"></aside>`;
-    return h;
+    return App.bannerTgl() + h;
   },
   gw() {
     const { ic } = U;
@@ -1231,8 +1261,13 @@ Pages.pengguna = {
     h += `<nav class="subnav" aria-label="Sub halaman pengguna"><a href="#" class="${f.tab === 'list' ? 'on' : ''}" data-act="tabU" data-v="list">${ic('users', 16)}<span>Daftar Pengguna</span>${L ? `<em>${U.num(L.length)}</em>` : ''}</a>
       <a href="#" class="${f.tab === 'peran' ? 'on' : ''}" data-act="tabU" data-v="peran">${ic('shield', 16)}<span>Peran & Hak Akses Menu</span><em>${Object.keys(this.peranAkses()).length + 1}</em></a></nav>`;
     if (f.tab === 'peran') return h + this.renderPeran();
-    h += `<div class="alert alert-info">${ic('key', 16)}<div><b>Alur login pertama:</b> pengguna masuk dengan NPP & kata sandi = NPP → wajib membuat kata sandi baru → memindai QR dengan Microsoft Authenticator. Gunakan <b>Reset akses</b> bila lupa sandi atau ganti HP. Satu akun hanya bisa aktif di <b>1 perangkat</b>.</div></div>`;
+    h += `<div class="alert alert-info">${ic('key', 16)}<div><b>Alur login pertama:</b> pengguna masuk dengan NPP & kata sandi = NPP → wajib membuat kata sandi baru → memindai QR dengan Microsoft Authenticator. Gunakan <b>Reset akses</b> bila lupa sandi atau ganti HP. Satu akun hanya bisa aktif di <b>1 perangkat</b>.
+      <br><b>Kebijakan sandi (v1.7):</b> berlaku 30 hari lalu wajib diganti • tidak boleh memakai sandi lama • tidak boleh mengandung NPP • salah 5× → dikunci 15 menit, 7× → 30 menit, 10× → <b>diblokir</b> (hanya Super Admin yang membuka) • hanya ada <b>1 Super Admin</b>.</div></div>`;
     if (!L) return h + '<div class="card pad"><span class="spin"></span> Memuat pengguna…</div>';
+    const ganda = L.filter((u) => u.ganda);
+    if (ganda.length) h += `<div class="alert alert-warn">${ic('alertc', 16)}<div><b>${U.num(ganda.length)} akun tercatat sebagai Super Admin kedua</b> (${ganda.map((u) => esc(u.npp + ' ' + u.nama)).join(', ')}) — tidak berlaku & tidak dapat masuk. Ubah perannya lewat tombol Edit.</div></div>`;
+    const nama = {}; L.forEach((u) => { nama[u.npp] = u.nama; });
+    const bawah = {}; L.forEach((u) => { if (u.upliner) bawah[u.upliner] = (bawah[u.upliner] || 0) + 1; });
     const n = (fn) => L.filter(fn).length;
     const peranLain = Object.keys(this.peranAkses()).slice(0, 3);
     const ikonPeran = ['user', 'building', 'briefcase2'];
@@ -1241,11 +1276,14 @@ Pages.pengguna = {
       <div class="card mk"><div><span>Super Admin</span><b class="tnum">${n((u) => u.peran === 'Admin')}</b></div><i class="mk-ic" style="--c:#DB2777">${ic('shield', 17)}</i></div>
       ${peranLain.map((p, i) => `<div class="card mk"><div><span>${esc(App.labelPeran(p))}</span><b class="tnum">${n((u) => u.peran === p)}</b></div><i class="mk-ic" style="--c:${['#2563EB', '#F97316', '#8B5CF6'][i]}">${ic(ikonPeran[i] === 'briefcase2' ? 'user' : ikonPeran[i], 17)}</i></div>`).join('')}
       ${peranLain.length < 3 ? `<div class="card mk"><div><span>2FA aktif</span><b class="tnum pos">${n((u) => u.keamanan === '2FA aktif')}</b></div><i class="mk-ic" style="--c:#16A34A">${ic('phonem', 17)}</i></div>` : ''}</section>
-      <section class="card tbl-card"><div class="tbl-wrap"><table class="tbl"><thead><tr><th>NPP</th><th class="stick-h">Nama</th><th>Peran</th><th>Status</th><th>Keamanan</th><th>Login terakhir</th><th class="c">Aksi</th></tr></thead><tbody>
+      <section class="card tbl-card"><div class="tbl-wrap"><table class="tbl"><thead><tr><th>NPP</th><th class="stick-h">Nama</th><th>Peran</th><th>Upliner (atasan)</th><th class="c">Downliner</th><th>Status</th><th>Keamanan</th><th>Login terakhir</th><th class="c">Aksi</th></tr></thead><tbody>
       ${L.map((u) => {
-        const kc = { '2FA aktif': 'pill-pos', 'Terkunci': 'pill-neg', 'Belum aktivasi': 'pill-grey', 'Wajib ganti sandi': 'pill-warn', 'Belum 2FA': 'pill-warn' }[u.keamanan] || 'pill-grey';
+        const kc = { '2FA aktif': 'pill-pos', 'Terkunci': 'pill-neg', 'Diblokir': 'pill-neg strong', 'Belum aktivasi': 'pill-grey', 'Wajib ganti sandi': 'pill-warn', 'Belum 2FA': 'pill-warn', 'Sandi kedaluwarsa': 'pill-warn' }[u.keamanan] || 'pill-grey';
         return `<tr class="${u.status === 'Aktif' ? '' : 'row-off'}"><td><span class="idtag tnum">${esc(u.npp)}</span></td><td class="stick"><div class="ent"><span class="avatar xs">${esc(U.inisial(u.nama))}</span><div><b>${esc(u.nama)}</b>${u.npp === S.me.npp ? ' <span class="tag">Anda</span>' : ''}<small class="muted">${esc(u.email || '—')}</small></div></div></td>
-          <td><span class="tag ${this.warna(u.peran)}">${esc(u.peran ? App.labelPeran(u.peran) : 'Peran tidak dikenal')}</span></td><td>${UI.status(u.status)}</td><td><span class="pill ${kc}">${esc(u.keamanan)}</span></td>
+          <td><span class="tag ${this.warna(u.peran)}">${esc(u.peran ? App.labelPeran(u.peran) : u.ganda ? 'Super Admin ganda (tidak berlaku)' : 'Peran tidak dikenal')}</span></td>
+          <td>${u.upliner ? `<span class="up-c"><span class="idtag tnum">${esc(u.upliner)}</span><small>${esc(nama[u.upliner] || 'tidak terdaftar')}</small></span>` : '<span class="muted">—</span>'}</td>
+          <td class="c tnum">${bawah[u.npp] ? `<span class="tag info">${U.num(bawah[u.npp])}</span>` : '<span class="muted">—</span>'}</td>
+          <td>${UI.status(u.status)}</td><td><span class="pill ${kc}">${esc(u.keamanan)}</span>${u.sandiHari !== null && u.sandiHari !== undefined && u.keamanan === '2FA aktif' && u.sandiHari <= 7 ? `<small class="warn d-b">Sandi berakhir ${U.num(u.sandiHari)} hari lagi</small>` : ''}</td>
           <td class="muted nowrap">${u.login ? U.tglJam(new Date(u.login).getTime()) : 'Belum pernah'}</td>
           <td class="c"><div class="acts"><button class="btn btn-sm btn-secondary" data-act="edit" data-npp="${esc(u.npp)}">${ic('edit', 14)} Edit</button><button class="btn btn-sm btn-ghost" data-act="reset" data-npp="${esc(u.npp)}">${ic('key', 14)} Reset akses</button></div></td></tr>`;
       }).join('')}</tbody></table></div></section>`;
@@ -1272,26 +1310,41 @@ Pages.pengguna = {
   async mount(root) {
     pasangAksi(root, this);
     if (!S.users) await this.muat();
+    else if (Date.now() - (this.ts || 0) > 15000) this.muat();      // v1.7: status keamanan (terkunci/diblokir) selalu terbaru
   },
   async muat() {
     const r = await Api.call('user.list', {});
+    this.ts = Date.now();
     if (r.success) { S.users = r.data.users; if (App.halaman === 'pengguna') App.render({ tetap: true }); }
     else U.toast(r.message, 'err');
+  },
+  /** v1.7: bawahan (downliner) rekursif seorang pengguna — untuk mencegah struktur melingkar. */
+  bawahan(npp) {
+    const anak = {}; (S.users || []).forEach((x) => { if (x.upliner) (anak[x.upliner] = anak[x.upliner] || []).push(x.npp); });
+    const out = new Set(), antre = (anak[npp] || []).slice();
+    while (antre.length) { const k = antre.shift(); if (out.has(k) || k === npp) continue; out.add(k); (anak[k] || []).forEach((x) => antre.push(x)); }
+    return out;
   },
   form(u) {
     const { esc, ic } = U;
     const baru = !u;
     const akses = this.peranAkses();
-    u = u || { npp: '', nama: '', email: '', peran: Object.keys(akses)[0] || 'Admin', status: 'Aktif' };
-    const opsi = [['Admin', 'Super Admin — semua menu, kelola pengguna, peran & pengaturan']].concat(Object.keys(akses).map((p) => [p, App.labelPeran(p) + ' — ' + (akses[p].map((m) => LABEL_MENU[m]).join(', ') || 'tanpa menu')]));
+    u = u || { npp: '', nama: '', email: '', peran: Object.keys(akses)[0] || '', status: 'Aktif', upliner: '' };
+    // v1.7: hanya 1 Super Admin — peran Super Admin tidak dapat diberikan ke pengguna lain
+    const saIni = !baru && u.peran === 'Admin' && u.npp === S.me.npp;
+    const opsi = (saIni ? [['Admin', 'Super Admin — semua menu, kelola pengguna, peran & pengaturan']] : []).concat(Object.keys(akses).map((p) => [p, App.labelPeran(p) + ' — ' + (akses[p].map((m) => LABEL_MENU[m]).join(', ') || 'tanpa menu')]));
     const diri = !baru && u.npp === S.me.npp;
+    const larang = baru ? new Set() : this.bawahan(u.npp);
+    const calon = (S.users || []).filter((x) => x.npp !== u.npp && !larang.has(x.npp) && x.status === 'Aktif').sort((a, b) => a.nama.localeCompare(b.nama));
     const m = U.modal({
       title: baru ? 'Tambah Pengguna' : 'Edit Pengguna ' + u.npp, size: 'md',
       body: `<div class="form-g"><label class="fld"><span>NPP (5 digit)</span><input id="uNpp" inputmode="numeric" maxlength="5" value="${esc(u.npp)}" ${baru ? 'autofocus' : ''}>${baru ? '' : `<small>Ganti NPP bila perlu (mis. NPP Super Admin berubah). Kata sandi & authenticator tetap; sesi lama diakhiri${diri ? ' dan Anda perlu masuk ulang dengan NPP baru' : ''}.</small>`}</label>
         <label class="fld"><span>Nama lengkap</span><input id="uNama" maxlength="80" value="${esc(u.nama)}" ${baru ? '' : 'autofocus'}></label>
         <label class="fld"><span>Email (opsional)</span><input id="uEmail" type="email" value="${esc(u.email || '')}" placeholder="nama@kantor.co.id"></label>
-        <label class="fld"><span>Peran</span><select id="uPeran" class="sel" ${diri ? 'disabled' : ''}>${opsi.map((p) => `<option value="${esc(p[0])}" ${u.peran === p[0] ? 'selected' : ''}>${esc(p[1])}</option>`).join('')}</select>${diri ? '<small>Anda tidak dapat menurunkan peran akun Anda sendiri.</small>' : ''}</label>
-        <label class="fld"><span>Status</span><select id="uStatus" class="sel" ${diri ? 'disabled' : ''}><option ${u.status === 'Aktif' ? 'selected' : ''}>Aktif</option><option ${u.status === 'Nonaktif' ? 'selected' : ''}>Nonaktif</option></select></label></div>
+        <label class="fld"><span>Peran</span><select id="uPeran" class="sel" ${diri ? 'disabled' : ''}>${!opsi.some((p) => p[0] === u.peran) ? '<option value="" selected disabled>— Pilih peran —</option>' : ''}${opsi.map((p) => `<option value="${esc(p[0])}" ${u.peran === p[0] ? 'selected' : ''}>${esc(p[1])}</option>`).join('')}</select><small>${diri ? 'Anda tidak dapat menurunkan peran akun Anda sendiri.' : 'Peran Super Admin hanya untuk 1 akun dan tidak dapat diberikan ke pengguna lain.'}</small></label>
+        <label class="fld"><span>Status</span><select id="uStatus" class="sel" ${diri ? 'disabled' : ''}><option ${u.status === 'Aktif' ? 'selected' : ''}>Aktif</option><option ${u.status === 'Nonaktif' ? 'selected' : ''}>Nonaktif</option></select></label>
+        <label class="fld span2"><span>${ic('network', 14)} Upliner (atasan langsung)</span><select id="uUp" class="sel"><option value="">— Tanpa upliner —</option>${calon.map((x) => `<option value="${esc(x.npp)}" ${u.upliner === x.npp ? 'selected' : ''}>${esc(x.npp + ' — ' + x.nama + ' (' + App.labelPeran(x.peran) + ')')}</option>`).join('')}</select>
+          <small>Data Dashboard Business Banking Manager, SME Credit Risk & Branch Manager mengikuti seluruh bawahannya (downliner). ${larang.size ? U.num(larang.size) + ' bawahan pengguna ini tidak ditampilkan agar tidak melingkar.' : ''}</small></label></div>
         ${baru ? `<div class="alert alert-info sm">${ic('info', 15)}<div>Kata sandi awal = NPP. Pengguna wajib menggantinya & mendaftarkan Microsoft Authenticator saat login pertama.</div></div>` : ''}`,
       footer: `<button class="btn btn-ghost" data-x="0">Batal</button><button class="btn btn-primary" data-x="1">${ic('check', 16)} Simpan</button>`
     });
@@ -1309,7 +1362,9 @@ Pages.pengguna = {
         if (g.data && g.data.keluar) { m.close(); return App.keluarPaksa(g.message); }
         U.toast(g.message, 'ok', 6000);
       }
-      const r = await Api.call('user.simpan', { mode: baru ? 'tambah' : 'edit', npp, nama: m.el.querySelector('#uNama').value, email: m.el.querySelector('#uEmail').value, peran: m.el.querySelector('#uPeran').value, status: m.el.querySelector('#uStatus').value });
+      const peran = m.el.querySelector('#uPeran').value;
+      if (!peran) { btn.disabled = false; return U.toast('Pilih peran pengguna.', 'warn'); }
+      const r = await Api.call('user.simpan', { mode: baru ? 'tambah' : 'edit', npp, nama: m.el.querySelector('#uNama').value, email: m.el.querySelector('#uEmail').value, peran, status: m.el.querySelector('#uStatus').value, upliner: m.el.querySelector('#uUp').value });
       btn.disabled = false;
       if (!r.success) { this.muat(); return U.toast(r.message, 'err'); }
       m.close(); U.toast(r.message, 'ok'); this.muat();
@@ -1373,7 +1428,7 @@ Pages.pengguna = {
         body: `<div class="opts">
           <button class="opt" data-m="semua">${ic('key', 20)}<span><b>Reset sandi & 2FA</b><small>Sandi kembali = NPP, wajib ganti sandi & scan QR baru. Untuk lupa sandi.</small></span></button>
           <button class="opt" data-m="2fa">${ic('phonem', 20)}<span><b>Reset 2FA saja</b><small>Sandi tetap; QR authenticator baru muncul saat login. Untuk ganti/hilang HP.</small></span></button>
-          <button class="opt" data-m="buka" ${u.keamanan === 'Terkunci' ? '' : 'disabled'}>${ic('lock', 20)}<span><b>Buka kunci akun</b><small>Akun terkunci 15 menit setelah 5x salah.</small></span></button></div>
+          <button class="opt" data-m="buka" ${u.keamanan === 'Terkunci' || u.keamanan === 'Diblokir' ? '' : 'disabled'}>${ic('lock', 20)}<span><b>Buka kunci / blokir akun</b><small>Salah 5× → dikunci 15 menit, 7× → 30 menit, 10× → diblokir (hanya Super Admin yang dapat membuka). Hitungan salah kembali 0.</small></span></button></div>
           <p class="muted sm">Semua sesi aktif pengguna ini akan diakhiri. Tindakan tercatat di Audit_Log.</p>`
       });
       m.el.querySelectorAll('[data-m]').forEach((b) => b.onclick = async () => {
@@ -1406,6 +1461,10 @@ Pages.pengaturan = {
   },
   async mount(root) {
     pasangAksi(root, this);
+    if ((S.f.set || {}).tab === 'profil' && this.sandiHari === undefined && !this._meMuat) {      // v1.7: sisa masa berlaku sandi
+      this._meMuat = true;
+      Api.call('auth.me', {}).then((r) => { this._meMuat = false; this.sandiHari = r.success && r.data.sandiHari !== undefined ? r.data.sandiHari : null; if (App.halaman === 'pengaturan' && (S.f.set || {}).tab === 'profil') App.render({ tetap: true }); });
+    }
     if (S.me.peran === 'Admin' && !S.adminSet) await this.muat();
     const tab = (S.f.set || {}).tab;
     if (S.me.peran === 'Admin' && S.adminSet && tab === 'pmi' && !this.ptInfo && !this._ptMuat) this.muatPt();          // v1.5: sumber per PT
@@ -1479,7 +1538,9 @@ Pages.pengaturan = {
       ...k.berbagi.map((b) => item(!!b.aman, esc(b.jenis) + (b.nama ? ' — ' + esc(b.nama) : ''), b.galat ? esc(b.galat) : b.publik ? '<b>Dibagikan ke siapa saja yang punya link!</b> Ubah berbagi di Google Drive menjadi "Dibatasi".' : b.domain ? 'Dibagikan ke seluruh domain organisasi. Sebaiknya "Dibatasi".' : `Dibatasi • ${U.num(b.editor)} editor, ${U.num(b.pembaca)} pembaca — pastikan hanya orang yang berwenang.`, !b.publik)),
       item(k.gerbang.aktif, 'Gerbang Cloudflare Worker', k.gerbang.aktif ? 'Aktif — URL Apps Script tidak bisa dipakai langsung; permintaan dibatasi per IP.' : 'Belum aktif. Disarankan: blokir bot, batasi tebak sandi per IP, sembunyikan URL Apps Script.', true),
       item(k.turnstile.aktif, 'Cloudflare Turnstile di halaman masuk', k.turnstile.aktif ? 'Aktif — login wajib lolos verifikasi Cloudflare.' : 'Belum aktif. Menahan robot penebak sandi.', true),
-      item(a.superAdmin <= 3, 'Jumlah Super Admin', U.num(a.superAdmin) + ' akun Super Admin aktif' + (a.superAdmin > 3 ? ' — kurangi bila tidak perlu.' : '.'), true),
+      item(a.superAdmin === 1 && !a.superGanda, 'Super Admin tunggal', a.superGanda ? U.num(a.superGanda) + ' akun tercatat sebagai Super Admin kedua — tidak berlaku. Ubah perannya di Pengguna & Peran.' : U.num(a.superAdmin) + ' akun Super Admin (aplikasi hanya mengizinkan 1).', true),
+      item(!(a.diblokir || []).length, 'Akun diblokir (10× salah)', (a.diblokir || []).length ? U.num(a.diblokir.length) + ' akun diblokir: ' + a.diblokir.map(esc).join(', ') + ' — buka lewat Pengguna & Peran → Reset akses.' : 'Tidak ada akun yang diblokir. Salah 5× → 15 menit, 7× → 30 menit, 10× → diblokir.', true),
+      item(!(a.sandiLama || []).length, 'Masa berlaku kata sandi (' + (a.sandiHari || 30) + ' hari)', (a.sandiLama || []).length ? U.num(a.sandiLama.length) + ' akun wajib ganti sandi saat login berikutnya: ' + a.sandiLama.map(esc).join(', ') : 'Semua sandi aktif masih berlaku. Sandi lama tidak dapat dipakai ulang.', true),
       item(!a.tanpa2fa.length, 'Authenticator (2FA)', a.tanpa2fa.length ? U.num(a.tanpa2fa.length) + ' akun belum menyelesaikan 2FA: ' + a.tanpa2fa.map(esc).join(', ') : 'Semua akun aktif memakai authenticator.', true),
       item(!a.kedaluwarsa.length, 'Sandi awal (= NPP)', a.belumAktif.length ? `${U.num(a.belumAktif.length)} akun belum aktivasi (berlaku ${k.aktivasiJam} jam sejak dibuat/direset)${a.kedaluwarsa.length ? '; ' + U.num(a.kedaluwarsa.length) + ' sudah kedaluwarsa: ' + a.kedaluwarsa.map(esc).join(', ') + ' — Reset akses bila masih dipakai' : ''}.` : 'Tidak ada akun yang masih memakai sandi awal.', true),
       item(!(k.wa.mode === 'fonnte' && !k.wa.tokenAda), 'Gateway WhatsApp', k.wa.mode === 'fonnte' ? (k.wa.tokenAda ? 'Mode kirim sungguhan, token tersimpan di Script Properties.' : 'Mode kirim tanpa token!') : 'Mode simulasi.', true),
@@ -1517,6 +1578,7 @@ Pages.pengaturan = {
     return `<div class="card pad-l"><div class="prof-card"><span class="avatar lg">${esc(U.inisial(S.me.nama))}</span><div><h3>${esc(S.me.nama)}</h3><p class="muted">NPP ${esc(S.me.npp)} • ${esc(App.labelPeran(S.me.peran))}${S.me.email ? ' • ' + esc(S.me.email) : ''}</p>
       <div class="row-g sm"><span class="pill pill-pos">${ic('phonem', 12)} 2FA Microsoft Authenticator aktif</span>${exp ? `<span class="pill pill-grey">${ic('clock', 12)} Sesi berakhir ${U.tglJam(exp)}</span>` : ''}</div></div></div></div>
       <div class="card pad-l"><h3>Ubah kata sandi</h3><p class="muted">Demi keamanan, perubahan sandi memerlukan kode authenticator dan akan mengakhiri sesi di perangkat lain.</p>
+        <ul class="sandi-aturan"><li>${ic('clock', 13)} Berlaku <b>30 hari</b>, setelah itu wajib membuat sandi baru${this.sandiHari !== undefined && this.sandiHari !== null ? ` — <b class="${this.sandiHari <= 7 ? 'warn' : 'pos'}">sisa ${U.num(this.sandiHari)} hari</b>` : ''}</li><li>${ic('ban', 13)} Tidak boleh sama dengan sandi yang pernah dipakai</li><li>${ic('user', 13)} Tidak boleh mengandung NPP login Anda</li><li>${ic('lock', 13)} Salah 5× dikunci 15 menit, 7× 30 menit, 10× diblokir (dibuka Super Admin)</li></ul>
         <form id="fUbah" class="form-g" novalidate autocomplete="off">
           <label class="fld"><span>Kata sandi saat ini</span><input type="password" id="pLama" autocomplete="current-password"></label>
           <label class="fld"><span>Kata sandi baru</span><input type="password" id="pBaru" autocomplete="new-password" placeholder="Min. 8 karakter, huruf + angka"></label>
@@ -1639,7 +1701,7 @@ Pages.pengaturan = {
       <p class="muted">Bandingkan angka di bawah dengan pivot database Anda: <b>Baris</b> = jumlah baris per nilai produk/flag di sheet Debitur, <b>Plafon</b> (makskrd) & <b>Baki debet</b> dijumlah penuh. Tabel kedua = yang tampil di aplikasi (1 rekening pinjaman = 1 baris; Daftar Debitur SME menggabungkan CIF yang sama).</p>
       <h5 class="dt-sub">Sheet Debitur (sumber) — ${U.num(R.baris)} baris</h5>
       <div class="tbl-wrap"><table class="tbl sm"><thead><tr><th>Produk di sheet</th><th>Dibaca sebagai</th><th class="num">Baris</th><th class="num">Plafon</th><th class="num">Baki debet</th><th class="num">Ganda (diabaikan)</th><th class="num">Tanpa kunci</th></tr></thead><tbody>
-        ${R.sumber.map((x) => `<tr><td><b>${esc(x.asli)}</b></td><td>${x.pr ? UI.prod(x.pr) : '<span class="muted">—</span>'}</td><td class="num tnum">${U.num(x.n)}</td><td class="num tnum">${n(x.pl)}</td><td class="num tnum">${n(x.bd)}</td><td class="num tnum ${x.dup ? 'warn' : 'muted'}">${U.num(x.dup)}</td><td class="num tnum ${x.tanpa ? 'neg' : 'muted'}">${U.num(x.tanpa)}</td></tr>`).join('')}
+        ${R.sumber.map((x) => `<tr class="${x.pr && !S.prodMap[x.pr] ? 'row-off' : ''}"><td><b>${esc(x.asli)}</b></td><td>${x.pr ? (S.prodMap[x.pr] ? UI.prod(x.pr) : `<span class="muted">${esc(x.pr)} — tidak ditampilkan</span>`) : '<span class="muted">—</span>'}</td><td class="num tnum">${U.num(x.n)}</td><td class="num tnum">${n(x.pl)}</td><td class="num tnum">${n(x.bd)}</td><td class="num tnum ${x.dup ? 'warn' : 'muted'}">${U.num(x.dup)}</td><td class="num tnum ${x.tanpa ? 'neg' : 'muted'}">${U.num(x.tanpa)}</td></tr>`).join('')}
         <tr class="tot"><td colspan="2"><b>Total</b></td><td class="num tnum"><b>${U.num(tot(R.sumber, 'n'))}</b></td><td class="num tnum"><b>${n(tot(R.sumber, 'pl'))}</b></td><td class="num tnum"><b>${n(tot(R.sumber, 'bd'))}</b></td><td class="num tnum">${U.num(tot(R.sumber, 'dup'))}</td><td class="num tnum">${U.num(tot(R.sumber, 'tanpa'))}</td></tr></tbody></table></div>
       <h5 class="dt-sub">Tampil di aplikasi</h5>
       <div class="tbl-wrap"><table class="tbl sm"><thead><tr><th>Produk</th><th class="num">Rekening</th><th class="num">Aktif</th><th class="num">CIF unik</th><th class="num">Plafon</th><th class="num">Baki debet</th></tr></thead><tbody>
@@ -1650,15 +1712,17 @@ Pages.pengaturan = {
         ${pindah.length ? `<li><b>Pindah ke KUR PMI</b> (cocok dengan sheet PT mitra): ${pindah.map((k) => `${esc(k)} ${U.num(R.pindah[k])}`).join(', ')} rekening.</li>` : ''}
         ${R.pmiBaru ? `<li><b>${U.num(R.pmiBaru)}</b> debitur KUR PMI hanya ada di sheet PT (ditambahkan).</li>` : ''}
         ${R.pmiSembunyi ? `<li><b>${U.num(R.pmiSembunyi)}</b> debitur KUR PMI di sheet Debitur tidak ada di sheet PT mana pun (disembunyikan).</li>` : ''}
-        <li>Produk "Dibaca sebagai" mengikuti kode aplikasi, mis. <b>KPP DEMAND → KPP</b>, <b>OTHERS → OTHER</b>.</li></ul></div>`;
+        ${Object.keys(R.luar || {}).length ? `<li class="warn"><b>Tidak ditampilkan (produk di luar daftar):</b> ${Object.keys(R.luar).map((k) => `${esc(k)} ${U.num(R.luar[k])}`).join(', ')} rekening. Daftar produk: BCM, SCF, KPP SUPPLY, CCC (SME) • BWU, CCC, KUR, KPP DEMAND, KUR PMI (SBP).</li>` : ''}
+        ${R.geser ? `<li><b>${U.num(R.geser)}</b> baris lama tanpa Tanggal Base Data digantikan baris bertanggal (tidak dihitung ganda).</li>` : ''}
+        <li>Produk "Dibaca sebagai" mengikuti kode aplikasi, mis. <b>KPP / KPP DEMAND → KPP DEMAND</b>, <b>KPP SUPPLY → KPP SUPPLY</b>, <b>OTHERS → tidak ditampilkan</b>.</li></ul></div>`;
   },
   // ---------- v1.4: Import dari spreadsheet lain dengan pemetaan kolom kustom ----------
   FIELD_IMP: {
     umum: [['nm', 'Nama Debitur'], ['pic', 'Kontak (PIC)'], ['wa', 'No. WA / HP'], ['cif', 'CIF'], ['rp', 'Rek Pinjaman (kunci)'], ['ra', 'Rek Afil'], ['pr', 'Produk'],
       ['pl', 'Plafon'], ['bd', 'Baki Debet'], ['an', 'Angsuran'], ['sb', 'Saldo Blokir'], ['sa', 'Saldo Akhir'], ['jt', 'Jatuh Tempo'], ['tb', 'Tgl Booking'], ['kol', 'Kol'], ['st', 'Status'],
-      ['un', 'Unit (kode kantor)'], ['rm', 'RM'], ['np', 'NPP RM'], ['sg', 'Segmen (SME / SBP)'], ['oo', 'Opt-out WA']],
+      ['un', 'Unit (kode kantor)'], ['rm', 'RM'], ['np', 'NPP RM'], ['sg', 'Segmen (SME / SBP)'], ['oo', 'Opt-out WA'], ['jw', 'Jangka Waktu'], ['tg', 'Tanggal Base Data (posisi data)']],
     pmi: [['nm', 'Nama Debitur'], ['rp', 'Rek Pinjaman (kunci)'], ['ra', 'Rek Afil'], ['wa', 'No. WA / HP'], ['cif', 'CIF'], ['pt', 'Mitra KUR PMI (PT)'], ['pl', 'Plafon'], ['bd', 'Baki Debet'], ['an', 'Angsuran'],
-      ['sb', 'Saldo Blokir'], ['sa', 'Saldo Akhir'], ['jt', 'Jatuh Tempo'], ['tb', 'Tgl Booking'], ['kol', 'Kol'], ['st', 'Status'], ['un', 'Unit (kode kantor)'], ['rm', 'RM'], ['np', 'NPP RM'], ['oo', 'Opt-out WA']]
+      ['sb', 'Saldo Blokir'], ['sa', 'Saldo Akhir'], ['jt', 'Jatuh Tempo'], ['tb', 'Tgl Booking'], ['jw', 'Jangka Waktu'], ['kol', 'Kol'], ['st', 'Status'], ['un', 'Unit (kode kantor)'], ['rm', 'RM'], ['np', 'NPP RM'], ['oo', 'Opt-out WA'], ['tg', 'Tanggal Base Data (posisi data)']]
   },
   impState() {
     if (!this.imp) this.imp = { src: '', info: null, muat: false, buka: '', profil: [{ jenis: 'umum', aktif: true, sheet: 'Debitur', baris: 1, kolom: {} }, { jenis: 'pmi', aktif: false, sheet: '', baris: 1, kolom: {} }],
@@ -1745,12 +1809,24 @@ Pages.pengaturan = {
         <div class="imp-g">${Object.keys(I.lain).map((k) => `<label class="imp"><input type="checkbox" data-act="impLain" data-k="${k}" ${I.lain[k].on ? 'checked' : ''}><span><b>${k.replace('_', ' ')}</b><small>Nama sheet di sumber</small><input data-act="impLainNama" data-impn="${k}" data-k="${k}" value="${esc(I.lain[k].nama)}"></span></label>`).join('')}</div>
         <label class="chk"><input type="checkbox" id="impTimpa"><span>Timpa data yang sudah ada (default: hanya menambah yang baru). Rumus di sheet tujuan tetap dipertahankan.</span></label></div>
       <div class="card-f"><span class="muted">${ic('shield', 14)} Kredensial pengguna tidak pernah diimpor. Pemetaan tersimpan otomatis.</span><div class="row-g"><button class="btn btn-ghost" data-act="impSimpanPeta">${ic('check', 16)} Simpan pemetaan</button><button class="btn btn-secondary" data-act="pindai">${ic('search', 16)} Pindai (dry-run)</button><button class="btn btn-primary" data-act="impor">${ic('upload', 16)} Jalankan import</button></div></div></div>
+      ${this.kartuTgl()}
       ${r ? `<div class="card pad-l"><h3>${r.dryRun ? 'Hasil pindai' : 'Hasil import'} — ${esc(r.sumber.nama)}</h3><table class="tbl sm"><thead><tr><th>Data</th><th class="num">Di sumber</th><th class="num">Ditambah</th><th class="num">Diperbarui</th><th class="num">Dilewati</th></tr></thead><tbody>
         ${Object.keys(r.laporan).map((k) => `<tr><td><b>${esc(k.replace('_', ' '))}</b></td><td class="num">${U.num(r.laporan[k].sumber)}</td><td class="num pos">${U.num(r.laporan[k].ditambah)}</td><td class="num info">${U.num(r.laporan[k].diperbarui)}</td><td class="num muted">${U.num(r.laporan[k].dilewati)}</td></tr>`).join('')}</tbody></table>
         ${Object.keys(r.laporan).filter((k) => r.laporan[k].contoh && r.laporan[k].contoh.length).map((k) => { const L = r.laporan[k], nm = {}; (this.FIELD_IMP[k === 'Debitur KUR PMI' ? 'pmi' : 'umum'].concat([['pr', 'Produk'], ['pt', 'PT Penempatan']])).forEach((f) => { nm[f[0]] = nm[f[0]] || f[1]; }); const fs = L.kolom.map((c) => c.f);
           return `<h4 class="imp-h4">${esc(k)} — contoh hasil pemetaan</h4><div class="tbl-wrap"><table class="tbl sm"><thead><tr>${L.kolom.map((c) => `<th>${esc(nm[c.f] || c.f)}<small class="muted d-b">${esc(c.sumber)}</small></th>`).join('')}</tr></thead><tbody>${L.contoh.map((o) => `<tr>${fs.map((f) => `<td>${esc(o[f] || '')}</td>`).join('')}</tr>`).join('')}</tbody></table></div>` +
             (L.multi && L.multi.length ? `<h4 class="imp-h4">${esc(k)} — CIF sama dengan Rek Pinjaman berbeda <span class="tag pos">${U.num(L.nMulti)} CIF • semua rekening diimpor</span></h4><div class="tbl-wrap"><table class="tbl sm"><thead><tr><th>CIF</th><th>Nama Debitur</th><th>Rek Pinjaman</th></tr></thead><tbody>${L.multi.map((m) => `<tr><td class="tnum">${esc(m.cif)}</td><td>${esc(m.nama)}</td><td class="tnum">${m.rek.map(esc).join('<br>')}</td></tr>`).join('')}</tbody></table></div>${L.nMulti > L.multi.length ? `<p class="muted sm">Menampilkan ${L.multi.length} dari ${U.num(L.nMulti)} CIF.</p>` : ''}` : ''); }).join('')}
         ${r.peringatan.length ? `<ul class="warn-l">${r.peringatan.map((p) => `<li>${ic('alertc', 14)} ${esc(p)}</li>`).join('')}</ul>` : ''}</div>` : ''}`;
+  },
+  /** v1.7: Tanggal Base Data — penjelasan & daftar tanggal tersimpan (hapus per tanggal). */
+  kartuTgl() {
+    const { esc, ic } = U;
+    const L = (S.ds && S.ds.tgls) || [], ada = S.ds && S.ds.kolom && S.ds.kolom.tg;
+    return `<div class="card pad-l" id="tglCard"><h3>${ic('calendar', 18)} Tanggal Base Data (posisi data)</h3>
+      <p class="muted">Petakan <b>Tanggal Base Data</b> pada <b>Atur kolom</b> di atas (format apa pun dikenali: <code>25/11/2026</code>, <code>2026-11-25</code>, <code>20261125</code>, <code>25 Nov 2026</code>, tanggal Excel). Satu rekening disimpan per tanggal, sehingga Dashboard, Kualitas Kredit, Daftar Debitur & Penagihan otomatis menampilkan <b>tanggal terbaru</b> dan bisa difilter ke tanggal lain. Baris lama tanpa tanggal otomatis diberi tanggal pada import bertanggal pertama.</p>
+      ${L.length ? `<div class="tbl-wrap"><table class="tbl sm"><thead><tr><th>Tanggal base data</th><th class="num">Baris</th><th class="c">Status</th><th class="c">Aksi</th></tr></thead><tbody>
+        ${L.slice(0, 60).map((x, i) => `<tr><td><b class="tnum">${esc(U.tgl(x.t, true))}</b></td><td class="num tnum">${U.num(x.n)}</td><td class="c">${i === 0 ? '<span class="pill pill-pos">Terbaru (bawaan)</span>' : '<span class="pill pill-grey">Riwayat</span>'}</td>
+          <td class="c">${L.length > 1 ? `<button class="btn btn-sm btn-ghost" data-act="tglHapus" data-v="${esc(x.t)}">${ic('trash', 14)} Hapus</button>` : '<span class="muted sm">—</span>'}</td></tr>`).join('')}
+      </tbody></table></div>${L.length > 60 ? `<p class="muted sm">Menampilkan 60 dari ${U.num(L.length)} tanggal.</p>` : ''}` : `<div class="src-st">${ic('info', 18)}<div><b>${ada ? 'Kolom Tgl_Data ada, belum berisi tanggal' : 'Belum ada Tanggal Base Data'}</b><small>Semua data saat ini tampil sebagai satu posisi (tanggal hari ini).</small></div></div>`}</div>`;
   },
   impPayload() {
     const I = this.impState();
@@ -1780,6 +1856,17 @@ Pages.pengaturan = {
   },
   act: {
     tab: (el) => { S.f.set.tab = el.dataset.v; App.render(); },
+    tglHapus: async (el) => {                         // v1.7: hapus 1 tanggal base data
+      const t = el.dataset.v;
+      if (!await U.konfirmasi({ title: 'Hapus tanggal base data?', body: `Semua baris sheet Debitur bertanggal <b>${U.esc(U.tgl(t, true))}</b> akan dihapus permanen dari database. Tanggal lain tidak berubah.`, ok: 'Hapus', bahaya: true })) return;
+      el.disabled = true;
+      const r = await Api.call('data.tanggal.hapus', { tgl: t }, { timeout: 180000 });
+      if (!r.success) { el.disabled = false; return U.toast(r.message, 'err', 6000); }
+      U.toast(r.message, 'ok');
+      if (S.tglPilih === t) S.tglPilih = '';
+      await App.muatData(false);
+      App.render({ tetap: true });
+    },
     pmiNama: (el) => { const L = Pages.pengaturan.pmi; L[+el.dataset.i].nama = el.value; const b = document.querySelector('[data-act="pmiSimpan"]'); if (b) b.disabled = false; },
     pmiTambah: () => { (Pages.pengaturan.pmi || (Pages.pengaturan.pmi = UI.daftarPt().map((n) => ({ nama: n, lama: n })))).push({ nama: '', lama: '' }); App.render({ tetap: true }); setTimeout(() => { const x = document.querySelectorAll('.pmi-row input'); if (x.length) x[x.length - 1].focus(); }, 30); },
     pmiHapus: async (el) => {
