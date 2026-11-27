@@ -606,11 +606,17 @@ Pages.debitur = {
     const kirim = UI.bisaKirim(), pmi = this.mode === 'pmi';
     const area = document.getElementById('debArea');
     if (!area) return;
-    area.innerHTML = `<div class="grid g4 mini-kpi">
-        <div class="card mk"><div><span>Total baki debet</span><b class="tnum">${U.rpS(tb)}</b></div><i class="mk-ic" style="--c:#2563EB">${ic('wallet', 17)}</i></div>
-        <div class="card mk"><div><span>Lancar (Kol. 1)</span><b class="tnum pos">${U.num(k[1])} <small>(${pc(k[1])})</small></b></div><i class="mk-ic" style="--c:#16A34A">${ic('badge', 17)}</i></div>
-        <div class="card mk"><div><span>Perhatian (Kol. 2)</span><b class="tnum info">${U.num(k[2])} <small>(${pc(k[2])})</small></b></div><i class="mk-ic" style="--c:#2563EB">${ic('eye', 17)}</i></div>
-        <div class="card mk"><div><span>NPL / Macet (Kol. 3–5)</span><b class="tnum neg">${U.num(k.npl)} <small>(${pc(k.npl)})</small></b></div><i class="mk-ic" style="--c:#E11D48">${ic('alert', 17)}</i></div></div>
+    // v1.8: 5 kotak — Total Debitur (= Total di filter), Total Baki Debet, Lancar, Perhatian, NPL / Macet
+    const nTot = L.length, pcN = (n) => (akt.length ? Math.round(n / akt.length * 1000) / 10 : 0);
+    const kotakKol = (n, label, warna, ikon, kelas) => `<div class="card dk dk-kol ${kelas}" style="--c:${warna}"><i class="dk-ic">${ic(ikon, 17)}</i>
+        <div class="dk-t"><span>${label.replace(/\s*(\(Kol\.[^)]*\))/, ' <i class="dk-k">$1</i>')}</span><b class="tnum">${U.num(n)}</b><small class="tnum">${pc(n)} dari aktif</small></div>
+        <em class="dk-bar" aria-hidden="true"><i style="width:${pcN(n)}%"></i></em></div>`;
+    area.innerHTML = `<div class="deb-kpi" role="group" aria-label="Ringkasan daftar debitur">
+        <div class="card dk dk-total"><i class="dk-ic">${ic('users', 20)}</i><div class="dk-t"><span>Total Debitur</span><b class="tnum">${U.num(nTot)}</b><small>${akt.length === nTot ? 'debitur sesuai filter' : U.num(akt.length) + ' aktif • ' + U.num(nTot - akt.length) + ' lunas/nonaktif'}</small></div></div>
+        <div class="card dk dk-bd"><i class="dk-ic">${ic('wallet', 20)}</i><div class="dk-t"><span>Total Baki Debet</span><b class="tnum">${U.rpS(tb)}</b><small>${U.num(akt.length)} debitur aktif</small></div></div>
+        ${kotakKol(k[1], 'Lancar (Kol. 1)', KOL[1].c, 'badge', 'k1')}
+        ${kotakKol(k[2], 'Perhatian (Kol. 2)', KOL[2].c, 'eye', 'k2')}
+        ${kotakKol(k.npl, 'NPL / Macet (Kol. 3–5)', KOL[5].c, 'alert', 'k5')}</div>
       <div class="card tbl-card">
         <div class="bbar">${kirim ? `<label class="chk"><input type="checkbox" data-act="selPage" ${allSel ? 'checked' : ''}><span>Pilih semua (${rows.length} di halaman ini)</span></label>
           ${L.length > rows.length ? `<button class="btn-link sm" data-act="selAll">Pilih semua ${U.num(L.length)} hasil filter</button>` : ''}
@@ -732,9 +738,9 @@ Pages['debitur-pmi'] = Object.assign(Object.create(Pages.debitur), { judul: 'Deb
 // ============================================================================
 Pages.risiko = {
   judul: 'Penagihan',
-  f() { return S.f.risk = Object.assign({ tab: 'all', sort: 'kurang', pr: '', q: '', hal: 1, per: 10, tpl: '' }, S.f.risk || {}); },
+  f() { const f = S.f.risk = Object.assign({ tab: 'all', sort: 'kurang', pr: '', q: '', hal: 1, per: 10, tpl: '' }, S.f.risk || {}); if (f.pr === 'KUR PMI') f.pr = ''; return f; },
   data(f) {
-    let L = M.risiko('ALL');
+    let L = M.tagih();                                       // v1.8: KUR PMI tidak masuk daftar Penagihan
     if (f.pr) L = L.filter((d) => d.pr === f.pr);
     if (f.tab === 'blokir') L = L.filter((d) => d.fBlokir);
     else if (f.tab === 'saldo') L = L.filter((d) => d.fSaldo);
@@ -746,7 +752,7 @@ Pages.risiko = {
   render() {
     const { esc, ic } = U;
     const f = this.f();
-    const all = M.risiko('ALL'), kirim = UI.bisaKirim();
+    const all = M.tagih(), kirim = UI.bisaKirim();
     const nBlk = all.filter((d) => d.fBlokir).length, nSal = all.filter((d) => d.fSaldo).length, nJt = all.filter((d) => d.dd !== null && d.dd <= 3).length;
     const bakiR = all.reduce((s, d) => s + d.bd, 0), kurang = all.reduce((s, d) => s + d.kurang, 0);
     const nextJt = all.filter((d) => d.dd !== null && d.dd >= 0).sort((a, b) => a.dd - b.dd)[0];
@@ -767,7 +773,7 @@ Pages.risiko = {
       <div class="card rk"><div class="rk-t"><span class="kpi-ic soft" style="--c:#7C3AED">${ic('calclock', 22)}</span><div class="rk-m"><span class="kpi-l">Jatuh tempo terdekat</span><div class="rk-v">${nextJt ? `<span class="tnum">${+nextJt.jt.slice(8)}</span><small>${U.BLN[+nextJt.jt.slice(5, 7) - 1]} ${nextJt.jt.slice(0, 4)}</small>` : '<small>Tidak ada</small>'}</div></div>${nextJt ? `<span class="badge-w">H-${nextJt.dd}${nextJt.dd <= 3 ? ' urgent' : ''}</span>` : ''}</div>
         <div class="rk-f"><span>Jatuh tempo ≤ 3 hari</span><b class="tnum">${U.num(nJt)} rekening</b></div></div></section>`;
     h += `<div class="card fbar"><div class="tabs">${[['all', 'Semua risiko', all.length], ['blokir', 'Saldo blokir kosong', nBlk], ['saldo', 'Saldo < angsuran', nSal], ['jt', 'Jatuh tempo ≤ 3 hari', nJt]].map((t) => `<button class="tab ${f.tab === t[0] ? 'on' : ''}" data-act="tab" data-v="${t[0]}">${t[1]} <em>${U.num(t[2])}</em></button>`).join('')}</div>
-      <div class="row-g"><div class="inp-ic sm">${ic('search', 15)}<input type="search" data-act="q" placeholder="Cari debitur…" value="${esc(f.q)}"></div>${UI.prodSelect(f.pr, 'pr')}
+      <div class="row-g"><div class="inp-ic sm">${ic('search', 15)}<input type="search" data-act="q" placeholder="Cari debitur…" value="${esc(f.q)}"></div>${UI.prodSelect(f.pr, 'pr', 'Semua Produk', ['KUR PMI'])}
       <label class="sel-wrap">${ic('filter', 15)}<select class="sel plain" data-act="sort"><option value="kurang" ${f.sort === 'kurang' ? 'selected' : ''}>Urutkan: defisit terbesar</option><option value="jt" ${f.sort === 'jt' ? 'selected' : ''}>Urutkan: jatuh tempo terdekat</option><option value="kol" ${f.sort === 'kol' ? 'selected' : ''}>Urutkan: kol tertinggi</option><option value="baki" ${f.sort === 'baki' ? 'selected' : ''}>Urutkan: baki terbesar</option></select></label>
       <div class="dl-g" role="group" aria-label="Unduh data penagihan"><button class="btn btn-secondary btn-sm" data-act="xlsx" title="Unduh Excel (.xlsx)">${ic('xls', 15, 'pos')} Excel</button><button class="btn btn-secondary btn-sm" data-act="pdf" title="Unduh PDF">${ic('pdf', 15, 'neg')} PDF</button><button class="btn btn-secondary btn-sm" data-act="cetak" title="Cetak">${ic('print', 15)} Cetak</button></div></div></div>
       <section class="card tbl-card" id="riskArea"></section>`;
@@ -1847,12 +1853,34 @@ Pages.pengaturan = {
     if (!dryRun && !await U.konfirmasi({ title: 'Jalankan import?', body: 'Data akan ditulis ke spreadsheet database FinSight. Disarankan sudah menjalankan Pindai.', ok: 'Jalankan' })) return;
     this.impState().src = d.sumber;
     el.disabled = true; const l = el.innerHTML; el.innerHTML = '<span class="spin"></span> Memproses…';
-    const r = await Api.call('import.run', { sumber: d.sumber, sheets: d.sheets, profil: d.profil, dryRun, timpa: document.getElementById('impTimpa').checked }, { timeout: 300000 });
+    const timpa = document.getElementById('impTimpa').checked;
+    let r = await Api.call('import.run', { sumber: d.sumber, sheets: d.sheets, profil: d.profil, dryRun, timpa }, { timeout: 300000 });
+    // v1.8: server kehabisan waktu/memori → ulangi otomatis per profil (aman diulang: impor idempoten)
+    if (!r.success && ['TIMEOUT', 'MEMORY', 'UPSTREAM', 'NET'].includes(r.code) && aktif.length > 1) {
+      el.innerHTML = '<span class="spin"></span> Memproses per bagian…';
+      U.toast('Server butuh waktu lebih lama — diproses per bagian (' + aktif.length + ' profil)…', 'info', 4000);
+      r = await this.imporBertahap(d, aktif, dryRun, timpa);
+    }
     el.disabled = false; el.innerHTML = l;
-    if (!r.success) return U.toast(r.message, 'err', 6000);
+    if (!r.success) return U.toast(r.message + (dryRun || !['TIMEOUT', 'MEMORY', 'UPSTREAM', 'NET'].includes(r.code) ? '' : ' Import mungkin tetap selesai di server: tunggu ±1 menit lalu klik Pindai — bila "Ditambah" = 0, data sudah masuk.'), 'err', 9000);
     this.hasil = r.data; U.toast(r.message, 'ok');
     if (!dryRun) { App.muatData(true); S.users = null; }
     App.render({ tetap: true });
+  },
+  /** v1.8: jalankan import satu profil per panggilan (tiap panggilan = 1 eksekusi Apps Script tersendiri), lalu gabungkan laporan. */
+  async imporBertahap(d, aktif, dryRun, timpa) {
+    const gabung = { sumber: null, dryRun, laporan: {}, peringatan: [], ms: 0 };
+    let pesan = '';
+    for (let i = 0; i < aktif.length; i++) {
+      const profil = d.profil.map((p) => Object.assign({}, p, { aktif: p === aktif[i] }));
+      const r = await Api.call('import.run', { sumber: d.sumber, sheets: i === 0 ? d.sheets : {}, profil, dryRun, timpa }, { timeout: 300000 });
+      if (!r.success) return Object.assign({}, r, { message: (i ? 'Bagian ' + (i + 1) + ' dari ' + aktif.length + ': ' : '') + r.message });
+      gabung.sumber = gabung.sumber || r.data.sumber;
+      Object.assign(gabung.laporan, r.data.laporan || {});
+      (r.data.peringatan || []).forEach((x) => { if (!gabung.peringatan.includes(x)) gabung.peringatan.push(x); });
+      gabung.ms += r.data.ms || 0; pesan = r.message;
+    }
+    return { success: true, data: gabung, message: pesan || (dryRun ? 'Pindai selesai.' : 'Import selesai.') };
   },
   act: {
     tab: (el) => { S.f.set.tab = el.dataset.v; App.render(); },

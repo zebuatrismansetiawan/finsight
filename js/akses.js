@@ -149,6 +149,10 @@
           <p class="muted sm">${ic('info', 13)} Bawaan: <b>RM</b> = SME + NPP sendiri; <b>PRM / ARM</b> = SBP + NPP sendiri; <b>Business Banking Manager, Branch Manager, SME Credit Risk</b> = data bawahan (downliner). Peran baru diatur di menu Pengguna & Peran.</p>
           <p class="muted sm">${ic('users', 13)} <b>Data bawahan (downliner):</b> pengguna peran ini melihat debitur milik seluruh bawahannya (rekursif, sesuai NPP RM pengelola). Upliner/downliner diatur Super Admin di <b>Pengguna & Peran → Edit → Upliner</b>. Bila bawahannya belum diatur, cakupan kembali ke segmen peran.</p>
           <p class="muted sm">${ic('key', 13)} <b>NPP = kunci.</b> Bila "Hanya debitur dengan NPP RM sendiri" dicentang dan kolom NPP RM sudah berisi data, pengguna menerima <b>semua</b> debitur yang NPP RM pengelolanya sama dengan NPP login-nya — apa pun segmen/produknya. Segmen hanya menyaring peran yang tidak memakai filter NPP.</p></div>
+        <div class="card pad-l pmi-buka ${D.pmiBuka ? 'on' : ''}"><div class="pmi-row"><span class="pmi-ic">${ic('plane', 22)}</span><div class="pmi-tx">
+            <h3>KUR PMI tampil untuk semua peran <span class="pill ${D.pmiBuka ? 'pill-pos' : 'pill-grey'}">${D.pmiBuka ? 'ON' : 'OFF'}</span></h3>
+            <p class="muted">${D.pmiBuka ? '<b>ON:</b> debitur produk <b>KUR PMI</b> terlihat oleh semua peran <b>tanpa filter</b> NPP RM, segmen, maupun downliner — mis. PRM / ARM NPP 67221 dapat melihat KUR PMI kelolaan NPP 53221, begitu juga sebaliknya.' : '<b>OFF:</b> debitur <b>KUR PMI</b> disaring seperti produk lain (mengikuti cakupan peran di atas).'} Produk lain tetap mengikuti cakupan per peran.</p></div>
+            <label class="sw-tgl" title="KUR PMI tampil untuk semua peran"><input type="checkbox" data-act="akPmi" ${D.pmiBuka ? 'checked' : ''} aria-label="KUR PMI tampil untuk semua peran tanpa filter"><i></i></label></div></div>
         <div class="card pad-l"><h3>${ic('user', 18)} Filter NPP RM</h3>
           <p class="muted">Kolom di sheet Debitur (database) yang berisi NPP RM pengelola. Peran yang dicentang "Hanya debitur dengan NPP RM sendiri" hanya menerima debitur dengan NPP yang sama dengan NPP login-nya. Isi kolom ini lewat <b>Import Data → Atur kolom → NPP RM</b>.</p>
           <div class="form-g g2"><label class="fld"><span>Kolom NPP RM</span>${kolSel('np', 'NPP_RM')}</label>
@@ -229,6 +233,7 @@
     akSeg: (el) => { P.akD.peran[el.dataset.k].s = el.value; ulang(); },
     akNpp: (el) => { P.akD.peran[el.dataset.k].n = el.checked ? 1 : 0; ulang(); },
     akDown: (el) => { P.akD.peran[el.dataset.k].d = el.checked ? 1 : 0; ulang(); },     // v1.7
+    akPmi: (el) => { P.akD.pmiBuka = el.checked; ulang(); },                            // v1.8: KUR PMI tanpa filter peran
     akKol: (el) => { if (el.value) P.akD.kol[el.dataset.k] = el.value; else delete P.akD.kol[el.dataset.k]; ulang(); },
     akProd: (el) => { const l = P.akD.seg[el.dataset.g], k = el.dataset.k; if (el.checked) { if (!l.includes(k)) l.push(k); } else l.splice(l.indexOf(k), 1); ulang(); },
     akUnit: (el) => { P.akD.unit[+el.dataset.i][el.dataset.f] = el.value.trim(); const b = document.querySelector('[data-act="akSimpan"]'); if (b) b.disabled = false; },

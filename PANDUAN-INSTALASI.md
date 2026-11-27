@@ -1,10 +1,83 @@
-# Panduan Instalasi FinSight v1.7.0
+# Panduan Instalasi FinSight v1.8.0
 
 Monitoring Portofolio Kredit & Penagihan — Google Apps Script (backend REST API) + frontend PWA (GitHub Pages / Vercel) + Cloudflare (opsional, disarankan)
 
 ---
 
-## ⬆️ Upgrade dari v1.6.0 ke v1.7.0 (aplikasi yang sudah berjalan)
+## ⬆️ Upgrade dari v1.7.0 ke v1.8.0 (aplikasi yang sudah berjalan)
+
+Data, akun, kata sandi, authenticator, token Fonnte, logo, URL `/exec`, **`GATEWAY_SECRET`, dan `js/config.js` Anda tidak berubah.** Tidak ada sheet atau kolom baru, jadi **tidak perlu menjalankan setup**. Fitur lain di luar 5 poin di bawah tidak diubah.
+
+**Yang berubah di v1.8.0**
+
+| # | Perubahan |
+|---|---|
+| 1 | **Daftar Debitur (SME, SBP, per produk, KUR PMI)**: 5 kotak ringkasan berurutan **Total Debitur** • **Total Baki Debet** • **Lancar (Kol. 1)** • **Perhatian (Kol. 2)** • **NPL / Macet (Kol. 3–5)**. *Total Debitur* selalu sama dengan tulisan **"Total: N debitur"** pada filter aktif (mis. 97). Ukuran huruf & kotak disesuaikan: desktop 5 kotak sejajar; tablet & HP 2 kotak besar di atas + 3 kotak Kol di bawah, dengan bilah persentase |
+| 2 | **Performa** (pola *gas-scale-turbo*): buka pertama & filter **Posisi data** jauh lebih cepat — lihat tabel angka di bawah. Ganti tanggal yang pernah dibuka / kembali ke data terbaru **instan** dari cache perangkat; 2 tanggal sebelumnya diunduh lebih dulu saat perangkat luang; menu **Pipeline** sudah dimuat bersama data awal |
+| 3 | **KUR PMI tanpa filter peran**: debitur **KUR PMI** terlihat oleh **semua peran** tanpa filter NPP RM / segmen / downliner — mis. PRM / ARM NPP 67221 melihat KUR PMI kelolaan NPP 53221 dan sebaliknya. Produk lain tetap mengikuti cakupan peran. Super Admin dapat **ON/OFF** di **Pengaturan → Akses Data → KUR PMI tampil untuk semua peran** (bawaan **ON**) |
+| 4 | **Penagihan**: debitur **KUR PMI** tidak lagi masuk daftar Penagihan (daftar, kartu ringkas, tab, filter produk, Excel/PDF/Cetak, lencana jumlah di menu & notifikasi Penagihan) |
+| 5 | **Import Data → Pindai / Jalankan import** tidak lagi gagal dengan *"Respons server tidak valid…"*: server membaca **hanya kolom sumber yang dipetakan** (bukan seluruh 60+ kolom), membaca sheet tujuan **1×** untuk semua profil, menulis hanya blok baris yang berubah, dan memakai pengolah tanggal cepat. Bila server tetap kehabisan waktu, aplikasi **otomatis mengulang per profil** (Debitur Umum, lalu KUR PMI) dan menggabungkan laporannya. Pesan galat kini menjelaskan penyebab sebenarnya (batas waktu / kuota / akses deployment) |
+
+**Hasil pengukuran** (simulator Apps Script, 3.500 debitur × 4 tanggal = 14.000 baris × 24 kolom; sumber import 60 kolom, 2 profil):
+
+| Skenario | v1.7.0 | v1.8.0 |
+|---|---|---|
+| Bangun dataset terbaru (cache kosong) — panggilan format tanggal | 45.501 | **1** |
+| Buka aplikasi / sinkron saat data tidak berubah (versi sama) | memuat dataset ±1 MB | **0 sel dibaca, tanpa memuat dataset** |
+| Filter tanggal lain (sudah dihangatkan pemicu) | 336.024 sel dibaca per tanggal | **0 sel (dari cache)** |
+| Pemicu `warmupCache` tiap 5 menit | 336.084 sel tiap kali | **0 sel**; cek perubahan penuh hanya tiap 30 menit |
+| Ukuran cache dataset (4 tanggal) | 57 kunci / 2.497 KB | **24 kunci / 931 KB** (terkompresi) |
+| **Import Pindai** (dry-run) | 1.764.216 sel + 77.012 panggilan tanggal | **717.668 sel + 0** |
+| **Jalankan import** (termasuk menyiapkan dataset baru) | 1.932.240 sel | **1.137.716 sel** |
+
+> Angka dihitung di simulator, bukan di server Google. Waktu nyata di Apps Script bergantung pada beban Google, tetapi pekerjaan yang dihilangkan (sel dibaca & panggilan tanggal) adalah penyebab utama jeda dan kegagalan sebelumnya.
+
+**A. Backend (Apps Script)** — ganti **4 berkas**
+
+1. Buka proyek Apps Script FinSight. Ganti **seluruh isi** berkas **`Kode`, `Data`, `Akses`, `Migrasi`** dengan berkas baru dari paket.
+   (`Auth`, `Blast`, `Ekspor`, `Analisa`, `Setup`, `Keamanan`, `Pipeline`, `appsscript.json` **tidak berubah**.)
+2. Simpan (Ctrl+S). **Tidak perlu** menjalankan `setupAppEnvironment` (tidak ada sheet/kolom baru).
+3. **Deploy → Kelola deployment → ✏️ Edit → Versi: Versi baru → Deploy.** (URL `/exec` tetap sama.)
+4. (Disarankan) Pilih fungsi **`warmupCache`** → **▶ Jalankan** sekali agar cache format baru langsung siap. Bila dilewati, pemicu menjalankannya sendiri dalam ±5 menit.
+
+**B. Frontend (Vercel / GitHub Pages)**
+
+1. Ekstrak `finsight-frontend-v1.8.0.zip` ke folder baru → **pilih semua isinya** (Ctrl+A) → salin → buka folder repository `finsight` → tempel → pilih **"Replace the files in the destination / Ganti file di tujuan"** (**jangan Skip**). ZIP tidak berisi `js/config.js`.
+2. Dari terminal di folder repository:
+   ```bash
+   git status
+   ```
+   Harus muncul **modified** antara lain `index.html`, `sw.js`, `css/style.css`, `js/app.js`, `js/pages.js`, `js/akses.js`, `js/api.js`, `js/demo.js`. Lalu:
+   ```bash
+   git add .
+   git commit -m "FinSight v1.8.0"
+   git push
+   ```
+3. Tunggu Vercel **Ready** → buka **https://finsightbbjba.vercel.app/sw.js** harus tertulis `finsight-v1.8.0` → buka aplikasi → **Ctrl+Shift+R** → footer **v1.8.0**.
+4. (Opsional) `js/config.js` Anda boleh dibiarkan. Bila ingin, ubah baris `window.APP_VERSION` menjadi `'1.8.0'`.
+
+**C. Cloudflare Worker (opsional, disarankan)**
+
+`worker.js` v1.8 hanya memperjelas pesan galat (batas waktu / kuota / akses deployment) — keamanan, batas permintaan, dan variabel **tidak berubah**. Cloudflare → **Workers & Pages → `finsight-gateway` → Edit code** → hapus semua isi → tempel isi `worker.js` baru → **Deploy**. Variabel `GAS_URL`, `GATEWAY_SECRET`, `ALLOWED_ORIGINS` tetap. Bila dilewati, aplikasi tetap berjalan normal (pesan galat memakai teks lama).
+
+**D. Setelah upgrade (Super Admin)**
+
+| # | Tugas | Di mana |
+|---|---|---|
+| 1 | Tentukan saklar KUR PMI | **Pengaturan → Akses Data → KUR PMI tampil untuk semua peran** → ON (bawaan) / OFF → **Simpan pengaturan akses** |
+| 2 | Uji KUR PMI lintas NPP | **Akses Data → Cek NPP** → isi 67221 → baris *KUR PMI* = seluruh KUR PMI (ON) atau hanya milik 67221 (OFF) |
+| 3 | Uji import | **Pengaturan → Import Data → Pindai** → laporan tampil tanpa popup galat → **Jalankan import** |
+| 4 | Uji Daftar Debitur | **Daftar Debitur → SME** → *Total Debitur* = "Total: N debitur" |
+| 5 | Uji Penagihan | Menu **Penagihan** → tidak ada baris KUR PMI; filter produk tanpa KUR PMI |
+
+> **Catatan v1.8**
+> - **KUR PMI tanpa filter (ON)** berlaku di Dashboard, Kualitas Kredit, Daftar Debitur, pencarian, Detail, dan aksi debitur (simpan No HP, WA Blast). Menu **Penagihan** tetap tidak menampilkan KUR PMI.
+> - **Cache perangkat**: data tanggal yang pernah dibuka disimpan di memori tab (maks. 4 tanggal) dan diperiksa versinya di belakang layar — bila data di Sheets berubah, tampilan diperbarui otomatis. Unduh-lebih-dulu dilewati bila HP memakai mode **hemat data** atau jaringan 2G. Data lokal tetap dihapus saat keluar.
+> - **Cek perubahan oleh pemicu** (`warmupCache`): perubahan langsung di Sheets tetap terbaca seketika lewat `onChangeData`; perubahan oleh skrip/impor dari luar aplikasi terbaca paling lambat **±30 menit** (sebelumnya ±5 menit). Import dari menu aplikasi dan tombol **Sinkronkan Google Sheets** tetap memperbarui data saat itu juga.
+> - **Import sangat besar**: bila Pindai/Import masih melewati batas waktu Apps Script walau sudah diulang per profil, jalankan per bagian (centang 1 profil saja), lalu **Pindai** — bila *Ditambah* = 0, data sudah masuk (import aman diulang).
+
+<details>
+<summary><b>Riwayat: upgrade dari v1.6.0 ke v1.7.0</b></summary>
 
 Data, akun, kata sandi, authenticator, token Fonnte, logo, URL `/exec`, **Cloudflare Worker, `GATEWAY_SECRET`, dan `js/config.js` Anda tidak berubah.** Kolom & sheet baru dibuat otomatis (lihat langkah A). Fitur lain di luar 10 poin di bawah tidak diubah.
 
@@ -71,6 +144,8 @@ Data, akun, kata sandi, authenticator, token Fonnte, logo, URL `/exec`, **Cloudf
 > - **Tanggal Base Data**: baris lama tanpa tanggal tetap tampil di semua tanggal sampai digantikan baris bertanggal (rekening yang sama tidak dihitung ganda). Kirim WA & penagihan selalu memakai data terbaru. Baseline *Kol awal bulan* diambil dari posisi tanggal terakhir bulan sebelumnya bila ada.
 > - **Format Excel**: sheet **No Surat** dan **BATCH** di file Anda adalah database — aplikasi hanya membacanya saat import (file tidak diunggah ke server, hanya datanya). Nomor surat (kolom AM) diambil dari sheet No Surat (kolom A, dicocokkan dengan nama di kolom C) bila kosong; kurs dari sel **AO1**, tanggal surat dari **AP1**; Gaji Rupiah (AI) = Gaji Yen × kurs. Template import (.xlsx) = susunan sheet BATCH (judul baris 2, data mulai baris 3).
 > - Huruf **Calibri** dipakai seperti Excel. Di perangkat tanpa Calibri, browser memakai pengganti dengan ukuran setara (Carlito); cetak dari laptop Windows/Mac agar identik 100%.
+
+</details>
 
 <details>
 <summary><b>Riwayat: upgrade dari v1.5.0 ke v1.6.0</b></summary>
@@ -418,9 +493,9 @@ HP / Laptop  →  Vercel / GitHub Pages (frontend PWA)  ──fetch JSON──�
 | Berkas | Dipasang di | Keterangan |
 |---|---|---|
 | `Kode.gs` | Apps Script | Router API, hak akses per menu & peran (dicek tiap panggilan), audit log |
-| `Akses.gs` *(v1.5)* | Apps Script | Cakupan data per peran (segmen SME/SBP, filter NPP RM, unit), No HP debitur, sumber KUR PMI per PT |
+| `Akses.gs` *(v1.5)* | Apps Script | Cakupan data per peran (segmen SME/SBP, filter NPP RM, unit, KUR PMI tanpa filter peran *(v1.8)*), No HP debitur, sumber KUR PMI per PT |
 | `Auth.gs` | Apps Script | Login NPP, ganti sandi wajib, 2FA Microsoft Authenticator (TOTP), sesi 1 perangkat, ganti NPP, kebijakan sandi 30 hari & riwayat sandi, penguncian bertingkat, 1 Super Admin, upliner/downliner *(v1.7)* |
-| `Data.gs` | Apps Script | Baca Sheets, cache berlapis, dataset debitur, snapshot kolektibilitas, pengaturan, peran & Mitra KUR PMI |
+| `Data.gs` | Apps Script | Baca Sheets, cache berlapis (terkompresi & per tanggal *(v1.8)*), dataset debitur, snapshot kolektibilitas, pengaturan, peran & Mitra KUR PMI |
 | `Blast.gs` | Apps Script | Template WA, antrean WA blast (Fonnte), log |
 | `Ekspor.gs` | Apps Script | Laporan PDF (tampilan sama dengan aplikasi) ke folder Drive |
 | `Migrasi.gs` | Apps Script | Import data dari spreadsheet lain (dry-run, aman diulang, pemetaan kolom per data) |
@@ -430,7 +505,7 @@ HP / Laptop  →  Vercel / GitHub Pages (frontend PWA)  ──fetch JSON──�
 | `Pipeline.gs` *(v1.7)* | Apps Script | Pipeline SME (RM) & SBP (PRM/ARM): simpan, hak lihat sesuai cakupan, total baki debet RM/PRM/ARM |
 | `worker.js` (+ `wrangler.toml` opsional) | **Cloudflare Workers — bukan Apps Script** | Gerbang API (lihat Bagian 6b). Jangan ditempel ke editor Apps Script |
 | `appsscript.json` | Apps Script | Zona waktu Asia/Jakarta & setelan Web App |
-| `finsight-frontend-v1.7.0.zip` | GitHub Pages / Vercel | Isi folder ini = isi repository (index.html di root). Tidak berisi `js/config.js` — instalasi baru: buat `js/config.js` sesuai langkah 3.2 |
+| `finsight-frontend-v1.8.0.zip` | GitHub Pages / Vercel | Isi folder ini = isi repository (index.html di root). Tidak berisi `js/config.js` — instalasi baru: buat `js/config.js` sesuai langkah 3.2 |
 
 > **Mode demo.** Sebelum backend terpasang, frontend otomatis berjalan dengan data fiktif. Buka `index.html` lewat server lokal atau GitHub Pages lalu login dengan NPP `10001` (Super Admin), `20001` (RM), atau `30001` (Manager). Kata sandi pertama = NPP. Kode authenticator demo ditampilkan di layar.
 
@@ -817,10 +892,12 @@ Menu **Pipeline** punya 2 sub halaman. Data tersimpan di sheet `Pipeline`.
 |---|---|---|
 | `onChangeData` | Saat sheet diedit | Menaikkan versi data → browser memuat ulang |
 | `prosesAntrian` | Tiap 1 menit | Mengirim antrean WA bertahap (berhenti cepat bila antrean kosong) |
-| `warmupCache` | Tiap 5 menit | Menghangatkan cache & mendeteksi perubahan dari impor/skrip |
+| `warmupCache` | Tiap 5 menit | Menghangatkan cache (termasuk tanggal base data sebelumnya); cek perubahan dari impor/skrip luar tiap ±30 menit (v1.8) |
 | `snapshotHarian` | ± 23:00 WIB | Mengisi `Snapshot_Kol` (tren) & baseline pergerakan Kol awal bulan |
 
 Browser memeriksa versi data setiap 30 detik (Pengaturan → `POLLING_DETIK`, 15–120), melambat ke 60 detik saat pengguna diam, dan berhenti saat tab tidak aktif. Hasil: perubahan di Sheets tampil ≤ 30–60 detik tanpa muat ulang halaman. Tombol **Sinkronkan Google Sheets** memaksa pembaruan saat itu juga.
+
+**Kecepatan (v1.8):** server menjawab *tidak berubah* tanpa memuat dataset bila versi data di perangkat sudah terbaru; cache server dimampatkan (gzip) dan disiapkan per tanggal oleh pemicu; di perangkat, tanggal yang pernah dibuka tampil seketika dan 2 tanggal sebelumnya diunduh lebih dulu saat luang.
 
 **Kecepatan:** dataset debitur dimuat sekali (±600 KB untuk 3.500 debitur, jauh lebih kecil bila terkompresi) lalu disimpan di browser; berikutnya hanya diunduh ulang bila data berubah. Pindah menu, filter, cari, urut, dan paging dihitung di perangkat (puluhan milidetik). Data lokal dihapus saat pengguna keluar.
 
@@ -870,6 +947,11 @@ Browser memeriksa versi data setiap 30 detik (Pengaturan → `POLLING_DETIK`, 15
 | Jangka Waktu (v1.7) | Detail Debitur BCM, KUR & KUR PMI | Jangka waktu terisi |
 | Format Excel (v1.7) | Import file Excel (BATCH + No Surat) → klik sel G6 → ubah Plafond → Cetak / PDF | Kolom Nama disorot; angsuran & rasio berubah; PDF A4 sama dengan cetak Excel |
 | Pipeline (v1.7) | RM tambah pipeline SME; PRM tambah pipeline SBP Tambahan | Nama RM terkunci ke akunnya; Net Baki Debet = Nominal − Outstanding; total di mini dashboard |
+| Daftar Debitur (v1.8) | Daftar Debitur → SME → filter Kol. 1 | 5 kotak: Total Debitur = "Total: N debitur", Total Baki Debet, Lancar, Perhatian, NPL; rapi di HP (2 + 3 kotak) |
+| KUR PMI tanpa filter (v1.8) | Saklar ON, login PRM/ARM 67221 | KUR PMI milik NPP 53221 ikut tampil (dan sebaliknya); produk lain tetap NPP sendiri; saklar OFF → hanya miliknya |
+| Penagihan (v1.8) | Buka menu Penagihan | Tidak ada debitur KUR PMI; filter produk tanpa KUR PMI |
+| Performa (v1.8) | Pilih tanggal lama → kembali ke terbaru → pilih tanggal lama lagi | Pemilihan kedua & kembali ke terbaru tampil seketika |
+| Import (v1.8) | Pindai & Jalankan import base data besar (2 profil) | Laporan tampil tanpa popup "Respons server tidak valid" |
 | Akurasi | Bandingkan KPI dengan SUM/COUNT di Sheets | Sama (uji sampel per produk) |
 | Sinkronisasi | Ubah, tambah, hapus baris Debitur | Tampil di web ≤ 60 detik |
 | WA Blast | Nomor tidak valid, opt-out, kirim ganda, 200+ penerima | Dilewati / peringatan / terkirim bertahap |
@@ -885,6 +967,10 @@ Browser memeriksa versi data setiap 30 detik (Pengaturan → `POLLING_DETIK`, 15
 |---|---|---|
 | Banner "Mode demo" masih tampil | `GAS_URL` belum diisi | Edit `js/config.js`, push ulang, Ctrl+Shift+R |
 | "Respons server bukan JSON" | Akses Web App bukan *Anyone* / URL `/dev` | Deploy ulang: *Siapa saja*, pakai URL `/exec` |
+| "Proses di server melebihi batas waktu Apps Script" (v1.8) | Import / data sangat besar melebihi batas 6 menit Apps Script | Aplikasi otomatis mengulang per profil; bila masih gagal, centang 1 profil saja lalu jalankan. Import aman diulang |
+| "Kuota harian Google Apps Script sedang habis" (v1.8) | Kuota akun Google (UrlFetch / waktu pemicu) habis | Tunggu beberapa menit / esok hari; kurangi WA blast besar bersamaan |
+| Popup *"Respons server tidak valid. Periksa deployment Apps Script (akses "Anyone")"* saat Import (v1.7) | Import lama membaca seluruh kolom & baris berulang sehingga Apps Script kehabisan waktu | Upgrade backend ke v1.8 (langkah A) — bukan masalah akses deployment |
+| RM/PRM melihat debitur KUR PMI milik NPP lain (v1.8) | Saklar **KUR PMI tampil untuk semua peran** = ON (bawaan) | Normal. Bila tidak dikehendaki: Akses Data → matikan saklar → Simpan |
 | "Aplikasi belum di-setup" | `setupAppEnvironment` belum dijalankan | Jalankan dari editor |
 | Kode authenticator selalu salah | Jam HP tidak otomatis | Aktifkan *tanggal & waktu otomatis* di HP |
 | "QR sudah tidak berlaku" saat aktivasi | QR baru dibuat di jendela/HP lain, atau lewat 3 menit | Masuk ulang / klik **Buat QR baru**, lalu pindai QR terbaru saja |

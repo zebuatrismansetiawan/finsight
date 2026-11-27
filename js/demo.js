@@ -167,7 +167,7 @@ window.DemoAPI = (() => {
   // ---------- v1.5: cakupan data per peran (sama dengan server) ----------
   const SEG_BAWAAN = { SME: ['BCM', 'CCC', 'SCF', 'KPP SUPPLY'], SBP: ['BWU', 'CCC', 'KUR', 'KPP DEMAND', 'KUR PMI'] };
   const UNIT_BAWAAN = [['31100', 'KCU Jababeka'], ['31102', 'KC Cikarang'], ['31105', 'KC Mutiara Gading'], ['31107', 'KC Tambun'], ['31160', 'KC RE Martadinata'], ['31162', 'KC Cibitung'], ['31106', 'KC Cikarang Baru'], ['31161', 'KC MM2100'], ['31163', 'KC Grandwisata'], ['31165', 'KC Wisma Asri'], ['31101', 'KC Bulak Kapal'], ['31103', 'KC Lippo Cikarang'], ['31104', 'KC Kalimas'], ['31108', 'KC Cikarang Central City'], ['31166', 'KC Delta Mas']].map((x) => ({ k: x[0], n: x[1] }));
-  const aksesD = () => { let a = null; try { a = JSON.parse(setting.AKSES_DATA || 'null'); } catch (e) { a = null; } a = a || {}; return { unit: a.unit || UNIT_BAWAAN, kol: a.kol || {}, seg: a.seg || SEG_BAWAAN, segV: 3, peran: a.peran || { Manager: { s: '', n: 0, d: 1 } } }; };
+  const aksesD = () => { let a = null; try { a = JSON.parse(setting.AKSES_DATA || 'null'); } catch (e) { a = null; } a = a || {}; return { unit: a.unit || UNIT_BAWAAN, kol: a.kol || {}, seg: a.seg || SEG_BAWAAN, segV: 3, peran: a.peran || { Manager: { s: '', n: 0, d: 1 } }, pmiBuka: a.pmiBuka === undefined ? true : !!a.pmiBuka }; };
   // v1.7: d = data mengikuti bawahan (downliner) — bawaan BBM / SME Credit Risk / Branch Manager
   const peranDef = (n) => { const l = String(n || '').toLowerCase(); if (/(^|[^a-z])(prm|arm)([^a-z]|$)/.test(l) || /program relationship/.test(l)) return { s: 'SBP', n: 1, d: 0 }; if (l === 'rm' || /^rm([^a-z]|$)/.test(l) || /relationship manager/.test(l)) return { s: 'SME', n: 1, d: 0 };
     if (/business banking manager|(^|[^a-z])bbm([^a-z]|$)|credit risk|branch manager|(^|[^a-z])bm([^a-z]|$)|kepala cabang|pemimpin cabang|pinca/.test(l)) return { s: '', n: 0, d: 1 }; return { s: '', n: 0, d: 0 }; };
@@ -182,10 +182,10 @@ window.DemoAPI = (() => {
     if (!sc.s && !sc.npp && !sc.bawah) return sc.bawahBelum ? Object.assign({}, D, { kunci: null, rekon: null, cakupan: { s: '', npp: '', bawah: 0, bawahBelum: true } }) : D;
     const a = aksesD();
     // v1.6: NPP login = kunci — bila filter NPP aktif, segmen tidak ikut menyaring; v1.7: downliner = NPP dirinya + bawahan
-    const r = D.rows.filter((x) => (sc.bawah ? sc.bawah.includes(x[27]) : sc.npp ? x[27] === sc.npp : (!sc.s || (x[28] ? x[28] === sc.s : (a.seg[sc.s] || []).includes(x[6])))));
+    const r = D.rows.filter((x) => (a.pmiBuka && x[6] === 'KUR PMI') || (sc.bawah ? sc.bawah.includes(x[27]) : sc.npp ? x[27] === sc.npp : (!sc.s || (x[28] ? x[28] === sc.s : (a.seg[sc.s] || []).includes(x[6])))));
     const vb = String(D.ver).split('@');
     return Object.assign({}, D, { rows: r, n: r.length, ver: vb[0] + sufiks(sc) + (vb[1] ? '@' + vb[1] : ''), kunci: null, rekon: null,
-      cakupan: { s: sc.s, npp: sc.npp, nppAktif: !!sc.npp, nppBelum: false, bawah: sc.bawah ? sc.bawah.length - 1 : 0, bawahBelum: !!sc.bawahBelum, bawahAktif: !!sc.bawah } });
+      cakupan: { s: sc.s, npp: sc.npp, nppAktif: !!sc.npp, nppBelum: false, bawah: sc.bawah ? sc.bawah.length - 1 : 0, bawahBelum: !!sc.bawahBelum, bawahAktif: !!sc.bawah, pmiBuka: !!a.pmiBuka } });
   };
   const verU = (u) => ver + sufiks(cakupan(u));
   const byId = () => { const m = {}; rows.forEach((r) => { m[r[0]] = r; }); return m; };
@@ -488,7 +488,7 @@ window.DemoAPI = (() => {
       }
       case 'akses.simpan': {
         const a = d.akses || {};
-        setting.AKSES_DATA = JSON.stringify({ unit: (a.unit || []).filter((x) => x.k || x.n), kol: a.kol || {}, seg: a.seg || SEG_BAWAAN, segV: 3, peran: a.peran || {} });
+        setting.AKSES_DATA = JSON.stringify({ unit: (a.unit || []).filter((x) => x.k || x.n), kol: a.kol || {}, seg: a.seg || SEG_BAWAAN, segV: 3, peran: a.peran || {}, pmiBuka: a.pmiBuka === undefined ? aksesD().pmiBuka : !!a.pmiBuka });
         ver = String(Date.now()); sver = String(Date.now());
         return ok({ akses: aksesD(), ver, setting }, 'Pengaturan akses data disimpan. Berlaku langsung untuk semua pengguna.');
       }

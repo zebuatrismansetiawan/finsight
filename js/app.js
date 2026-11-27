@@ -105,6 +105,8 @@ const M = (() => {
   }
 
   const risiko = (pr) => cache('r|' + pr, () => byProduk(pr).filter((d) => d.risiko));
+  /** v1.8: daftar menu Penagihan — debitur berisiko tanpa produk KUR PMI */
+  const tagih = () => cache('tagih', () => risiko('ALL').filter((d) => d.pr !== 'KUR PMI'));
   const gerak = (pr) => cache('g|' + pr, () => byProduk(pr).filter((d) => d.mv !== 0));
 
   /** Agregat snapshot periode p: { n, aktif, plafon, baki, kol:{1..5:{n,b}}, lunas, perProduk:{kode:{n,plafon,baki}} } */
@@ -137,7 +139,7 @@ const M = (() => {
   }
   const delta = (a, b) => (b ? ((a - b) / Math.abs(b)) * 100 : null);
 
-  return { decode, reset, byProduk, kpi, perProduk, kol, risiko, gerak, snap, periodes, agregat, delta };
+  return { decode, reset, byProduk, kpi, perProduk, kol, risiko, tagih, gerak, snap, periodes, agregat, delta };
 })();
 
 // ============================================================================
@@ -174,7 +176,7 @@ const SEG = (() => {
 // ============================================================================
 //  APLIKASI
 // ============================================================================
-const VERSI_APP = '1.7.0';   // versi frontend (config.js milik Anda tidak perlu diubah)
+const VERSI_APP = '1.8.0';   // versi frontend (config.js milik Anda tidak perlu diubah)
 const App = (() => {
   const { $, $$, esc, ic } = U;
   let halaman = 'dashboard';
@@ -200,7 +202,33 @@ const App = (() => {
       return true;
     } catch (e) { return false; }
   }
-  function hapusLokal() { Object.keys(localStorage).filter((k) => k.indexOf('fs_cache_') === 0).forEach((k) => localStorage.removeItem(k)); }
+  function hapusLokal() { DSC.clear(); Object.keys(localStorage).filter((k) => k.indexOf('fs_cache_') === 0).forEach((k) => localStorage.removeItem(k)); }
+
+  // ---------- v1.8: cache dataset per tanggal base data (memori) ----------
+  // Ganti tanggal / kembali ke terbaru tampil instan dari cache, lalu divalidasi ulang di belakang layar (versi sama = notModified).
+  const DSC = new Map(), DSC_MAKS = 4;
+  function dscSimpan(t, ds) {
+    if (!ds || !ds.rows) return;
+    DSC.delete(t); DSC.set(t, ds);
+    while (DSC.size > DSC_MAKS) DSC.delete(DSC.keys().next().value);
+  }
+  const hemat = () => { const c = navigator.connection; return !!(c && (c.saveData || /(^|-)2g$/.test(c.effectiveType || ''))); };
+  const saatLuang = (f) => (window.requestIdleCallback ? requestIdleCallback(f, { timeout: 4000 }) : setTimeout(f, 1200));
+  /** Unduh lebih dulu data 1 tanggal (berbagi permintaan dengan klik pengguna bila bersamaan). */
+  async function ambilTgl(t) {
+    if (DSC.has(t)) return DSC.get(t);
+    const r = await Api.call('data.debitur', { tgl: t }, { timeout: 120000 });
+    if (r.success && r.data.ds) { dscSimpan(t, r.data.ds); return r.data.ds; }
+    return null;
+  }
+  /** Saat perangkat luang: siapkan 2 tanggal sebelumnya (dilewati bila mode hemat data / jaringan 2G). */
+  function prefetchTgl() {
+    const L = (S.ds && S.ds.tgls) || [];
+    if (L.length < 2 || hemat() || document.hidden) return;
+    const daftar = L.slice(1, 3).map((x) => x.t).filter((t) => !DSC.has(t));
+    if (!daftar.length) return;
+    saatLuang(async () => { for (const t of daftar) { if (!Api.sesi) return; await ambilTgl(t); } });
+  }
 
   /** v1.6: produk yang ada di data tetapi belum ada di master produk (mis. BCM, SCF, OTHER) ikut ditampilkan. */
   const PRODUK_TAMBAHAN = { BCM: ['BCM', '#0EA5E9'], SCF: ['SCF (Supply Chain Financing)', '#10B981'], 'KPP SUPPLY': ['KPP Supply', '#6366F1'], 'KPP DEMAND': ['KPP Demand', '#14B8A6'] };
@@ -215,6 +243,7 @@ const App = (() => {
   }
   function terapkanData(ds) {
     S.ds = ds; S.ver = ds.ver;
+    dscSimpan(S.tglPilih || '', ds);                          // v1.8
     S.D = M.decode(ds);
     lengkapiProduk();
     S.prodMap = {}; S.produk.forEach((p) => { S.prodMap[p.kode] = p; });
@@ -266,9 +295,13 @@ const App = (() => {
     const calls = [{ action: 'log.list', data: {} }];
     const admin = S.me.peran === 'Admin';
     if (admin) calls.push({ action: 'user.list' }, { action: 'setting.get' }, { action: 'template.list' }, { action: 'blast.status' });
+    const pipa = typeof PIPE !== 'undefined' && boleh('pipeline') && !PIPE.data;     // v1.8: menu Pipeline terbuka instan
+    if (pipa) calls.push({ action: 'pipeline.list', data: {} });
     const r = await Api.batch(calls);
     if (!r.success) return;
     const [lg, us, st, tp, bs] = r.data.results;
+    const pl = pipa ? r.data.results[calls.length - 1] : null;
+    if (pl && pl.success && !PIPE.data) { PIPE.data = pl.data; PIPE.t = Date.now(); PIPE.galat = ''; }
     if (lg && lg.success) { S.log = lg.data; S.logQ = {}; }
     if (admin) {
       if (us && us.success) S.users = us.data.users;
@@ -278,6 +311,7 @@ const App = (() => {
     }
     notifikasi();
     if (['log', 'pengguna', 'pengaturan', 'template'].includes(halaman)) render();
+    prefetchTgl();                                            // v1.8: filter tanggal instan
   }
 
   // ---------- Shell (sidebar + header + footer) ----------
@@ -454,9 +488,9 @@ const App = (() => {
     const bm = $('.bn-menu');
     if (bm) bm.classList.toggle('on', !$$('.bn-i[data-bn]').some((a) => a.dataset.bn === induk));
     const br = $('#bnRisk');
-    if (br && S.D.length) br.hidden = !M.kpi('ALL').risiko;
+    if (br && S.D.length) br.hidden = !M.tagih().length;               // v1.8: lencana Penagihan tanpa KUR PMI
     const nr = $('#navRisk');
-    if (nr && S.D.length) { const n = M.kpi('ALL').risiko; nr.textContent = n ? U.num(n) : ''; nr.hidden = !n; }
+    if (nr && S.D.length) { const n = M.tagih().length; nr.textContent = n ? U.num(n) : ''; nr.hidden = !n; }
   }
 
   // ---------- Router ----------
@@ -553,16 +587,38 @@ const App = (() => {
     if (t === tglTerbaru()) t = '';
     if (t === S.tglPilih && S.ds && (S.ds.tgl === t || !t)) return;
     const lama = S.tglPilih;
+    const kabar = (ds) => U.toast(t ? 'Menampilkan posisi data ' + U.tgl(ds.tgl, true) + '.' : 'Kembali ke data terbaru' + (ds.tgl ? ' (' + U.tgl(ds.tgl, true) + ')' : '') + '.', 'info', 2200);
+    const c = DSC.get(t);
+    if (c) {                                                  // v1.8: instan dari cache, validasi ulang di belakang layar
+      S.tglPilih = t;
+      terapkanData(c);
+      if (!t) simpanLokal();
+      render({ tetap: true });
+      kabar(c);
+      validasiTgl(t, c.ver);
+      return;
+    }
     S.tglPilih = t; S.syncing = true; updatePill();
     $$('.tgl-btn').forEach((b) => b.classList.add('busy'));
     const r = await Api.call('data.debitur', { tgl: t }, { timeout: 120000 });
     S.syncing = false; updatePill();
+    if (S.tglPilih !== t) return;                             // pengguna sudah memilih tanggal lain
     if (!r.success || !r.data.ds) { S.tglPilih = lama; $$('.tgl-btn').forEach((b) => b.classList.remove('busy')); return U.toast(r.message || 'Gagal memuat data tanggal itu.', 'err'); }
     if (r.data.produk) S.produk = r.data.produk;
     terapkanData(r.data.ds);
     if (!t) simpanLokal();
     render({ tetap: true });
-    U.toast(t ? 'Menampilkan posisi data ' + U.tgl(r.data.ds.tgl, true) + '.' : 'Kembali ke data terbaru' + (r.data.ds.tgl ? ' (' + U.tgl(r.data.ds.tgl, true) + ')' : '') + '.', 'info', 2600);
+    kabar(r.data.ds);
+  }
+  /** v1.8: periksa versi data tanggal yang tampil dari cache (server menjawab notModified tanpa memuat dataset). */
+  async function validasiTgl(t, ver) {
+    const r = await Api.call('data.debitur', { tgl: t, ver });
+    if (!r.success || !r.data || r.data.notModified || !r.data.ds) return;
+    if (r.data.produk) S.produk = r.data.produk;
+    if (S.tglPilih !== t) { dscSimpan(t, r.data.ds); return; }
+    terapkanData(r.data.ds);
+    if (!t) simpanLokal();
+    notifikasi(); renderAman();
   }
   /** Tombol filter tanggal base data (Dashboard, Kualitas Kredit, Daftar Debitur, Penagihan). */
   function tglChip() {
@@ -586,7 +642,12 @@ const App = (() => {
       Object.keys(grup).map((k) => `<div class="pt-m">${esc(U.periodeLabel(k, true))}</div>` + grup[k].map((x, i) =>
         `<button class="pop-i ${x.t === t ? 'on' : ''}" data-t="${esc(x.t)}">${ic('calendar', 15)}<span class="tnum">${esc(U.tgl(x.t))}</span>${x.t === L[0].t ? '<em class="pos">terbaru</em>' : `<em>${U.num(x.n)} baris</em>`}</button>`).join('')).join('') +
       `</div><div class="pop-f">Data mengikuti <b>Tanggal Base Data</b> di database (Import Data). Bawaan selalu tanggal terbaru.</div>`, 'pop-per pop-tglw');
-    el.querySelectorAll('[data-t]').forEach((b) => b.onclick = () => { tutupPopover(); pilihTgl(b.dataset.t); });
+    el.querySelectorAll('[data-t]').forEach((b) => {
+      b.onclick = () => { tutupPopover(); pilihTgl(b.dataset.t); };
+      // v1.8: mulai unduh saat kursor diarahkan / jari menekan — klik langsung memakai permintaan yang sama
+      const awal = () => { const x = b.dataset.t === tglTerbaru() ? '' : b.dataset.t; if (!DSC.has(x) && !hemat()) ambilTgl(x); };
+      b.addEventListener('pointerenter', awal, { once: true }); b.addEventListener('pointerdown', awal, { once: true });
+    });
   }
 
   async function muatMeta() {
@@ -605,10 +666,10 @@ const App = (() => {
   let notifItems = [];
   function notifikasi() {
     if (!S.D.length) return;
-    const k = M.kpi('ALL');
+    const T = M.tagih();                                                  // v1.8: sama dengan daftar Penagihan (tanpa KUR PMI)
     const it = [];
-    if (k.risiko) it.push({ ic: 'alert', c: 'neg', t: `${U.num(k.risiko)} debitur berisiko gagal bayar`, s: `Total kekurangan saldo ${U.rpS(k.kurang)}`, go: 'risiko' });
-    const h3 = S.D.filter((d) => d.risiko && d.dd !== null && d.dd <= 3).length;
+    if (T.length) it.push({ ic: 'alert', c: 'neg', t: `${U.num(T.length)} debitur berisiko gagal bayar`, s: `Total kekurangan saldo ${U.rpS(T.reduce((a, d) => a + d.kurang, 0))}`, go: 'risiko' });
+    const h3 = T.filter((d) => d.dd !== null && d.dd <= 3).length;
     if (h3) it.push({ ic: 'calclock', c: 'warn', t: `${U.num(h3)} debitur berisiko jatuh tempo ≤ 3 hari`, s: 'Prioritaskan penagihan preventif', go: 'risiko' });
     const turun = S.D.filter((d) => d.mv > 0).length;
     if (turun) it.push({ ic: 'downtrend', c: 'warn', t: `${U.num(turun)} debitur turun kolektibilitas bulan ini`, s: 'Lihat tabel pergerakan Kol.', go: 'kualitas' });

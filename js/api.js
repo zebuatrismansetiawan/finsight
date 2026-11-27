@@ -31,6 +31,16 @@ const Api = (() => {
     catch (e) { return 0; }
   }
 
+  /** v1.8: jelaskan halaman HTML dari Apps Script (batas waktu / kuota / akses deployment) */
+  function galatHtml(t) {
+    t = String(t || '');
+    if (!/<html|<!doctype/i.test(t)) return 'Respons server tidak valid.';
+    if (/maximum execution time|batas waktu/i.test(t)) return 'Proses di server melebihi batas waktu Apps Script. Coba lagi; untuk data sangat besar jalankan per bagian.';
+    if (/too many times|quota|Service invoked/i.test(t)) return 'Kuota harian Google Apps Script sedang habis/terbatas. Tunggu beberapa menit lalu coba lagi.';
+    if (/accounts\.google\.com|ServiceLogin|Request Access|You need access/i.test(t)) return 'Respons server bukan JSON. Pastikan Web App di-deploy dengan akses "Anyone".';
+    return 'Apps Script mengembalikan halaman galat (bukan JSON). Coba lagi beberapa saat.';
+  }
+
   async function kirim(body, timeout = 45000) {
     if (DEMO) {
       if (!window.DemoAPI) throw new Error('Modul demo belum termuat.');
@@ -46,7 +56,7 @@ const Api = (() => {
       });
       const txt = await res.text();
       try { return JSON.parse(txt); }
-      catch (e) { throw new Error(/<html/i.test(txt) ? 'Respons server bukan JSON. Pastikan Web App di-deploy dengan akses "Anyone".' : 'Respons server tidak valid.'); }
+      catch (e) { throw new Error(galatHtml(txt)); }
     } finally { clearTimeout(t); }
   }
 
